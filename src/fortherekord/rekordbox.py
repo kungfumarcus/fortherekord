@@ -47,7 +47,7 @@ def clean_artist_name(artist: str, exclusions: List[str] = None) -> str:
     return cleaned.strip()
 
 
-def load_rekordbox_library(library_path: Path) -> ET.ElementTree:
+def load_rekordbox_xml(library_path: Path) -> ET.ElementTree:
     if not library_path.exists():
         raise FileNotFoundError(f"Library file not found: {library_path}")
     
@@ -73,7 +73,7 @@ def get_collection_tracks(library_xml: ET.ElementTree) -> Dict[str, RekordboxTra
     return tracks
 
 
-def parse_track_from_xml(track_elem: ET.Element) -> Dict:
+def parse_track_from_xml(track_elem: ET.Element) -> RekordboxTrack:
     """Parse track from XML element - simple like PowerShell."""
     attrs = track_elem.attrib
     
@@ -186,11 +186,11 @@ def process_tracks_for_playlists(playlists: Dict[str, RekordboxPlaylist], collec
         playlist.tracks = get_tracks_from_playlist(playlist, collection_tracks)
 
 
-def parse_rekordbox_library(library_path: str) -> tuple[List[RekordboxTrack], List[RekordboxPlaylist]]:
+def load_rekordbox_library(library_path: str) -> tuple[List[RekordboxTrack], List[RekordboxPlaylist]]:
     """Parse Rekordbox library and return tracks and playlists."""
     library_path = Path(library_path)
     
-    library_xml = load_rekordbox_library(library_path)
+    library_xml = load_rekordbox_xml(library_path)
     
     collection_tracks = get_collection_tracks(library_xml)
     tracks = list(collection_tracks.values())

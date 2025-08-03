@@ -115,3 +115,58 @@ class TestValidateFilePaths:
             errors = validate_file_paths(valid_path, invalid_path)
             assert len(errors) == 1
             assert "File not found" in errors[0]
+
+
+class TestFileUtilsErrorHandling:
+    """Test error handling in file_utils functions."""
+    
+    def test_save_json_permission_error(self):
+        """Test save_json handling of permission errors."""
+        data = {"test": "data"}
+        
+        # Mock open to raise PermissionError
+        with patch('builtins.open', side_effect=PermissionError("Permission denied")):
+            with pytest.raises(PermissionError):
+                save_json(data, Path("test.json"))
+    
+    def test_save_json_disk_full_error(self):
+        """Test save_json handling of disk space errors."""
+        data = {"test": "data"}
+        
+        # Mock open to raise OSError (disk full)
+        with patch('builtins.open', side_effect=OSError("No space left on device")):
+            with pytest.raises(OSError):
+                save_json(data, Path("test.json"))
+    
+    def test_load_json_permission_error(self):
+        """Test load_json handling of permission errors."""
+        # Create a file then mock permission error
+        with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as f:
+            file_path = Path(f.name)
+            f.write(b'{"test": "data"}')
+        
+        try:
+            # Mock open to raise PermissionError  
+            with patch('builtins.open', side_effect=PermissionError("Permission denied")):
+                with pytest.raises(PermissionError):
+                    load_json(file_path)
+        finally:
+            file_path.unlink()
+    
+    def test_save_json_serialization_error(self):
+        """Test save_json handling of non-serializable data."""
+        # Create data that can't be JSON serialized
+        class NonSerializable:
+            pass
+        
+        data = {"obj": NonSerializable()}
+        
+        with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as f:
+            file_path = Path(f.name)
+        
+        try:
+            with pytest.raises(TypeError):
+                save_json(data, file_path)
+        finally:
+            if file_path.exists():
+                file_path.unlink()

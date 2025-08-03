@@ -152,7 +152,7 @@ track = RekordboxTrack(
     title="Song Title",
     artist="Artist Name",
     album="Album Name",
-    bmp=128.0,
+    bpm=128.0,
     key="Am"
 )
 
@@ -177,7 +177,7 @@ print(f"{track.artist} - {track.title}")
 
 The project maintains comprehensive test coverage with two testing tiers:
 
-### Unit Tests (77% coverage)
+### Unit Tests
 - `test_models.py`: Data model validation and class behavior
 - `test_config.py`: Configuration loading and validation
 - `test_rekordbox.py`: XML parsing functionality  
@@ -252,12 +252,13 @@ Proper exception handling throughout, especially in file operations and API call
 - **Clean imports**: Removed unused functions and duplicate code
 
 ### Current Status
-- **111/111 unit tests passing**: All functionality fully validated and working
-- **5/5 E2E tests implemented**: Complete end-to-end workflow validation
-- **77% Test Coverage**: Comprehensive test suite covering all modules and core functionality
-- **Clean architecture**: Modular design with clear separation of concerns  
-- **Class-based models**: Dot notation access throughout (`track.title` vs `track['title']`)
-- **Production Ready**: Comprehensive error handling, configuration validation, CLI interface, and realistic testing
+- All unit tests passing: Functionality fully validated and working
+- E2E tests implemented: Complete end-to-end workflow validation
+- Test Coverage: Comprehensive test suite covering all modules and core functionality
+- Clean architecture: Modular design with clear separation of concerns  
+- Class-based models: Clean dot notation access throughout (`track.title` vs `track['title']`)
+- Function naming: Updated to `load_rekordbox_library` for better clarity
+- Production Ready: Comprehensive error handling, configuration validation, CLI interface, and realistic testing
 
 **⚠️ URGENT: E2E Testing Issue Identified**
 The E2E tests currently use fake test tracks that won't match in Spotify, making them incomplete for testing real workflows. Additionally, they use real Spotify credentials which could pollute the user's actual account. **Next session priority**: Redesign E2E testing approach to either:
@@ -275,6 +276,7 @@ The project now has complete implementation with both unit and E2E test coverage
 4. Add configuration options to `config.yaml` schema
 5. Update documentation for new functionality
 6. **Batch Files**: Follow the minimal style convention - copy the approach used in existing `.bat` files (simple, direct commands without verbose output)
+7. **Documentation Style**: Avoid specific numbers (test counts, coverage percentages) and unicode icons/checkboxes in README files
 
 ## License
 
@@ -297,18 +299,18 @@ The project now has complete implementation with both unit and E2E test coverage
 ### AI Rules
 
 **Code Simplicity Requirements**:
-- Write code as simply as possible - match PowerShell hashtable approach with dictionaries
-- No complex object-oriented patterns or unnecessary abstractions
-- Use simple functions over classes wherever possible
-- Direct data access over property methods or getters/setters
+- Write code as simply as possible using clean Python patterns
+- Use simple class-based models with dot notation access for better IDE support
+- Keep functions small and focused on single responsibilities  
+- Direct attribute access over complex property methods or getters/setters
 - Minimal type hints - only where truly beneficial
 
 **Implementation Approach**:
 - Always implement the simplest solution first
 - Remove complexity before adding features
-- Use basic Python data structures (dict, list) over custom classes
-- Match PowerShell's direct XML attribute access patterns
-- Keep functions small and focused on single responsibilities
+- Use simple classes for data models (`RekordboxTrack`, `RekordboxPlaylist`) with dot notation
+- Keep functions focused and testable
+- Maintain clear separation between data and behavior
 
 **Decision Making**:
 - If unsure about any choices you are making, stop and ask for clarification
@@ -317,10 +319,10 @@ The project now has complete implementation with both unit and E2E test coverage
 - Maintain identical functionality before adding enhancements
 
 **Code Style**:
-- No verbose comments or docstrings during initial implementation
-- Focus on readable code over documentation
+- Clean, readable code with appropriate comments where needed
+- Focus on maintainable code patterns
 - Use Python standards for naming and structure
-- Keep it maintainable but not over-engineered
+- Keep it simple but well-structured
 
 **Always Update Documentation**:
 - Update the root README.md whenever content should be changed based on the latest state of your context
@@ -329,9 +331,11 @@ The project now has complete implementation with both unit and E2E test coverage
 - Document new CLI flags or configuration options immediately
 - Maintain the AI Rules section when behavioral guidelines change
 - Update Current Status section to reflect completed work accurately
+- **Do not include specific numbers**: Avoid test counts, coverage percentages, or other metrics that change frequently
+- **No icons or checkboxes**: Keep documentation clean and readable in all contexts without unicode symbols
 
 **Architecture Decisions**:
-- **Data Models**: Dictionary-based approach with explicit field definitions for maintainability and clarity
+- **Data Models**: Class-based approach with simple constructors and dot notation access for maintainability and IDE support
 - **Configuration**: YAML over XML (user explicitly agreed), stored in standard config location  
 - **CLI Framework**: Click with Python-standard flag naming
 - **Package Management**: pyproject.toml (modern Python standard)
@@ -484,25 +488,25 @@ The user wants to maintain identical functionality first, then enhance with Pyth
 
 ### Current Status
 
-**Core Infrastructure**: Complete implementation with simplified approach:
+**Core Infrastructure**: Complete implementation with clean class-based approach:
 - YAML configuration management with validation
 - CLI interface with all required flags
-- Simple dictionary-based data structures (no complex dataclasses)
+- Simple class-based data structures with dot notation access
 - Essential utility functions for text processing and JSON handling
 - Unit tests covering core functionality
 
-**Rekordbox XML Parsing**: Fully implemented and simplified:
-- XML library loading with simple error handling
-- Direct track metadata extraction using XML attributes (matching PowerShell approach)
-- Simple playlist extraction with track ID lists
+**Rekordbox XML Parsing**: Fully implemented with clean architecture:
+- XML library loading with proper error handling
+- Track metadata extraction using clean class models
+- Playlist extraction with track ID lists
 - Text processing matching PowerShell logic exactly
-- Dictionary-based approach throughout (no object-oriented complexity)
+- Class-based approach throughout for better maintainability
 
-**Code Style Matches PowerShell**:
-- Uses simple dictionaries like PowerShell hashtables (`@{}`)
-- Direct XML element access like PowerShell (`$track.Name` → `track['title']`)
-- Simple function-based approach instead of class hierarchies
-- Minimal abstractions, maximum simplicity
+**Code Style Matches PowerShell Concepts**:
+- Uses simple class instances with dot notation like PowerShell objects  
+- Direct XML element access patterns adapted to Python (`$track.Name` → `track.title`)
+- Simple function-based approach with clean data models
+- Minimal abstractions, maximum clarity
 
 **Original PowerShell Scripts Analyzed**: Located in `/ps1` folder, providing complete requirements:
 - `Update-RekordboxLibrary.ps1`: XML processing, track normalization, playlist extraction
@@ -511,18 +515,20 @@ The user wants to maintain identical functionality first, then enhance with Pyth
 - Matching algorithm and scoring system documented
 
 **Implementation Status**:
-- ✅ **Configuration Management**: YAML-based with Pydantic validation
-- ✅ **Rekordbox XML Parsing**: Complete library and playlist parsing  
-- ✅ **Spotify Authentication**: OAuth implementation with spotipy
-- ✅ **Track Matching Engine**: Fuzzy matching with configurable thresholds
-- ✅ **Playlist Name Processing**: Supports `spotifyReplaceInPlaylistName` configuration
-- ✅ **Main Sync Workflow**: End-to-end synchronization implemented
-- ⚠️ **Test Suite**: Needs updating for latest changes
-- 🔄 **Documentation**: Continuously updated per AI Rules
+- Configuration Management: YAML-based with Pydantic validation
+- Rekordbox XML Parsing: Complete library and playlist parsing  
+- Spotify Authentication: OAuth implementation with spotipy
+- Track Matching Engine: Fuzzy matching with configurable thresholds
+- Playlist Name Processing: Supports `spotifyReplaceInPlaylistName` configuration
+- Main Sync Workflow: End-to-end synchronization implemented
+- Test Suite: Comprehensive unit tests with good coverage
+- Function Renaming: Updated `parse_rekordbox_library` to `load_rekordbox_library`
+- Class-Based Models: Clean dot notation access throughout codebase
+- Documentation: Continuously updated per AI Rules
 
-**Next Implementation**: Comprehensive testing and refinement
+**Next Implementation**: E2E testing improvements and additional feature development
 
-**Testing Standards**: Unit tests updated to work with simplified dictionary-based approach using pytest framework.
+**Testing Standards**: Unit tests work with class-based models using pytest framework with comprehensive coverage.
 
 ### Future PowerShell Features to Consider
 

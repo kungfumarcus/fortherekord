@@ -13,7 +13,7 @@ from unittest.mock import patch, mock_open
 from fortherekord.config import (
     Config, RekordboxConfig, SpotifyConfig, TextProcessingConfig,
     PlaylistsConfig, MatchingConfig, TextReplacement,
-    get_config_path, load_config, save_config, create_example_config,
+    get_config_path, load_config, save_config, create_default_config,
     validate_config
 )
 
@@ -134,20 +134,22 @@ class TestConfigFileOperations:
         finally:
             config_path.unlink()
     
-    def test_create_example_config(self):
-        """Test creating example configuration."""
+    def test_create_default_config(self):
+        """Test creating default configuration."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             config_path = Path(f.name)
         
         try:
-            create_example_config(config_path)
-            assert config_path.exists()
-            
-            with open(config_path, 'r') as f:
-                data = yaml.safe_load(f)
-            assert 'rekordbox' in data
-            assert 'spotify' in data
-            assert data['spotify']['client_id'] == 'your_spotify_client_id'
+            # Mock environment variables to ensure predictable output
+            with patch.dict('os.environ', {}, clear=True):
+                create_default_config(config_path)
+                assert config_path.exists()
+                
+                with open(config_path, 'r') as f:
+                    data = yaml.safe_load(f)
+                assert 'rekordbox' in data
+                assert 'spotify' in data
+                assert data['spotify']['client_id'] == 'your_spotify_client_id'
         finally:
             config_path.unlink()
 

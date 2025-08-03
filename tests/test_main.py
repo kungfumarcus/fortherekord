@@ -149,7 +149,7 @@ invalid_yaml: [
         assert result.exit_code == 1
         assert "Configuration errors found" in result.output
     
-    @patch('fortherekord.main.parse_rekordbox_library')
+    @patch('fortherekord.main.load_rekordbox_library')
     @patch('fortherekord.main.SpotifyClient')
     @patch('fortherekord.main.validate_config')
     @patch('fortherekord.main.load_config')
@@ -202,7 +202,7 @@ invalid_yaml: [
         assert "Loaded configuration" in result.output
     
     @patch('fortherekord.main.SpotifyClient')
-    @patch('fortherekord.main.parse_rekordbox_library')
+    @patch('fortherekord.main.load_rekordbox_library')
     @patch('fortherekord.main.validate_config')
     @patch('fortherekord.main.load_config')
     def test_main_keyboard_interrupt(self, mock_load_config, mock_validate_config,
@@ -217,7 +217,7 @@ invalid_yaml: [
         )
         mock_validate_config.return_value = []
         
-        # Make parse_rekordbox_library raise KeyboardInterrupt
+        # Make load_rekordbox_library raise KeyboardInterrupt
         mock_parse_library.side_effect = KeyboardInterrupt()
         
         result = self.runner.invoke(main, [])
@@ -225,7 +225,7 @@ invalid_yaml: [
         assert "Synchronization cancelled by user" in result.output
     
     @patch('fortherekord.main.SpotifyClient')
-    @patch('fortherekord.main.parse_rekordbox_library')
+    @patch('fortherekord.main.load_rekordbox_library')
     @patch('fortherekord.main.validate_config')
     @patch('fortherekord.main.load_config')
     def test_main_exception_handling(self, mock_load_config, mock_validate_config,
@@ -240,7 +240,7 @@ invalid_yaml: [
         )
         mock_validate_config.return_value = []
         
-        # Make parse_rekordbox_library raise a general exception
+        # Make load_rekordbox_library raise a general exception
         mock_parse_library.side_effect = Exception("Test error")
         
         result = self.runner.invoke(main, ['--verbose'])
@@ -282,3 +282,123 @@ class TestCLIWorkflow(MainTestBase):
         # Test version
         version_result = self.runner.invoke(main, ['--version'])
         assert version_result.exit_code == 0
+
+
+class TestMainWorkflow(MainTestBase):
+    """Test the main synchronization workflow."""
+    
+    @patch('fortherekord.main.load_config')
+    @patch('fortherekord.main.validate_config')
+    @patch('fortherekord.main.load_rekordbox_library')
+    @patch('fortherekord.main.SpotifyClient')
+    def test_main_workflow_execution_success(self, mock_spotify_client, mock_load_library,
+                                           mock_validate_config, mock_load_config):
+        """Test successful execution of main sync workflow."""
+        # Setup mocks
+        mock_load_config.return_value = self._create_valid_config()
+        mock_validate_config.return_value = []  # No validation errors
+        
+        # Mock library data
+        mock_load_library.return_value = (
+            [{'track_id': '1', 'title': 'Test Track', 'artist': 'Test Artist'}],
+            [{'name': 'Test Playlist', 'track_ids': ['1']}]
+        )
+        
+        # Mock Spotify client
+        mock_client_instance = MagicMock()
+        mock_client_instance.get_saved_tracks.return_value = []
+        mock_client_instance.get_user_playlists.return_value = []
+        mock_client_instance.create_playlist.return_value = {'playlist_id': 'test_id', 'name': 'rb_Test Playlist'}
+        mock_client_instance.replace_playlist_tracks.return_value = None
+        mock_spotify_client.return_value = mock_client_instance
+        
+        # Run main workflow
+        result = self.runner.invoke(main, [])
+        
+        # Should complete successfully
+        if result.exit_code != 0:
+            print(f"Command failed with exit code {result.exit_code}")
+            print(f"Output: {result.output}")
+            print(f"Exception: {result.exception}")
+        
+        assert result.exit_code == 0
+        assert "Sync completed" in result.output
+    
+    @patch('fortherekord.main.load_config')
+    @patch('fortherekord.main.validate_config')
+    def test_main_workflow_keyboard_interrupt(self, mock_validate_config, mock_load_config):
+        """Test that KeyboardInterrupt is handled gracefully."""
+        mock_load_config.return_value = self._create_valid_config()
+        mock_validate_config.return_value = []
+        
+        # Mock library loading to raise KeyboardInterrupt
+        with patch('fortherekord.main.load_rekordbox_library', side_effect=KeyboardInterrupt):
+            result = self.runner.invoke(main, [])
+            
+            assert result.exit_code == 1
+            assert "cancelled by user" in result.output
+    
+    @patch('fortherekord.main.load_config')
+    @patch('fortherekord.main.validate_config')
+    def test_main_workflow_exception_handling(self, mock_validate_config, mock_load_config):
+        """Test that general exceptions are handled properly."""
+        mock_load_config.return_value = self._create_valid_config()
+        mock_validate_config.return_value = []
+        
+        # Mock library loading to raise a general exception
+        with patch('fortherekord.main.load_rekordbox_library', side_effect=Exception("Test error")):
+            result = self.runner.invoke(main, [])
+            
+            assert result.exit_code == 1
+            assert "Error during synchronization" in result.output
+    
+    @patch('fortherekord.main.load_config')
+    @patch('fortherekord.main.validate_config')
+    def test_main_workflow_exception_handling_verbose(self, mock_validate_config, mock_load_config):
+        """Test that verbose mode shows full traceback on errors."""
+        mock_load_config.return_value = self._create_valid_config()
+        mock_validate_config.return_value = []
+        
+        # Mock library loading to raise a general exception
+        with patch('fortherekord.main.load_rekordbox_library', side_effect=Exception("Test error")):
+            result = self.runner.invoke(main, ['--verbose'])
+            
+            assert result.exit_code == 1
+            assert "Error during synchronization" in result.output
+    
+    @patch('fortherekord.main.load_config')
+    @patch('fortherekord.main.validate_config')
+    @patch('fortherekord.main.load_rekordbox_library')
+    @patch('fortherekord.main.SpotifyClient')
+    def test_playlist_processing_with_ignore_list(self, mock_spotify_client, mock_load_library,
+                                                mock_validate_config, mock_load_config):
+        """Test that ignored playlists are skipped."""
+        # Create config with ignored playlists
+        config = self._create_valid_config()
+        config.spotify.ignore_playlists = ['ignored_playlist']
+        mock_load_config.return_value = config
+        mock_validate_config.return_value = []
+        
+        # Mock library with ignored playlist
+        mock_load_library.return_value = (
+            [{'track_id': '1', 'title': 'Test Track', 'artist': 'Test Artist'}],
+            [
+                {'name': 'ignored_playlist', 'track_ids': ['1']},
+                {'name': 'normal_playlist', 'track_ids': ['1']}
+            ]
+        )
+        
+        # Mock Spotify client
+        mock_client_instance = MagicMock()
+        mock_client_instance.get_saved_tracks.return_value = []
+        mock_client_instance.get_user_playlists.return_value = []
+        mock_client_instance.create_playlist.return_value = {'playlist_id': 'test_id', 'name': 'rb_normal_playlist'}
+        mock_spotify_client.return_value = mock_client_instance
+        
+        result = self.runner.invoke(main, [])
+        
+        # Should only process the non-ignored playlist
+        assert result.exit_code == 0
+        assert "normal_playlist" in result.output
+        # The ignored playlist should not trigger a create_playlist call
+        mock_client_instance.create_playlist.assert_called_once()

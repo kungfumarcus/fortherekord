@@ -69,9 +69,11 @@ class TestLibraryLoading(RekordboxTestBase):
         xml_content = self._create_basic_library_xml()
         
         with patch("builtins.open", mock_open(read_data=xml_content)):
-            xml = load_rekordbox_library(Path("test.xml"))
-            assert xml is not None
-            assert xml.getroot().tag == "DJ_PLAYLISTS"
+            tracks, playlists = load_rekordbox_library(Path("test.xml"))
+            assert tracks is not None
+            assert playlists is not None
+            assert isinstance(tracks, list)
+            assert isinstance(playlists, list)
 
 
 class TestTrackParsing(RekordboxTestBase):
@@ -396,3 +398,99 @@ class TestTrackNormalization:
         
         normalized = normalize_track_metadata(track, config)
         assert normalized.title == "Song Title"
+
+
+class TestRekordboxErrorHandling(RekordboxTestBase):
+    """Test error handling in rekordbox functions."""
+    
+    @patch("pathlib.Path.exists", return_value=True)
+    def test_load_rekordbox_library_permission_error(self, mock_exists):
+        """Test load_rekordbox_library handling permission errors."""
+        with patch('builtins.open', side_effect=PermissionError("Permission denied")):
+            with pytest.raises(PermissionError):
+                load_rekordbox_library(Path("test.xml"))
+    
+    @patch("pathlib.Path.exists", return_value=True)
+    def test_load_rekordbox_library_corrupted_xml(self, mock_exists):
+        """Test load_rekordbox_library handling corrupted XML."""
+        corrupted_xml = "<INVALID><XML>Not closed properly"
+        
+        with patch('builtins.open', mock_open(read_data=corrupted_xml)):
+            with pytest.raises(ET.ParseError):
+                load_rekordbox_library(Path("corrupted.xml"))
+    
+    @patch("pathlib.Path.exists", return_value=True)
+    def test_load_rekordbox_library_empty_file(self, mock_exists):
+        """Test load_rekordbox_library handling empty files."""
+        with patch('builtins.open', mock_open(read_data="")):
+            with pytest.raises(ET.ParseError):
+                load_rekordbox_library(Path("empty.xml"))
+    
+    def test_parse_track_from_xml_missing_required_fields(self):
+        """Test parsing track with missing critical fields."""
+        # Track without TrackID
+        track_elem = ET.Element("TRACK")
+        track_elem.set("Name", "Test Track")
+        
+        # Should handle missing TrackID gracefully
+        track = parse_track_from_xml(track_elem)
+        assert track.track_id is None  # Default value for missing attribute
+    
+    def test_get_collection_tracks_no_collection_element(self):
+        """Test getting tracks when COLLECTION element is missing."""
+        root = ET.Element("DJ_PLAYLISTS")
+        # No COLLECTION element
+        library_xml = ET.ElementTree(root)
+        
+        tracks = get_collection_tracks(library_xml)
+        assert tracks == {}
+    
+    def test_get_playlists_no_playlists_element(self):
+        """Test getting playlists when PLAYLISTS element is missing."""
+        root = ET.Element("DJ_PLAYLISTS")
+        # No PLAYLISTS element
+        library_xml = ET.ElementTree(root)
+        
+        playlists = get_playlists(library_xml, [])
+        assert playlists == {}
+    
+    def test_process_tracks_for_playlists_missing_track_ids(self):
+        """Test processing playlists with missing track references."""
+        collection_tracks = {
+            "1": RekordboxTrack(track_id="1", title="Track 1", artist="Artist 1"),
+            "2": RekordboxTrack(track_id="2", title="Track 2", artist="Artist 2")
+        }
+        
+        playlists = {
+            "test": RekordboxPlaylist(name="Test Playlist", track_ids=["1", "999"])  # 999 doesn't exist
+        }
+        
+        # Function doesn't return anything, it modifies playlists in place
+        process_tracks_for_playlists(playlists, collection_tracks)
+        
+        # Should only include existing tracks
+        test_playlist = playlists["test"]
+        assert len(test_playlist.tracks) == 1
+        assert test_playlist.tracks[0].track_id == "1"
+    
+    def test_normalize_track_metadata_edge_cases(self):
+        """Test track normalization with edge case data."""
+        # Track with None/empty values
+        track = RekordboxTrack(
+            title="",
+            artist=None,
+            track_id="1"
+        )
+        
+        config = type('Config', (), {
+            'title_replacements': {},
+            'artist_exclusions': [],
+            'extract_artist_from_title': True,
+            'add_key_to_title': True,
+            'remove_artist_from_title': True
+        })()
+        
+        # Should not crash with empty/None values
+        normalized = normalize_track_metadata(track, config)
+        assert normalized.title == ""
+        assert normalized.artist == ""

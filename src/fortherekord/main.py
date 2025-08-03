@@ -10,7 +10,7 @@ from typing import Optional
 import sys
 
 from .config import load_config, create_default_config, get_config_path, validate_config
-from .rekordbox import parse_rekordbox_library
+from .rekordbox import load_rekordbox_library
 from .spotify import SpotifyClient, clean_playlist_name, clean_track_title_for_spotify
 from .matching import match_rekordbox_to_spotify, boost_liked_tracks, create_match_summary
 
@@ -95,7 +95,7 @@ def main(unmapped: bool, remap: bool, use_cache: bool,
         
         # 1. Parse Rekordbox library
         click.echo("1. Parsing Rekordbox library...")
-        tracks, playlists = parse_rekordbox_library(config_obj.rekordbox.library_path)
+        tracks, playlists = load_rekordbox_library(config_obj.rekordbox.library_path)
         click.echo(f"   Found {len(tracks)} tracks and {len(playlists)} playlists")
         
         # 2. Initialize Spotify client

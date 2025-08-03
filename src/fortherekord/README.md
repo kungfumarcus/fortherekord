@@ -14,7 +14,6 @@ Main Python package for the ForTheRekord application.
 - `matching.py` - Track matching algorithms with fuzzy string matching
 - `search_utils.py` - Text processing and search utilities
 - `file_utils.py` - File operations and JSON handling with proper error handling
-- `utils.py` - Backward compatibility imports from split utility modules
 
 ## Architecture
 

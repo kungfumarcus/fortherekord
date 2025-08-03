@@ -200,7 +200,3 @@ def validate_config(config: Config) -> List[str]:
         errors.append("follow_threshold must be >= 1")
     
     return errors
-
-
-# Alias for compatibility with tests
-create_example_config = create_default_config
