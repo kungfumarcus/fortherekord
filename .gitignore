@@ -49,6 +49,10 @@ tests/e2e/test_*.yaml
 # Configuration (user-specific)
 config.yaml
 
+# Environment files
+.env.local
+.env.test
+
 # Cache files
 *.json
 !example_config.json

@@ -7,23 +7,24 @@ and performance improvements on subsequent runs using the --use-cache flag.
 
 import pytest
 import tempfile
-import yaml
 from pathlib import Path
-import subprocess
-import sys
 import os
 import time
+from .e2e_test_utils import temporary_config, run_fortherekord, get_test_library_path, assert_test_library_exists
 
 
 def test_caching_behavior_and_performance():
     """Test cache creation, loading, and performance improvements."""
+    # Ensure test library exists
+    assert_test_library_exists()
+    
     with tempfile.TemporaryDirectory() as temp_dir:
         cache_dir = os.path.join(temp_dir, "test_cache")
         
         # Create config with caching enabled
         config = {
             'rekordbox': {
-                'library_path': 'tests/e2e/test_library.xml'
+                'library_path': get_test_library_path()
             },
             'spotify': {
                 'client_id': os.environ.get('SPOTIFY_CLIENT_ID', 'test_id'),
@@ -49,21 +50,11 @@ def test_caching_behavior_and_performance():
             }
         }
         
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            yaml.dump(config, f)
-            config_path = f.name
-        
-        try:
-            test_library = Path("tests/e2e/test_library.xml").absolute()
-            assert test_library.exists(), f"Test library not found: {test_library}"
-            
+        # Use shared temporary config utility
+        with temporary_config(config):
             # First run - create cache
             start_time = time.time()
-            result1 = subprocess.run([
-                sys.executable, "-m", "fortherekord",
-                "sync", str(test_library),
-                "--use-cache"
-            ], capture_output=True, text=True, cwd=Path.cwd())
+            result1 = run_fortherekord("--use-cache")
             first_run_time = time.time() - start_time
             
             # Verify cache directory and files were created
@@ -75,11 +66,7 @@ def test_caching_behavior_and_performance():
             
             # Second run - use cache
             start_time = time.time()
-            result2 = subprocess.run([
-                sys.executable, "-m", "fortherekord",
-                "sync", str(test_library),
-                "--use-cache"
-            ], capture_output=True, text=True, cwd=Path.cwd())
+            result2 = run_fortherekord("--use-cache")
             second_run_time = time.time() - start_time
             
             # Second run should indicate cache usage
@@ -95,7 +82,3 @@ def test_caching_behavior_and_performance():
                 f"First run failed: {result1.stderr}"
             assert result2.returncode == 0 or "spotify" in (result2.stdout + result2.stderr).lower(), \
                 f"Second run failed: {result2.stderr}"
-            
-        finally:
-            if os.path.exists(config_path):
-                os.unlink(config_path)

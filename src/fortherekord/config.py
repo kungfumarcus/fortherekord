@@ -2,6 +2,7 @@
 Configuration models and management for ForTheRekord.
 
 Uses Pydantic for validation and YAML for configuration storage.
+Environment variables can be loaded from .env.local for secrets.
 """
 
 from typing import List, Dict, Optional
@@ -9,6 +10,13 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field
 import os
+
+# Load environment variables from .env.local if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv('.env.local')  # Load secrets from .env.local
+except ImportError:
+    pass  # python-dotenv not installed, skip
 
 
 class TextReplacement(BaseModel):
@@ -78,14 +86,25 @@ def load_config(config_path: Optional[Path] = None) -> Config:
         config_path = get_config_path()
     
     if not config_path.exists():
-        # Auto-create default config
+        # Auto-create default config using environment variables
         create_default_config(config_path)
         print(f"Created default configuration at: {config_path}")
-        print("Please edit the configuration file with your settings before running again.")
-        # Return a basic config that will fail validation to prompt user to edit
+        
+        # If we have environment variables, the config might be ready to use
+        if os.environ.get('SPOTIFY_CLIENT_ID') and os.environ.get('SPOTIFY_CLIENT_SECRET'):
+            print("Using Spotify credentials from environment variables.")
+        else:
+            print("Please edit the configuration file with your settings before running again.")
+        
+        # Return a basic config with environment variables if available
         return Config(
-            rekordbox=RekordboxConfig(library_path=""),
-            spotify=SpotifyConfig(client_id="", client_secret="")
+            rekordbox=RekordboxConfig(
+                library_path=os.environ.get('REKORDBOX_LIBRARY_PATH', "")
+            ),
+            spotify=SpotifyConfig(
+                client_id=os.environ.get('SPOTIFY_CLIENT_ID', ""),
+                client_secret=os.environ.get('SPOTIFY_CLIENT_SECRET', "")
+            )
         )
     
     with open(config_path, 'r', encoding='utf-8') as f:
@@ -110,14 +129,16 @@ def save_config(config: Config, config_path: Optional[Path] = None) -> None:
 
 
 def create_default_config(config_path: Optional[Path] = None) -> None:
-    """Create a default configuration file."""
+    """Create a default configuration file using environment variables when available."""
     if config_path is None:
         config_path = get_config_path()
+    else:
+        config_path = Path(config_path)  # Ensure it's a Path object
     
-    # Simple config structure matching PowerShell XML
+    # Use environment variables from .env.local if available, otherwise use placeholders
     default_config = {
         'rekordbox': {
-            'library_path': 'path/to/rekordbox/library.xml'
+            'library_path': os.environ.get('REKORDBOX_LIBRARY_PATH', 'path/to/rekordbox/library.xml')
         },
         'text_processing': {
             'replace_in_title': [
@@ -129,8 +150,8 @@ def create_default_config(config_path: Optional[Path] = None) -> None:
             'prefix': 'rb'
         },
         'spotify': {
-            'client_id': 'your_spotify_client_id',
-            'client_secret': 'your_spotify_client_secret',
+            'client_id': os.environ.get('SPOTIFY_CLIENT_ID', 'your_spotify_client_id'),
+            'client_secret': os.environ.get('SPOTIFY_CLIENT_SECRET', 'your_spotify_client_secret'),
             'ignore_playlists': ['playlist1'],
             'exclude_from_names': ['mytags'],
             'follow_threshold': 3,

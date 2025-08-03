@@ -6,20 +6,20 @@ playlist name changes and track association management.
 """
 
 import pytest
-import tempfile
-import yaml
 from pathlib import Path
-import subprocess
-import sys
 import os
+from .e2e_test_utils import temporary_config, run_fortherekord, get_test_library_path, assert_test_library_exists
 
 
 def test_playlist_remapping_and_management_workflow():
     """Test playlist remapping workflow with --remap flag."""
+    # Ensure test library exists
+    assert_test_library_exists()
+    
     # Create config with playlist remapping rules
     config = {
         'rekordbox': {
-            'library_path': 'tests/e2e/test_library.xml'
+            'library_path': get_test_library_path()
         },
         'spotify': {
             'client_id': os.environ.get('SPOTIFY_CLIENT_ID', 'test_id'),
@@ -45,20 +45,10 @@ def test_playlist_remapping_and_management_workflow():
         }
     }
     
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-        yaml.dump(config, f)
-        config_path = f.name
-    
-    try:
-        test_library = Path("tests/e2e/test_library.xml").absolute()
-        assert test_library.exists(), f"Test library not found: {test_library}"
-        
-        # Run sync with --remap flag to trigger playlist remapping
-        result = subprocess.run([
-            sys.executable, "-m", "fortherekord",
-            "sync", str(test_library),
-            "--remap"
-        ], capture_output=True, text=True, cwd=Path.cwd())
+    # Use shared temporary config utility
+    with temporary_config(config):
+        # Run with --remap flag using shared utility
+        result = run_fortherekord("--remap")
         
         output = result.stdout + result.stderr
         
@@ -88,7 +78,3 @@ def test_playlist_remapping_and_management_workflow():
         ]
         assert any(indicator in output.lower() for indicator in track_indicators), \
             f"No track processing in playlists found. Output: {output}"
-        
-    finally:
-        if os.path.exists(config_path):
-            os.unlink(config_path)

@@ -9,6 +9,13 @@ import tempfile
 import shutil
 from pathlib import Path
 
+# Load environment variables from .env.local for E2E testing
+try:
+    from dotenv import load_dotenv
+    load_dotenv('.env.local')  # Load secrets from .env.local
+except ImportError:
+    pass  # python-dotenv not installed, skip
+
 from fortherekord.models import RekordboxTrack, RekordboxPlaylist
 
 

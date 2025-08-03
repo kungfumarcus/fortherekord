@@ -68,8 +68,10 @@ pytest tests/e2e/
 ```
 Or use the provided batch file:
 ```bash
-tests\e2e\test_e2e.bat
+test_e2e.bat
 ```
+
+**Note**: E2E tests that require Spotify integration need credentials configured in a `.env.local` file (which is also used for general application configuration). See the E2E README for details.
 
 ### All Tests
 ```bash

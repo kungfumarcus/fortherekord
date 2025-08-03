@@ -3,15 +3,16 @@ E2E Test 2: Full Spotify API Integration Workflow
 
 Tests the complete Spotify integration including authentication, track searching,
 and playlist operations. Requires valid Spotify credentials via environment variables.
+
+Credentials should be set in .env.local file:
+SPOTIFY_CLIENT_ID=your_client_id
+SPOTIFY_CLIENT_SECRET=your_client_secret
 """
 
 import pytest
-import tempfile
-import yaml
 from pathlib import Path
-import subprocess
-import sys
 import os
+from .e2e_test_utils import temporary_config, run_fortherekord, get_test_library_path, assert_test_library_exists
 
 
 @pytest.mark.skipif(
@@ -20,10 +21,13 @@ import os
 )
 def test_full_spotify_sync_workflow():
     """Test complete Spotify integration workflow with real API credentials."""
+    # Ensure test library exists
+    assert_test_library_exists()
+    
     # Create config with real Spotify credentials
     config = {
         'rekordbox': {
-            'library_path': 'tests/e2e/test_library.xml'
+            'library_path': get_test_library_path()
         },
         'spotify': {
             'client_id': os.environ.get('SPOTIFY_CLIENT_ID'),
@@ -37,27 +41,17 @@ def test_full_spotify_sync_workflow():
             'replace_in_title': []
         },
         'playlists': {
-            'prefix': 'e2e_test'  # Use test prefix to avoid conflicts
+            'prefix': 'e2e_test'
         },
         'matching': {
             'similarity_threshold': 0.9
         }
     }
     
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-        yaml.dump(config, f)
-        config_path = f.name
-    
-    try:
-        # Get absolute path to test library
-        test_library = Path("tests/e2e/test_library.xml").absolute()
-        assert test_library.exists(), f"Test library not found: {test_library}"
-        
-        # Run sync command with real Spotify integration
-        result = subprocess.run([
-            sys.executable, "-m", "fortherekord",
-            "sync", str(test_library)
-        ], capture_output=True, text=True, cwd=Path.cwd())
+    # Use shared temporary config utility
+    with temporary_config(config):
+        # Run the main command with Spotify integration using shared utility
+        result = run_fortherekord()
         
         output = result.stdout + result.stderr
         
@@ -75,7 +69,3 @@ def test_full_spotify_sync_workflow():
         assert any(indicator in output.lower() for indicator in success_indicators) or \
                result.returncode == 0, \
             f"Spotify workflow did not complete successfully. Output: {output}"
-        
-    finally:
-        if os.path.exists(config_path):
-            os.unlink(config_path)
