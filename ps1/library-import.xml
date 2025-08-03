@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<DJ_PLAYLISTS Version="1.0.0">
+  <PRODUCT Name="rekordbox" Version="7.1.2" Company="AlphaTheta" />
+  <COLLECTION Entries="13"><TRACK TrackID="52272304" Name="Dance With Us (ext) - EarthLife [Gm]" Artist="EarthLife" Composer="" Album="For The Fucking Crowd" Grouping="" Genre="Melodic House &amp; Techno" Kind="MP3 File" Size="14000686" TotalTime="335" DiscNumber="0" TrackNumber="2" Year="2025" AverageBpm="126.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments=" /* melodic / chill / uplifting / funky */" PlayCount="2" Rating="102" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/techno/EarthLife%20-%20Dance%20With%20Us%20(Extended%20Mix).mp3" Remixer="" Tonality="Gm" Label="Radikon" Mix="">
+      <TEMPO Inizio="0.023" Bpm="126.00" Metro="4/4" Battito="1" />
+      <TEMPO Inizio="0.976" Bpm="126.00" Metro="4/4" Battito="3" />
+      <POSITION_MARK Name="" Type="0" Start="0.023" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="60.976" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="91.452" Num="2" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="121.928" Num="3" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="152.404" Num="4" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="213.357" Num="5" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="243.833" Num="6" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="274.309" Num="7" Red="40" Green="226" Blue="20" />
+    </TRACK><TRACK TrackID="245454870" Name="Lost (ext) - Innellea, Kasablanca [Fm]" Artist="Innellea, Kasablanca" Composer="" Album="Lost - Extended Mix" Grouping="" Genre="Indie Dance" Kind="MP3 File" Size="14805569" TotalTime="343" DiscNumber="0" TrackNumber="1" Year="2025" AverageBpm="126.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments=" /* melodic / wistful / messy / epic */" PlayCount="3" Rating="204" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/techno/Innellea,%20Kasablanca%20_%20-%20Lost%20(Extended%20Mix).mp3" Remixer="" Tonality="Fm" Label="Experts Only" Mix="">
+      <TEMPO Inizio="0.049" Bpm="126.00" Metro="4/4" Battito="1" />
+      <POSITION_MARK Name="" Type="0" Start="0.049" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="61.001" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="91.477" Num="2" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="121.954" Num="3" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="213.382" Num="4" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="274.335" Num="5" Red="40" Green="226" Blue="20" />
+    </TRACK><TRACK TrackID="190257101" Name="Terminal Feeling (ext) - Kasablanca [F#m]" Artist="Kasablanca" Composer="" Album="Terminal Feeling" Grouping="" Genre="Melodic House &amp; Techno" Kind="MP3 File" Size="14995109" TotalTime="360" DiscNumber="0" TrackNumber="1" Year="2024" AverageBpm="124.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments=" /* melodic / chill / prog / wistful */" PlayCount="2" Rating="102" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/techno/Kasablanca%20_%20-%20Terminal%20Feeling%20(Extended%20Mix).mp3" Remixer="" Tonality="F#m" Label="Anjunabeats" Mix="">
+      <TEMPO Inizio="0.084" Bpm="124.00" Metro="4/4" Battito="1" />
+      <POSITION_MARK Name="" Type="0" Start="0.084" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="62.019" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="92.987" Num="2" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="247.826" Num="5" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="123.955" Num="3" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="170.407" Num="4" Red="40" Green="226" Blue="20" />
+    </TRACK><TRACK TrackID="7103138" Name="Remission (ext) - Lane 8, Kasablanca &gt; [F#m]" Artist="Lane 8, Kasablanca &gt;" Composer="" Album="Remission" Grouping="" Genre="Melodic House &amp; Techno" Kind="MP3 File" Size="15373267" TotalTime="359" DiscNumber="0" TrackNumber="1" Year="2024" AverageBpm="125.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments=" /* uplifting / melodic / epic */" PlayCount="2" Rating="153" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/techno/Lane%208,%20Kasablanca%20_%20-%20Remission%20(Extended%20Mix).mp3" Remixer="" Tonality="F#m" Label="Anjunabeats" Mix="">
+      <TEMPO Inizio="0.047" Bpm="125.00" Metro="4/4" Battito="1" />
+      <POSITION_MARK Name="" Type="0" Start="0.047" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="30.767" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="61.487" Num="2" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="115.247" Num="3" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="161.327" Num="4" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="238.127" Num="5" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="291.887" Num="6" Red="48" Green="90" Blue="255" />
+    </TRACK><TRACK TrackID="102259057" Name="Echoes of Distortion - Luis M [D]" Artist="Luis M" Composer="" Album="All About the Sauce, Vol. 1" Grouping="" Genre="Techno (Peak Time / Driving)" Kind="MP3 File" Size="17763011" TotalTime="415" DiscNumber="0" TrackNumber="5" Year="2025" AverageBpm="130.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments="-2 /* bush / dark / driving */" PlayCount="2" Rating="204" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/techno/Luis%20M%20-%20Echoes%20of%20Distortion%20(Original%20Mix).mp3" Remixer="" Tonality="D" Label="AlpaKa MuziK" Mix="">
+      <TEMPO Inizio="0.024" Bpm="130.00" Metro="4/4" Battito="1" />
+      <POSITION_MARK Name="" Type="0" Start="0.024" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="29.563" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="88.640" Num="2" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="147.716" Num="3" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="236.332" Num="4" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="295.409" Num="5" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="310.178" Num="6" Red="40" Green="226" Blue="20" />
+    </TRACK><TRACK TrackID="230271790" Name="Alive (Extended Version) - Markus Klee [Gm]" Artist="Markus Klee" Composer="" Album="Alive (Extended Version)" Grouping="" Genre="Melodic House &amp; Techno" Kind="MP3 File" Size="15783194" TotalTime="383" DiscNumber="0" TrackNumber="1" Year="2024" AverageBpm="128.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments=" /* melodic / wistful / epic */" PlayCount="3" Rating="153" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/techno/Markus%20Klee%20-%20Alive%20(Extended%20Version).mp3" Remixer="" Tonality="Gm" Label="Hymnesia" Mix="">
+      <TEMPO Inizio="0.029" Bpm="128.00" Metro="4/4" Battito="1" />
+      <POSITION_MARK Name="" Type="0" Start="0.029" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="60.029" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="120.029" Num="2" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="180.029" Num="3" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="240.029" Num="4" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="300.029" Num="5" Red="40" Green="226" Blue="20" />
+    </TRACK><TRACK TrackID="107153684" Name="Sleep? - Maywell, Santiago Luna [Fm]" Artist="Maywell, Santiago Luna" Composer="" Album="Sleep?" Grouping="" Genre="Techno (Peak Time / Driving)" Kind="MP3 File" Size="14844221" TotalTime="353" DiscNumber="0" TrackNumber="1" Year="2024" AverageBpm="131.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments="-3 /* melodic / moody / driving / prog */" PlayCount="1" Rating="204" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/techno/Maywell,%20Santiago%20Luna%20-%20Sleep_%20(Original%20Mix).mp3" Remixer="" Tonality="Fm" Label="deep dip" Mix="">
+      <TEMPO Inizio="0.024" Bpm="131.00" Metro="4/4" Battito="1" />
+      <TEMPO Inizio="10.559" Bpm="131.00" Metro="4/4" Battito="4" />
+      <POSITION_MARK Name="" Type="0" Start="0.024" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="29.337" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="58.650" Num="2" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="117.276" Num="3" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="161.246" Num="4" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="219.871" Num="5" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="293.154" Num="6" Red="48" Green="90" Blue="255" />
+    </TRACK><TRACK TrackID="74247888" Name="Sleep? (Spada Afterhour Mix) - Maywell, Santiago Luna [Fm]" Artist="Maywell, Santiago Luna" Composer="" Album="Sleep?" Grouping="" Genre="Progressive House" Kind="MP3 File" Size="13319233" TotalTime="315" DiscNumber="0" TrackNumber="2" Year="2024" AverageBpm="128.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments=" /* melodic / epic / uplifting */" PlayCount="2" Rating="153" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/techno/Maywell,%20Santiago%20Luna%20-%20Sleep_%20(Spada%20Afterhour%20Mix).mp3" Remixer="" Tonality="Fm" Label="deep dip" Mix="">
+      <TEMPO Inizio="0.039" Bpm="128.00" Metro="4/4" Battito="1" />
+      <POSITION_MARK Name="" Type="0" Start="0.039" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="31.914" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="60.039" Num="2" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="90.039" Num="3" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="195.039" Num="5" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="150.039" Num="4" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="255.039" Num="6" Red="40" Green="226" Blue="20" />
+    </TRACK><TRACK TrackID="89720906" Name="Arrested - Papa Smurf (AU) [G]" Artist="Papa Smurf (AU)" Composer="" Album="Punished / Arrested" Grouping="" Genre="Melodic House &amp; Techno" Kind="MP3 File" Size="20853454" TotalTime="507" DiscNumber="0" TrackNumber="2" Year="2024" AverageBpm="126.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments=" /* melodic / moody / prog */" PlayCount="2" Rating="0" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/techno/Papa%20Smurf%20(AU)%20-%20Arrested%20(Original%20Mix).mp3" Remixer="" Tonality="G" Label="MAJIK" Mix="">
+      <TEMPO Inizio="0.039" Bpm="126.00" Metro="4/4" Battito="1" />
+      <TEMPO Inizio="6.230" Bpm="126.00" Metro="4/4" Battito="2" />
+      <POSITION_MARK Name="" Type="0" Start="0.039" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="91.468" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="152.420" Num="2" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="213.372" Num="3" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="335.277" Num="4" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="396.230" Num="5" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="441.944" Num="6" Red="40" Green="226" Blue="20" />
+    </TRACK><TRACK TrackID="3142305" Name="Blade - Papa Smurf (AU) [Fm]" Artist="Papa Smurf (AU)" Composer="" Album="Disciple / Blade" Grouping="" Genre="Progressive House" Kind="MP3 File" Size="18514820" TotalTime="449" DiscNumber="0" TrackNumber="2" Year="2024" AverageBpm="126.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments=" /* epic / melodic / prog / uplifting */" PlayCount="2" Rating="102" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/techno/Papa%20Smurf%20(AU)%20-%20Blade%20(Original%20Mix).mp3" Remixer="" Tonality="Fm" Label="MAJIK" Mix="">
+      <TEMPO Inizio="0.025" Bpm="126.00" Metro="4/4" Battito="1" />
+      <POSITION_MARK Name="" Type="0" Start="0.025" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="121.929" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="213.358" Num="2" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="335.263" Num="3" Red="40" Green="226" Blue="20" />
+    </TRACK><TRACK TrackID="34644797" Name="Innerbloom - RÜFÜS DU SOL [Gm]" Artist="RÜFÜS DU SOL" Composer="" Album="Bloom" Grouping="" Genre="Tech House" Kind="MP3 File" Size="25979752" TotalTime="578" DiscNumber="0" TrackNumber="11" Year="2016" AverageBpm="122.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments="" PlayCount="2" Rating="51" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/techno/R%c3%9cF%c3%9cS%20DU%20SOL%20-%20Innerbloom%20(Original%20Mix).mp3" Remixer="" Tonality="Gm" Label="Sweat It Out" Mix="">
+      <TEMPO Inizio="0.095" Bpm="122.00" Metro="4/4" Battito="1" />
+      <POSITION_MARK Name="" Type="0" Start="0.095" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="63.046" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="314.849" Num="3" Red="40" Green="226" Blue="20" />
+    </TRACK><TRACK TrackID="52811839" Name="Acidize (Extended) - Che Jose [Ebm]" Artist="Che Jose" Composer="" Album="Acidize" Grouping="" Genre="Indie Dance" Kind="MP3 File" Size="15348340" TotalTime="360" DiscNumber="0" TrackNumber="1" Year="2025" AverageBpm="125.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments=" /* melodic / wistful / prog */" PlayCount="4" Rating="204" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/techno/Che%20Jose%20-%20Acidize%20(Extended).mp3" Remixer="" Tonality="Ebm" Label="F.T.F.T records" Mix="">
+      <TEMPO Inizio="0.025" Bpm="125.00" Metro="4/4" Battito="1" />
+      <POSITION_MARK Name="" Type="0" Start="0.025" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="61.465" Num="2" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="92.185" Num="3" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="30.745" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="188.185" Num="4" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="234.265" Num="5" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="295.705" Num="6" Red="40" Green="226" Blue="20" />
+    </TRACK><TRACK TrackID="127414673" Name="Up Late - Ekko &amp; Sidetrack [Fm]" Artist="Ekko &amp; Sidetrack" Composer="" Album="Up Late" Grouping="" Genre="Drum &amp; Bass" Kind="MP3 File" Size="10093228" TotalTime="182" DiscNumber="0" TrackNumber="1" Year="2025" AverageBpm="174.00" DateAdded="2025-08-01" BitRate="320" SampleRate="44100" Comments=" /* glitch / steppin / moody / sawtooth */" PlayCount="2" Rating="153" Location="file://localhost/C:/Users/Marcus.Lund/Music/dj/drum%20%26%20bass/2025/Ekko%20%26%20Sidetrack%20-%20Up%20Late%20(Original%20Mix).mp3" Remixer="" Tonality="Fm" Label="UKF" Mix="">
+      <TEMPO Inizio="0.196" Bpm="174.00" Metro="4/4" Battito="1" />
+      <POSITION_MARK Name="" Type="0" Start="0.196" Num="0" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="22.265" Num="1" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="44.334" Num="2" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="88.472" Num="3" Red="40" Green="226" Blue="20" />
+      <POSITION_MARK Name="" Type="0" Start="132.610" Num="4" Red="40" Green="226" Blue="20" />
+    </TRACK></COLLECTION>
+  
+</DJ_PLAYLISTS>
