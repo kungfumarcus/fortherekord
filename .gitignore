@@ -37,6 +37,12 @@ ENV/
 htmlcov/
 .tox/
 
+# E2E Test artifacts
+tests/e2e/cache/
+tests/e2e/*.json
+tests/e2e/temp_*
+tests/e2e/test_*.yaml
+
 # Spotify cache
 .spotify_cache
 
@@ -46,6 +52,7 @@ config.yaml
 # Cache files
 *.json
 !example_config.json
+!tests/e2e/test_library.xml  # Keep test data
 
 # OS
 .DS_Store

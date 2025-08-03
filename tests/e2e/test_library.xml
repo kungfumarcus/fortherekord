@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DJ_PLAYLISTS Version="1.0.0">
+  <PRODUCT Name="rekordbox" Version="6.0.0" Company="Pioneer DJ"/>
+  <COLLECTION Entries="30">
+    <TRACK TrackID="1" Name="Test Track 1" Artist="Artist One" Album="Album 1" Genre="House" Year="2020" TotalTime="240" AverageBpm="128.0" Tonality="Am" Location="file://localhost/C:/Music/track1.mp3"/>
+    <TRACK TrackID="2" Name="Test Track 2 (Original Mix)" Artist="Artist Two feat. Vocalist" Album="Album 2" Genre="Techno" Year="2021" TotalTime="300" AverageBpm="132.5" Tonality="Dm" Location="file://localhost/C:/Music/track2.mp3"/>
+    <TRACK TrackID="3" Name="Artist Three - Test Track 3" Artist="" Album="Album 3" Genre="Deep House" Year="2019" TotalTime="360" AverageBpm="124.0" Tonality="Fm" Location="file://localhost/C:/Music/track3.mp3"/>
+    <TRACK TrackID="4" Name="Test Track 4" Artist="Artist Four" Album="Album 4" Genre="Progressive" Year="2022" TotalTime="420" AverageBpm="130.0" Tonality="Gm" Location="file://localhost/C:/Music/track4.mp3"/>
+    <TRACK TrackID="5" Name="Test Track 5" Artist="Artist Five" Album="Album 5" Genre="Trance" Year="2020" TotalTime="480" AverageBpm="138.0" Tonality="Cm" Location="file://localhost/C:/Music/track5.mp3"/>
+    <TRACK TrackID="6" Name="Test Track 6" Artist="Artist Six" Album="Album 6" Genre="House" Year="2021" TotalTime="270" AverageBpm="126.0" Tonality="Bm" Location="file://localhost/C:/Music/track6.mp3"/>
+    <TRACK TrackID="7" Name="Test Track 7" Artist="Artist Seven" Album="Album 7" Genre="Techno" Year="2019" TotalTime="330" AverageBpm="134.0" Tonality="Em" Location="file://localhost/C:/Music/track7.mp3"/>
+    <TRACK TrackID="8" Name="Test Track 8 (Extended Mix)" Artist="Artist Eight" Album="Album 8" Genre="Deep House" Year="2022" TotalTime="390" AverageBpm="120.0" Tonality="Am" Location="file://localhost/C:/Music/track8.mp3"/>
+    <TRACK TrackID="9" Name="Test Track 9" Artist="Artist Nine feat. Another Artist" Album="Album 9" Genre="Progressive" Year="2020" TotalTime="450" AverageBpm="128.5" Tonality="Dm" Location="file://localhost/C:/Music/track9.mp3"/>
+    <TRACK TrackID="10" Name="Test Track 10" Artist="Artist Ten" Album="Album 10" Genre="Trance" Year="2021" TotalTime="510" AverageBpm="140.0" Tonality="Fm" Location="file://localhost/C:/Music/track10.mp3"/>
+    <TRACK TrackID="11" Name="Test Track 11" Artist="Artist Eleven" Album="Album 11" Genre="House" Year="2019" TotalTime="240" AverageBpm="125.0" Tonality="Gm" Location="file://localhost/C:/Music/track11.mp3"/>
+    <TRACK TrackID="12" Name="Test Track 12" Artist="Artist Twelve" Album="Album 12" Genre="Techno" Year="2022" TotalTime="300" AverageBpm="133.0" Tonality="Cm" Location="file://localhost/C:/Music/track12.mp3"/>
+    <TRACK TrackID="13" Name="Test Track 13 (Remix)" Artist="Artist Thirteen" Album="Album 13" Genre="Deep House" Year="2020" TotalTime="360" AverageBpm="122.0" Tonality="Bm" Location="file://localhost/C:/Music/track13.mp3"/>
+    <TRACK TrackID="14" Name="Test Track 14" Artist="Artist Fourteen" Album="Album 14" Genre="Progressive" Year="2021" TotalTime="420" AverageBpm="129.0" Tonality="Em" Location="file://localhost/C:/Music/track14.mp3"/>
+    <TRACK TrackID="15" Name="Test Track 15" Artist="Artist Fifteen" Album="Album 15" Genre="Trance" Year="2019" TotalTime="480" AverageBpm="142.0" Tonality="Am" Location="file://localhost/C:/Music/track15.mp3"/>
+    <TRACK TrackID="16" Name="Test Track 16" Artist="Artist Sixteen" Album="Album 16" Genre="House" Year="2022" TotalTime="270" AverageBpm="127.0" Tonality="Dm" Location="file://localhost/C:/Music/track16.mp3"/>
+    <TRACK TrackID="17" Name="Test Track 17" Artist="Artist Seventeen" Album="Album 17" Genre="Techno" Year="2020" TotalTime="330" AverageBpm="135.0" Tonality="Fm" Location="file://localhost/C:/Music/track17.mp3"/>
+    <TRACK TrackID="18" Name="Test Track 18" Artist="Artist Eighteen" Album="Album 18" Genre="Deep House" Year="2021" TotalTime="390" AverageBpm="121.0" Tonality="Gm" Location="file://localhost/C:/Music/track18.mp3"/>
+    <TRACK TrackID="19" Name="Test Track 19" Artist="Artist Nineteen" Album="Album 19" Genre="Progressive" Year="2019" TotalTime="450" AverageBpm="131.0" Tonality="Cm" Location="file://localhost/C:/Music/track19.mp3"/>
+    <TRACK TrackID="20" Name="Test Track 20" Artist="Artist Twenty" Album="Album 20" Genre="Trance" Year="2022" TotalTime="510" AverageBpm="141.0" Tonality="Bm" Location="file://localhost/C:/Music/track20.mp3"/>
+    <TRACK TrackID="21" Name="Test Track 21" Artist="Artist TwentyOne" Album="Album 21" Genre="House" Year="2020" TotalTime="240" AverageBpm="126.5" Tonality="Em" Location="file://localhost/C:/Music/track21.mp3"/>
+    <TRACK TrackID="22" Name="Test Track 22" Artist="Artist TwentyTwo" Album="Album 22" Genre="Techno" Year="2021" TotalTime="300" AverageBpm="132.0" Tonality="Am" Location="file://localhost/C:/Music/track22.mp3"/>
+    <TRACK TrackID="23" Name="Test Track 23" Artist="Artist TwentyThree" Album="Album 23" Genre="Deep House" Year="2019" TotalTime="360" AverageBpm="123.0" Tonality="Dm" Location="file://localhost/C:/Music/track23.mp3"/>
+    <TRACK TrackID="24" Name="Test Track 24" Artist="Artist TwentyFour" Album="Album 24" Genre="Progressive" Year="2022" TotalTime="420" AverageBpm="130.5" Tonality="Fm" Location="file://localhost/C:/Music/track24.mp3"/>
+    <TRACK TrackID="25" Name="Test Track 25" Artist="Artist TwentyFive" Album="Album 25" Genre="Trance" Year="2020" TotalTime="480" AverageBpm="139.0" Tonality="Gm" Location="file://localhost/C:/Music/track25.mp3"/>
+    <TRACK TrackID="26" Name="Test Track 26" Artist="Artist TwentySix" Album="Album 26" Genre="House" Year="2021" TotalTime="270" AverageBpm="128.0" Tonality="Cm" Location="file://localhost/C:/Music/track26.mp3"/>
+    <TRACK TrackID="27" Name="Test Track 27" Artist="Artist TwentySeven" Album="Album 27" Genre="Techno" Year="2019" TotalTime="330" AverageBpm="134.5" Tonality="Bm" Location="file://localhost/C:/Music/track27.mp3"/>
+    <TRACK TrackID="28" Name="Test Track 28" Artist="Artist TwentyEight" Album="Album 28" Genre="Deep House" Year="2022" TotalTime="390" AverageBpm="120.5" Tonality="Em" Location="file://localhost/C:/Music/track28.mp3"/>
+    <TRACK TrackID="29" Name="Test Track 29" Artist="Artist TwentyNine" Album="Album 29" Genre="Progressive" Year="2020" TotalTime="450" AverageBpm="129.5" Tonality="Am" Location="file://localhost/C:/Music/track29.mp3"/>
+    <TRACK TrackID="30" Name="Test Track 30" Artist="Artist Thirty" Album="Album 30" Genre="Trance" Year="2021" TotalTime="510" AverageBpm="143.0" Tonality="Dm" Location="file://localhost/C:/Music/track30.mp3"/>
+  </COLLECTION>
+  <PLAYLISTS>
+    <NODE Type="0" Name="ROOT" Count="3">
+      <NODE Name="House Mix" Type="1" KeyID="1" Entries="8">
+        <TRACK Key="1"/>
+        <TRACK Key="6"/>
+        <TRACK Key="8"/>
+        <TRACK Key="11"/>
+        <TRACK Key="16"/>
+        <TRACK Key="21"/>
+        <TRACK Key="23"/>
+        <TRACK Key="26"/>
+      </NODE>
+      <NODE Name="Techno Sessions" Type="1" KeyID="2" Entries="6">
+        <TRACK Key="2"/>
+        <TRACK Key="7"/>
+        <TRACK Key="12"/>
+        <TRACK Key="17"/>
+        <TRACK Key="22"/>
+        <TRACK Key="27"/>
+      </NODE>
+      <NODE Name="Progressive Journey" Type="1" KeyID="3" Entries="5">
+        <TRACK Key="4"/>
+        <TRACK Key="9"/>
+        <TRACK Key="14"/>
+        <TRACK Key="19"/>
+        <TRACK Key="24"/>
+      </NODE>
+    </NODE>
+  </PLAYLISTS>
+</DJ_PLAYLISTS>
