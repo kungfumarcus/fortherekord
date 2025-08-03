@@ -13,6 +13,39 @@ from click.testing import CliRunner
 from fortherekord.main import main, display_progress, interactive_mode
 
 
+class MainTestBase:
+    """Base class with shared test setup for main CLI tests."""
+    
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.runner = CliRunner()
+    
+    def _create_mock_config(self):
+        """Create a mock config object."""
+        from fortherekord.config import Config, SpotifyConfig, RekordboxConfig
+        return Config(
+            rekordbox=RekordboxConfig(library_path="test_library.xml"),
+            spotify=SpotifyConfig(client_id="test_id", client_secret="test_secret")
+        )
+    
+    def _create_invalid_config(self):
+        """Create an invalid config object."""
+        from fortherekord.config import Config, SpotifyConfig, RekordboxConfig
+        return Config(
+            rekordbox=RekordboxConfig(library_path=""),
+            spotify=SpotifyConfig(client_id="", client_secret="")
+        )
+
+    def _create_valid_config(self):
+        """Create a valid config object."""
+        from fortherekord.config import Config, SpotifyConfig, RekordboxConfig, MatchingConfig
+        return Config(
+            rekordbox=RekordboxConfig(library_path="/valid/path.xml"),
+            spotify=SpotifyConfig(client_id="valid_id", client_secret="valid_secret"),
+            matching=MatchingConfig(similarity_threshold=0.8, boost_liked_tracks=1.5)
+        )
+
+
 class TestDisplayProgress:
     """Test progress display functionality."""
     
@@ -50,7 +83,7 @@ class TestInteractiveMode:
         assert result is False
 
 
-class TestMainCLI:
+class TestMainCLI(MainTestBase):
     """Test main CLI command."""
     
     def setup_method(self):
@@ -99,12 +132,7 @@ invalid_yaml: [
     @patch('fortherekord.main.load_config')
     def test_main_auto_creates_config(self, mock_load_config):
         """Test that main auto-creates config if it doesn't exist."""
-        # Mock load_config to simulate auto-creation
-        from fortherekord.config import Config, SpotifyConfig, RekordboxConfig
-        mock_load_config.return_value = Config(
-            rekordbox=RekordboxConfig(library_path=""),
-            spotify=SpotifyConfig(client_id="", client_secret="")
-        )
+        mock_load_config.return_value = self._create_invalid_config()
         
         result = self.runner.invoke(main, ['--verbose'])
         assert result.exit_code == 1  # Should exit due to invalid config
@@ -114,11 +142,7 @@ invalid_yaml: [
     @patch('fortherekord.main.load_config')
     def test_main_with_invalid_config(self, mock_load_config, mock_validate_config):
         """Test main command with invalid configuration."""
-        from fortherekord.config import Config, SpotifyConfig, RekordboxConfig
-        mock_load_config.return_value = Config(
-            rekordbox=RekordboxConfig(library_path=""),
-            spotify=SpotifyConfig(client_id="", client_secret="")
-        )
+        mock_load_config.return_value = self._create_invalid_config()
         mock_validate_config.return_value = ["Missing client_id", "Missing library_path"]
         
         result = self.runner.invoke(main, ['--verbose'])
@@ -132,14 +156,8 @@ invalid_yaml: [
     def test_main_with_valid_config(self, mock_load_config, mock_validate_config, 
                                    mock_spotify_client, mock_parse_library):
         """Test main command with valid configuration."""
-        from fortherekord.config import Config, SpotifyConfig, RekordboxConfig, MatchingConfig
-        
         # Mock valid config
-        mock_load_config.return_value = Config(
-            rekordbox=RekordboxConfig(library_path="/valid/path.xml"),
-            spotify=SpotifyConfig(client_id="valid_id", client_secret="valid_secret"),
-            matching=MatchingConfig(similarity_threshold=0.8, boost_liked_tracks=1.5)
-        )
+        mock_load_config.return_value = self._create_valid_config()
         mock_validate_config.return_value = []  # No errors
         
         # Mock library parsing
@@ -230,7 +248,7 @@ invalid_yaml: [
         assert "Error during synchronization" in result.output
 
 
-class TestCLIWorkflow:
+class TestCLIWorkflow(MainTestBase):
     """Test complete CLI workflows."""
     
     def setup_method(self):

@@ -302,9 +302,4 @@ def build_rekordbox_playlist_tree(xml_tree, collection_tracks, config=None):
     return playlists
 
 
-def parse_track_metadata(track_elem: ET.Element) -> Dict:
-    """Alias for parse_track_from_xml for test compatibility."""
-    # Return None if no TrackID for test compatibility
-    if not track_elem.get("TrackID"):
-        return None
-    return parse_track_from_xml(track_elem)
+

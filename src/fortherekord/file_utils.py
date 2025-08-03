@@ -34,23 +34,3 @@ def validate_file_paths(*paths: Path) -> List[str]:
     return errors
 
 
-def load_json_file(file_path: Path) -> dict:
-    """Alias for load_json for test compatibility."""
-    if not file_path.exists():
-        return None
-    
-    try:
-        return load_json(file_path)
-    except json.JSONDecodeError as e:
-        print(f"Error loading JSON file {file_path}: {e}")
-        return None
-
-
-def save_json_file(data: dict, file_path: Path) -> bool:
-    """Alias for save_json for test compatibility."""
-    try:
-        save_json(data, file_path)
-        return True
-    except Exception as e:
-        print(f"Error saving JSON: {e}")
-        return False

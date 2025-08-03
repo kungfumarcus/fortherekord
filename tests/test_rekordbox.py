@@ -11,13 +11,44 @@ from unittest.mock import patch, mock_open
 
 from fortherekord.models import RekordboxTrack, RekordboxPlaylist
 from fortherekord.rekordbox import (
-    load_rekordbox_library, parse_track_metadata, get_collection_tracks,
+    load_rekordbox_library, parse_track_from_xml, get_collection_tracks,
     get_playlists, get_tracks_from_playlist, process_tracks_for_playlists,
     clean_track_title, clean_artist_name, normalize_track_metadata
 )
 
 
-class TestLibraryLoading:
+class RekordboxTestBase:
+    """Base class with shared XML creation helpers."""
+    
+    def _create_track_xml(self, **attrs):
+        """Helper to create track XML element."""
+        track_elem = ET.Element("TRACK")
+        for key, value in attrs.items():
+            track_elem.set(key, str(value))
+        return track_elem
+
+    def _create_collection_xml(self, tracks_data):
+        """Helper to create collection XML."""
+        root = ET.Element("DJ_PLAYLISTS")
+        collection = ET.SubElement(root, "COLLECTION", Entries=str(len(tracks_data)))
+        
+        for track_data in tracks_data:
+            track_elem = ET.SubElement(collection, "TRACK")
+            for key, value in track_data.items():
+                track_elem.set(key, str(value))
+        
+        return ET.ElementTree(root)
+
+    def _create_basic_library_xml(self):
+        """Helper to create a basic library XML structure."""
+        xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+        <DJ_PLAYLISTS Version="1.0.0">
+            <COLLECTION Entries="0"/>
+        </DJ_PLAYLISTS>"""
+        return xml_content
+
+
+class TestLibraryLoading(RekordboxTestBase):
     """Test library file loading functions."""
     
     def test_load_rekordbox_library_file_not_found(self):
@@ -35,10 +66,7 @@ class TestLibraryLoading:
     @patch("pathlib.Path.exists", return_value=True)
     def test_load_rekordbox_library_success(self, mock_exists):
         """Test successful library loading."""
-        xml_content = """<?xml version="1.0" encoding="UTF-8"?>
-        <DJ_PLAYLISTS Version="1.0.0">
-            <COLLECTION Entries="0"/>
-        </DJ_PLAYLISTS>"""
+        xml_content = self._create_basic_library_xml()
         
         with patch("builtins.open", mock_open(read_data=xml_content)):
             xml = load_rekordbox_library(Path("test.xml"))
@@ -46,28 +74,21 @@ class TestLibraryLoading:
             assert xml.getroot().tag == "DJ_PLAYLISTS"
 
 
-class TestTrackParsing:
+class TestTrackParsing(RekordboxTestBase):
     """Test track metadata parsing functions."""
     
-    def create_track_xml(self, **attrs):
-        """Helper to create track XML element."""
-        track_elem = ET.Element("TRACK")
-        for key, value in attrs.items():
-            track_elem.set(key, str(value))
-        return track_elem
-    
-    def test_parse_track_metadata_minimal(self):
+    def test_parse_track_from_xml_minimal(self):
         """Test parsing track with minimal data."""
-        track_elem = self.create_track_xml(TrackID="1", Name="Test Song")
-        track = parse_track_metadata(track_elem)
+        track_elem = self._create_track_xml(TrackID="1", Name="Test Song")
+        track = parse_track_from_xml(track_elem)
         assert track is not None
         assert track.track_id == "1"
         assert track.title == "Test Song"
         assert track.artist == ""
     
-    def test_parse_track_metadata_complete(self):
+    def test_parse_track_from_xml_complete(self):
         """Test parsing track with complete data."""
-        track_elem = self.create_track_xml(
+        track_elem = self._create_track_xml(
             TrackID="1",
             Name="Test Song",
             Artist="Test Artist",
@@ -86,7 +107,7 @@ class TestTrackParsing:
             Label="Test Label",
             Remixer="Test Remixer"
         )
-        track = parse_track_metadata(track_elem)
+        track = parse_track_from_xml(track_elem)
         assert track is not None
         assert track.track_id == "1"
         assert track.title == "Test Song"
@@ -98,15 +119,17 @@ class TestTrackParsing:
         assert track.key == "Am"
         assert track.genre == "House"
     
-    def test_parse_track_metadata_no_track_id(self):
-        """Test parsing track without TrackID returns None."""
-        track_elem = self.create_track_xml(Name="Test Song")
-        track = parse_track_metadata(track_elem)
-        assert track is None
+    def test_parse_track_from_xml_no_track_id(self):
+        """Test parsing track without TrackID still works."""
+        track_elem = self._create_track_xml(Name="Test Song")
+        track = parse_track_from_xml(track_elem)
+        assert track is not None
+        assert track.title == "Test Song"
+        assert track.track_id is None
     
-    def test_parse_track_metadata_invalid_numbers(self):
+    def test_parse_track_from_xml_invalid_numbers(self):
         """Test parsing track with invalid numeric values."""
-        track_elem = self.create_track_xml(
+        track_elem = self._create_track_xml(
             TrackID="1",
             Name="Test Song",
             TotalTime="invalid",
@@ -115,42 +138,30 @@ class TestTrackParsing:
             PlayCount="invalid_count",
             Rating="bad_rating"
         )
-        track = parse_track_metadata(track_elem)
+        track = parse_track_from_xml(track_elem)
         assert track is not None
         assert track.duration is None
         assert track.bpm is None
         assert track.year is None
     
-    def test_parse_track_metadata_file_path(self):
+    def test_parse_track_from_xml_file_path(self):
         """Test file path parsing from Location."""
-        track_elem = self.create_track_xml(
+        track_elem = self._create_track_xml(
             TrackID="1",
             Name="Test Song",
             Location="file:///Users/test/Music/song.mp3"
         )
-        track = parse_track_metadata(track_elem)
+        track = parse_track_from_xml(track_elem)
         assert track is not None
         assert track.file_path == Path("/Users/test/Music/song.mp3")
 
 
-class TestCollectionTracks:
+class TestCollectionTracks(RekordboxTestBase):
     """Test collection track extraction functions."""
-    
-    def create_collection_xml(self, tracks_data):
-        """Helper to create collection XML."""
-        root = ET.Element("DJ_PLAYLISTS")
-        collection = ET.SubElement(root, "COLLECTION", Entries=str(len(tracks_data)))
-        
-        for track_data in tracks_data:
-            track_elem = ET.SubElement(collection, "TRACK")
-            for key, value in track_data.items():
-                track_elem.set(key, str(value))
-        
-        return ET.ElementTree(root)
     
     def test_get_collection_tracks_empty(self):
         """Test getting tracks from empty collection."""
-        xml = self.create_collection_xml([])
+        xml = self._create_collection_xml([])
         tracks = get_collection_tracks(xml)
         assert tracks == {}
     
@@ -160,7 +171,7 @@ class TestCollectionTracks:
             {"TrackID": "1", "Name": "Song 1", "Artist": "Artist 1"},
             {"TrackID": "2", "Name": "Song 2", "Artist": "Artist 2"}
         ]
-        xml = self.create_collection_xml(tracks_data)
+        xml = self._create_collection_xml(tracks_data)
         tracks = get_collection_tracks(xml)
         assert len(tracks) == 2
         assert "1" in tracks

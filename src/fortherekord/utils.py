@@ -18,9 +18,7 @@ from .search_utils import (
 from .file_utils import (
     save_json,
     load_json,
-    validate_file_paths,
-    load_json_file,
-    save_json_file
+    validate_file_paths
 )
 
 # Import domain-specific functions for backward compatibility

@@ -84,25 +84,9 @@ normalization:
 
 ## Development
 
-### Batch File Conventions
+### File Style Convention
 
-When creating new batch files, follow the existing minimal style found in the repository:
-
-- **Simple and Direct**: No `@echo off`, comments, or echo statements
-- **Essential Commands Only**: Include only the necessary command(s)
-- **Auto-open Results**: For tools that generate output files (like coverage), include `start` command
-- **Examples**:
-  ```bat
-  # test.bat
-  python -m pytest tests/ -v
-  
-  # coverage.bat  
-  python -m pytest tests/ --cov=src/fortherekord --cov-report=html --cov-report=term-missing -v
-  start htmlcov\index.html
-  
-  # run.bat
-  python -m fortherekord %*
-  ```
+When creating new files, follow the existing style found in other files of similar type in the repository.
 
 ### Running Tests
 
