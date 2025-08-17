@@ -70,6 +70,15 @@ When specifications reference functionality handled by other components, always 
 - **Rekordbox Library Access**: Use pyrekordbox to load Rekordbox 6/7 database and extract playlist information
 - **Full tests**: unit and e2e tests for all implemented code
 
+**Next Feature: Rekordbox Metadata Processing**
+- **Playlist Filtering**: Configure ignore lists to exclude specific playlists from processing
+- **Track Collection**: Gather tracks from all playlists (excluding ignored ones) for processing
+- **Title Enhancement**: Transform tracks to "Title - Artist [Key]" format for standardized display
+- **Title Extraction**: Parse enhanced titles back to original metadata components  
+- **Text Processing**: Configurable text replacements (e.g., remove "(Original Mix)")
+- **Artist Normalization**: Handle artist field extraction and deduplication
+- **Validation**: Ensure metadata transformations are reversible and robust
+
 **Available Commands:**
 ```bash
 # Display help
@@ -78,25 +87,17 @@ python -m fortherekord --help
 # Show version
 python -m fortherekord --version  
 
-# Run sync command (loads Rekordbox library, displays playlists)
+# Run sync command (loads Rekordbox library, displays playlists with enhanced titles)
 python -m fortherekord sync
 ```
 
 **Test Coverage:**
-- Aim for **100% test coverage** across all implemented components
-- Use configuration to disable coverage for code we agree does not need it
-- Unit tests for configuration management, Rekordbox integration, and CLI functionality
-- pytest fixtures and helper functions to reduce repetition
-- End-to-end test covering complete CLI workflow
+- Maintain **100% test coverage** across all implemented components
+- Unit tests for metadata processing algorithms (enhancement and extraction)
+- Test cases for edge cases: malformed titles, missing fields, special characters
+- Configuration testing for text replacement rules
 - Cross-platform testing strategies (Windows development, macOS runtime support)
-- Comprehensive error handling and edge case coverage
 - Fast execution with proper mocking of external dependencies
 
-**Current Scope Limitations:**
-- No Spotify API functionality yet  
-- No actual synchronization logic yet
-- No logging or CI/CD yet (error handling is included)
-- Sync command loads and displays Rekordbox data but doesn't sync to Spotify
-- Rekordbox 6/7 database support only (Rekordbox 5 XML format deferred)
-
-**Next Phase Ready:** Foundation established for Spotify API integration and actual playlist synchronization.
+**Current Scope Focus:**
+Implementing standardized track title processing to enable consistent display and improved search matching. This creates the foundation for effective track matching between Rekordbox and Spotify platforms.

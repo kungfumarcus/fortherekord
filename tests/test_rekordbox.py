@@ -355,3 +355,179 @@ class TestRekordboxWithFixtures:
         tracks = mock_rekordbox_library.get_playlist_tracks("2")
         assert len(tracks) >= 1
         assert all(isinstance(t, Track) for t in tracks)
+
+
+class TestRekordboxLibraryDatabaseWriting:
+    """Test database writing functionality."""
+
+    def test_update_track_metadata_success(self):
+        """Test successful track metadata update."""
+        mock_db = Mock()
+        mock_content = Mock()
+        mock_artist = Mock()
+        mock_content.Artist = mock_artist
+        mock_db.get_content.return_value = mock_content
+        
+        library = RekordboxLibrary("/test/db.edb")
+        library._db = mock_db
+        
+        result = library.update_track_metadata("123", "New Title", "New Artist")
+        
+        assert result is True
+        assert mock_content.Title == "New Title"
+        assert mock_artist.Name == "New Artist"
+        mock_db.get_content.assert_called_once_with(ID="123")
+
+    def test_update_track_metadata_track_not_found(self):
+        """Test track metadata update when track is not found."""
+        mock_db = Mock()
+        mock_db.get_content.return_value = None
+        
+        library = RekordboxLibrary("/test/db.edb")
+        library._db = mock_db
+        
+        result = library.update_track_metadata("999", "New Title", "New Artist")
+        
+        assert result is False
+        mock_db.get_content.assert_called_once_with(ID="999")
+
+    def test_update_track_metadata_no_artist(self):
+        """Test track metadata update when track has no artist."""
+        mock_db = Mock()
+        mock_content = Mock()
+        mock_content.Artist = None
+        mock_db.get_content.return_value = mock_content
+        
+        library = RekordboxLibrary("/test/db.edb")
+        library._db = mock_db
+        
+        result = library.update_track_metadata("123", "New Title", "New Artist")
+        
+        assert result is True
+        assert mock_content.Title == "New Title"
+        # Artist should not be set if track.Artist is None
+
+    def test_update_track_metadata_exception(self):
+        """Test track metadata update when exception occurs."""
+        mock_db = Mock()
+        mock_db.get_content.side_effect = Exception("Database error")
+        
+        library = RekordboxLibrary("/test/db.edb")
+        library._db = mock_db
+        
+        result = library.update_track_metadata("123", "New Title", "New Artist")
+        
+        assert result is False
+
+    @patch.dict("os.environ", {"FORTHEREKORD_TEST_MODE": "0"})
+    def test_save_changes_success(self):
+        """Test successful save changes."""
+        mock_db = Mock()
+        
+        library = RekordboxLibrary("/test/db.edb")
+        library._db = mock_db
+        
+        result = library.save_changes()
+        
+        assert result is True
+        mock_db.commit.assert_called_once()
+
+    def test_save_changes_no_db(self):
+        """Test save changes when no database is loaded."""
+        library = RekordboxLibrary("/test/db.edb")
+        library._db = None
+        
+        result = library.save_changes()
+        
+        assert result is True  # Should return True for no-op
+
+    @patch.dict("os.environ", {"FORTHEREKORD_TEST_MODE": "0"})
+    def test_save_changes_exception(self):
+        """Test save changes when exception occurs."""
+        mock_db = Mock()
+        mock_db.commit.side_effect = Exception("Commit failed")
+        
+        library = RekordboxLibrary("/test/db.edb")
+        library._db = mock_db
+        
+        result = library.save_changes()
+        
+        assert result is False
+
+
+class TestDatabaseSafety:
+    """Test database safety mechanisms to prevent commits during tests."""
+
+    def test_save_changes_never_commits_during_tests(self):
+        """Test that save_changes never calls db.commit() during test execution."""
+        # This test validates that our test safety mechanism is working
+        mock_db = Mock()
+        
+        library = RekordboxLibrary("/test/db.edb")
+        library._db = mock_db
+        
+        # Call save_changes - should NOT call commit in test mode
+        result = library.save_changes()
+        
+        # Should succeed but never call actual commit
+        assert result is True
+        mock_db.commit.assert_not_called()
+
+    def test_test_mode_environment_is_set(self):
+        """Test that FORTHEREKORD_TEST_MODE is set during test runs."""
+        import os
+        test_mode = os.getenv("FORTHEREKORD_TEST_MODE", "")
+        assert test_mode == "1", "Test mode should be enabled during test runs"
+
+    @patch.dict("os.environ", {"FORTHEREKORD_TEST_MODE": "0"})
+    def test_save_changes_commits_when_test_mode_disabled(self):
+        """Test that save_changes calls commit when test mode is explicitly disabled."""
+        mock_db = Mock()
+        
+        library = RekordboxLibrary("/test/db.edb")
+        library._db = mock_db
+        
+        result = library.save_changes()
+        
+        assert result is True
+        mock_db.commit.assert_called_once()
+
+    @patch.dict("os.environ", {"FORTHEREKORD_TEST_MODE": "1", "FORTHEREKORD_TEST_DUMP_FILE": "test_dump.json"})
+    def test_save_changes_creates_dump_file_in_test_mode(self):
+        """Test that save_changes creates dump file instead of committing in test mode."""
+        import tempfile
+        import json
+        from pathlib import Path
+        
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp_file:
+            dump_file = tmp_file.name
+        
+        try:
+            with patch.dict("os.environ", {"FORTHEREKORD_TEST_DUMP_FILE": dump_file}):
+                mock_db = Mock()
+                
+                library = RekordboxLibrary("/test/db.edb")
+                library._db = mock_db
+                
+                result = library.save_changes()
+                
+                # Should succeed
+                assert result is True
+                
+                # Should NOT call commit
+                mock_db.commit.assert_not_called()
+                
+                # Should create dump file
+                assert Path(dump_file).exists()
+                
+                # Dump file should contain expected data
+                with open(dump_file) as f:
+                    dump_data = json.load(f)
+                
+                assert dump_data["mode"] == "test_dump"
+                assert "Database commit prevented" in dump_data["note"]
+                
+        finally:
+            # Clean up
+            if Path(dump_file).exists():
+                Path(dump_file).unlink()

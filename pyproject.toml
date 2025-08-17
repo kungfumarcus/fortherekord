@@ -30,6 +30,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
+    "pytest-timeout>=2.0.0",
+    "pytest-env>=0.8.0",
     "flake8>=5.0.0",
     "pylint>=2.15.0",
     "mypy>=1.0.0",
@@ -41,8 +43,20 @@ fortherekord = "fortherekord.main:cli"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --tb=short"
+addopts = "-ra -q --tb=short --timeout=5 --maxfail=1"
 testpaths = ["tests"]
+timeout = 5
+env = [
+    "FORTHEREKORD_TEST_MODE=1",
+    "FORTHEREKORD_TEST_DUMP_FILE=test_changes_dump.json"
+]
+
+# Timeout configurations for different test types
+timeout_method = "thread"
+markers = [
+    "e2e: marks tests as end-to-end tests (30 second timeout)",
+    "slow: marks tests as slow running tests",
+]
 
 [tool.black]
 line-length = 100

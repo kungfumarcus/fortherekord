@@ -116,6 +116,8 @@ log_file: "data/fortherekord.log"
 
 **Rekordbox Data Access**: connect_database, get_collection_tracks, get_playlists, get_tracks_from_playlist, parse_track_metadata
 
+**Metadata Processing**: rekordbox_metadata_processor module handles title enhancement, artist processing, and text replacements
+
 **Text Processing**: clean_track_title, clean_artist_name, extract_search_title, normalize_search_string
 
 **Spotify Authentication**: authenticate_spotify, refresh_token, get_user_id

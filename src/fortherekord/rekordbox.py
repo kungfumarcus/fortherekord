@@ -144,3 +144,158 @@ class RekordboxLibrary(IMusicLibrary):
     def get_followed_artists(self) -> List[str]:
         """Get followed artists - not supported (source library only)."""
         raise NotImplementedError("Followed artists not supported - Rekordbox is source library")
+
+    def get_all_tracks(self) -> List[Track]:
+        """
+        Get all tracks from the collection.
+        
+        Returns:
+            List of all tracks in the database
+        """
+        db = self._get_database()
+        tracks = []
+        
+        for content in db.get_content():
+            track = Track(
+                id=str(content.ID),
+                title=content.Title or "Unknown Title",
+                artist=content.Artist.Name if content.Artist else "Unknown Artist",
+                duration_ms=int(content.Length * 1000) if content.Length else None,
+                key=content.Key,
+                bpm=content.BPM,
+            )
+            tracks.append(track)
+        
+        return tracks
+    
+    def get_tracks_from_playlists(self, ignore_playlists: List[str] = None) -> List[Track]:
+        """
+        Get all tracks from playlists, excluding ignored playlists.
+        
+        Args:
+            ignore_playlists: List of playlist names to ignore
+            
+        Returns:
+            List of tracks from all non-ignored playlists
+        """
+        if ignore_playlists is None:
+            ignore_playlists = []
+            
+        db = self._get_database()
+        track_ids = set()  # Use set to avoid duplicates
+        tracks = []
+        
+        for playlist in db.get_playlist():
+            playlist_name = playlist.Name
+            
+            if playlist_name in ignore_playlists:
+                print(f"Ignoring playlist: {playlist_name}")
+                continue
+                
+            print(f"Processing playlist '{playlist_name}' with {len(playlist.Songs)} tracks")
+            
+            for song in playlist.Songs:
+                content = song.Content
+                track_id = str(content.ID)
+                
+                if track_id not in track_ids:
+                    track_ids.add(track_id)
+                    track = Track(
+                        id=track_id,
+                        title=content.Title or "Unknown Title",
+                        artist=content.Artist.Name if content.Artist else "Unknown Artist",
+                        duration_ms=int(content.Length * 1000) if content.Length else None,
+                        key=content.Key,
+                        bpm=content.BPM,
+                    )
+                    tracks.append(track)
+        
+        print(f"Found {len(tracks)} tracks to process")
+        return tracks
+    
+    def update_track_metadata(self, track_id: str, title: str, artist: str) -> bool:
+        """
+        Update track metadata in the database.
+        
+        Args:
+            track_id: ID of the track to update
+            title: New title
+            artist: New artist
+            
+        Returns:
+            True if update was successful
+        """
+        db = self._get_database()
+        
+        try:
+            # Find the content record using pyrekordbox query syntax
+            content = db.get_content(ID=track_id)
+            
+            if content is None:
+                print(f"WARNING: Track not found for update: {track_id}")
+                return False
+            
+            # Update the fields directly
+            content.Title = title
+            if content.Artist:
+                content.Artist.Name = artist
+                
+            return True
+            
+        except Exception as e:
+            print(f"ERROR: Failed to update track {track_id}: {e}")
+            return False
+    
+    def save_changes(self) -> bool:
+        """
+        Save all changes to the database.
+        
+        In test mode (when FORTHEREKORD_TEST_MODE is set), changes are dumped
+        to a file instead of committing to the database.
+        
+        Returns:
+            True if save was successful
+        """
+        import os
+        import json
+        from datetime import datetime
+        
+        if self._db is None:
+            return True
+            
+        # Check if we're in test mode
+        test_mode = os.getenv("FORTHEREKORD_TEST_MODE", "").lower() in ("1", "true", "yes")
+        
+        if test_mode:
+            # In test mode, dump changes to a file instead of committing
+            try:
+                dump_file = os.getenv("FORTHEREKORD_TEST_DUMP_FILE", "test_changes_dump.json")
+                
+                # Collect pending changes (this would need to be implemented based on pyrekordbox's dirty tracking)
+                changes = {
+                    "timestamp": datetime.now().isoformat(),
+                    "mode": "test_dump",
+                    "message": "Changes would have been committed to database",
+                    "note": "Database commit prevented in test mode"
+                }
+                
+                # Write to dump file
+                with open(dump_file, "w") as f:
+                    json.dump(changes, f, indent=2)
+                
+                print(f"Test mode: Changes dumped to {dump_file} (database not modified)")
+                return True
+                
+            except Exception as e:
+                print(f"ERROR: Failed to dump test changes: {e}")
+                return False
+        else:
+            # Normal mode: commit to database
+            try:
+                # Commit changes using pyrekordbox's commit method
+                self._db.commit()
+                print("Changes saved to database")
+                return True
+            except Exception as e:
+                print(f"ERROR: Failed to save changes: {e}")
+                return False

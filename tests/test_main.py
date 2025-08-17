@@ -46,10 +46,18 @@ class TestCLIBasics:
 
     def test_main_command_no_config(self):
         """Test that main command creates config when none exists."""
-        result = run_cli_command([])
-        assert_successful_command(result)
-        # Should handle missing config gracefully
-        assert "rekordbox_library_path" in result.output or "Loading" in result.output
+        with patch("fortherekord.main.load_config") as mock_load_config:
+            with patch("fortherekord.main.create_default_config") as mock_create_config:
+                with patch("fortherekord.main.get_config_path") as mock_get_path:
+                    # Mock load_config to return empty config (no rekordbox_library_path)
+                    mock_load_config.return_value = {}
+                    mock_get_path.return_value = "/test/config.yaml"
+                    
+                    result = run_cli_command([])
+                    assert_successful_command(result)
+                    # Should handle missing config gracefully
+                    assert "Error: rekordbox_library_path not configured" in result.output
+                    assert "Creating default config file..." in result.output
 
     @patch("fortherekord.main.load_config")
     @patch("fortherekord.main.create_default_config")
@@ -69,10 +77,145 @@ class TestCLIBasics:
 
     @patch("fortherekord.main.load_config")
     @patch("fortherekord.main.RekordboxLibrary")
-    def test_main_command_database_not_found(self, mock_rekordbox, mock_load_config):
+    @patch("fortherekord.main.RekordboxMetadataProcessor")
+    def test_main_command_all_tracks_success(self, mock_processor_class, mock_rekordbox_class, mock_load_config):
+        """Test main command with --all-tracks flag."""
+        # Setup mocks
+        mock_load_config.return_value = {"rekordbox_library_path": "/test/db.edb"}
+        mock_rekordbox = mock_rekordbox_class.return_value
+        mock_processor = mock_processor_class.return_value
+        
+        # Mock tracks
+        from fortherekord.models import Track
+        original_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am", bpm=120)
+        enhanced_track = Track(id="1", title="Test Song - Test Artist [Am]", artist="Test Artist", key="Am", bpm=120)
+        
+        mock_rekordbox.get_all_tracks.return_value = [original_track]
+        mock_processor.enhance_track_title.return_value = enhanced_track
+        mock_rekordbox.update_track_metadata.return_value = True
+        mock_rekordbox.save_changes.return_value = True
+        
+        result = run_cli_command(["--all-tracks"])
+        assert_successful_command(result)
+        assert "Processing all tracks in collection..." in result.output
+        assert "Successfully updated 1 tracks" in result.output
+
+    @patch("fortherekord.main.load_config")
+    @patch("fortherekord.main.RekordboxLibrary")
+    @patch("fortherekord.main.RekordboxMetadataProcessor")
+    def test_main_command_playlists_success(self, mock_processor_class, mock_rekordbox_class, mock_load_config):
+        """Test main command processing tracks from playlists."""
+        # Setup mocks
+        mock_load_config.return_value = {
+            "rekordbox_library_path": "/test/db.edb",
+            "ignore_playlists": ["ignored"]
+        }
+        mock_rekordbox = mock_rekordbox_class.return_value
+        mock_processor = mock_processor_class.return_value
+        
+        # Mock tracks
+        from fortherekord.models import Track
+        original_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am", bpm=120)
+        enhanced_track = Track(id="1", title="Test Song - Test Artist [Am]", artist="Test Artist", key="Am", bpm=120)
+        
+        mock_rekordbox.get_tracks_from_playlists.return_value = [original_track]
+        mock_processor.enhance_track_title.return_value = enhanced_track
+        mock_rekordbox.update_track_metadata.return_value = True
+        mock_rekordbox.save_changes.return_value = True
+        
+        result = run_cli_command([])
+        assert_successful_command(result)
+        assert "Processing tracks from playlists..." in result.output
+        assert "Successfully updated 1 tracks" in result.output
+
+    @patch("fortherekord.main.load_config")
+    @patch("fortherekord.main.RekordboxLibrary")
+    @patch("fortherekord.main.RekordboxMetadataProcessor")
+    def test_main_command_no_tracks_found(self, mock_processor_class, mock_rekordbox_class, mock_load_config):
+        """Test main command when no tracks are found."""
+        # Setup mocks
+        mock_load_config.return_value = {"rekordbox_library_path": "/test/db.edb"}
+        mock_rekordbox = mock_rekordbox_class.return_value
+        mock_rekordbox.get_tracks_from_playlists.return_value = []
+        
+        result = run_cli_command([])
+        assert_successful_command(result)
+        assert "No tracks found to process" in result.output
+
+    @patch("fortherekord.main.load_config")
+    @patch("fortherekord.main.RekordboxLibrary")
+    @patch("fortherekord.main.RekordboxMetadataProcessor")
+    def test_main_command_no_changes_needed(self, mock_processor_class, mock_rekordbox_class, mock_load_config):
+        """Test main command when no tracks need updating."""
+        # Setup mocks
+        mock_load_config.return_value = {"rekordbox_library_path": "/test/db.edb"}
+        mock_rekordbox = mock_rekordbox_class.return_value
+        mock_processor = mock_processor_class.return_value
+        
+        # Mock track that doesn't need enhancement
+        from fortherekord.models import Track
+        track = Track(id="1", title="Test Song - Test Artist [Am]", artist="Test Artist", key="Am", bpm=120)
+        
+        mock_rekordbox.get_tracks_from_playlists.return_value = [track]
+        mock_processor.enhance_track_title.return_value = track  # Same track returned
+        
+        result = run_cli_command([])
+        assert_successful_command(result)
+        assert "No changes needed" in result.output
+
+    @patch("fortherekord.main.load_config")
+    @patch("fortherekord.main.RekordboxLibrary")
+    @patch("fortherekord.main.RekordboxMetadataProcessor")
+    def test_main_command_update_failure(self, mock_processor_class, mock_rekordbox_class, mock_load_config):
+        """Test main command when track update fails."""
+        # Setup mocks
+        mock_load_config.return_value = {"rekordbox_library_path": "/test/db.edb"}
+        mock_rekordbox = mock_rekordbox_class.return_value
+        mock_processor = mock_processor_class.return_value
+        
+        # Mock tracks
+        from fortherekord.models import Track
+        original_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am", bpm=120)
+        enhanced_track = Track(id="1", title="Test Song - Test Artist [Am]", artist="Test Artist", key="Am", bpm=120)
+        
+        mock_rekordbox.get_tracks_from_playlists.return_value = [original_track]
+        mock_processor.enhance_track_title.return_value = enhanced_track
+        mock_rekordbox.update_track_metadata.return_value = False  # Simulate failure
+        
+        result = run_cli_command([])
+        assert_successful_command(result)
+        assert "Failed to update track: Test Song" in result.output
+
+    @patch("fortherekord.main.load_config")
+    @patch("fortherekord.main.RekordboxLibrary")
+    @patch("fortherekord.main.RekordboxMetadataProcessor")
+    def test_main_command_save_failure(self, mock_processor_class, mock_rekordbox_class, mock_load_config):
+        """Test main command when saving changes fails."""
+        # Setup mocks
+        mock_load_config.return_value = {"rekordbox_library_path": "/test/db.edb"}
+        mock_rekordbox = mock_rekordbox_class.return_value
+        mock_processor = mock_processor_class.return_value
+        
+        # Mock tracks
+        from fortherekord.models import Track
+        original_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am", bpm=120)
+        enhanced_track = Track(id="1", title="Test Song - Test Artist [Am]", artist="Test Artist", key="Am", bpm=120)
+        
+        mock_rekordbox.get_tracks_from_playlists.return_value = [original_track]
+        mock_processor.enhance_track_title.return_value = enhanced_track
+        mock_rekordbox.update_track_metadata.return_value = True
+        mock_rekordbox.save_changes.return_value = False  # Simulate save failure
+        
+        result = run_cli_command([])
+        assert_successful_command(result)
+        assert "Error: Failed to save changes" in result.output
+
+    @patch("fortherekord.main.load_config")
+    @patch("fortherekord.main.RekordboxLibrary")
+    def test_main_command_file_not_found(self, mock_rekordbox_class, mock_load_config):
         """Test main command when database file doesn't exist."""
         mock_load_config.return_value = {"rekordbox_library_path": "/nonexistent/path.db"}
-        mock_rekordbox.side_effect = FileNotFoundError("Database not found")
+        mock_rekordbox_class.side_effect = FileNotFoundError("Database not found")
 
         result = run_cli_command([])
         assert_successful_command(result)

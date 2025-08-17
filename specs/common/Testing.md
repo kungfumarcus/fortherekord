@@ -21,6 +21,8 @@ Tests are derived from specification function points using these principles.
 - Isolated Testing: Mock external dependencies (database, filesystem, APIs)
 - Helper Functions: Reduce repetition with reusable test utilities
 - Skip Simple Data Models: Don't test basic data classes/models that only hold data without logic
+- Consolidate Related Tests: Combine multiple related test scenarios into comprehensive tests that verify different data variations in one test method
+- **Timeout Management**: Configure appropriate timeouts (5s for unit tests) via `pytest_configure()`
 **Outputs**: Pass/fail results with detailed failure information
 
 ### End-to-End Tests
@@ -31,6 +33,7 @@ Tests are derived from specification function points using these principles.
 - Integration Verification: Components working together through actual interfaces
 - No Mocking: Test the actual executable/module as users would experience it
 - Each test represents a distinct user workflow
+- **Timeout Management**: Configure appropriate timeouts (30s for E2E tests) via `pytest_configure()`
 **Outputs**: Verified complete workflows with expected results
 
 ### Test Data Strategy
@@ -51,3 +54,9 @@ Tests are derived from specification function points using these principles.
 - Constructor Assignment: Don't test that constructor parameters are assigned to instance variables
 - String Representations: Don't test __str__ or __repr__ unless they contain complex formatting logic
 **Focus Instead On**: Business logic, data transformations, error handling, integration points
+
+### Never Change Application Functionality for Tests
+
+**CRITICAL RULE**: Never change or add functionality to the application to implement tests, without discussion with the user.
+
+Tests should work with the application as it exists, not require the application to be modified to accommodate the tests.

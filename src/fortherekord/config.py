@@ -47,5 +47,10 @@ def create_default_config() -> None:
 
     default_config = {
         "rekordbox_library_path": default_path,
+        "replace_in_title": [
+            " (Original Mix)",
+            " (Extended Mix): (ext)"
+        ],
+        "ignore_playlists": []
     }
     save_config(default_config)

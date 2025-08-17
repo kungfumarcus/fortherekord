@@ -6,7 +6,7 @@ REM Ensure package is installed
 pip install -e . > nul 2>&1
 
 REM Run only E2E tests
-python -m pytest tests/test_e2e.py -v
+python -m pytest tests/e2e/ -v
 
 if %ERRORLEVEL% NEQ 0 (
     echo E2E tests failed!
