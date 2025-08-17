@@ -22,6 +22,13 @@ The following features are explicitly not included in this initial implementatio
 
 - **Platform**: Python 3.8+ console application
 - **Package Management**: pyproject.toml with modern Python packaging
+- **CLI Framework**: Click for command-line interface
+- **Configuration**: PyYAML for YAML configuration files
+- **Logging**: Python standard logging module
+- **Progress UI**: Rich library for progress bars and formatted output
+- **String Similarity**: python-Levenshtein for fast text matching
+- **Spotify Integration**: spotipy library for OAuth and API operations
+- **Database Access**: pyrekordbox library for Rekordbox database integration
 
 ## Function Points
 
@@ -39,15 +46,14 @@ The following features are explicitly not included in this initial implementatio
 - `--help` - Display usage information
 
 **Exit Codes:**
-- `0` - Success
-- `1` - Error
+- `0` - Success (even if some tracks remain unmapped)
+- `1` - Error (authentication failures, file access errors, critical failures only)
 
 ### Main Flow
 - Load user configuration
 - Connect to Rekordbox database
 - Library Cleanup
   - Cleanup and update track name and artist properties directly in database
-  - Create smart playlists based on MyTag values
 - Sync Spotify
   - Authenticate with Spotify using OAuth
   - Load Spotify liked tracks

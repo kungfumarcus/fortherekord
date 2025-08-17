@@ -8,8 +8,8 @@ Implements IMusicLibraryAdapter interface defined in [MusicLibraryInterface.md](
 - Direct playlist synchronization logic (handled by PlaylistSync component)
 
 ## Technical Requirements
-- **Spotify API**: Integration with Spotify Web API for all operations
-- **OAuth Authentication**: OAuth 2.0 flow for user authorization
+- **Spotify API**: Integration via `spotipy` library for OAuth and API operations
+- **OAuth Authentication**: OAuth 2.0 flow without browser interaction (console-based code entry)
 - **User Account Operations**: All operations performed in authenticated user's account
 - **Batch Operations**: Efficient batch processing for multiple track operations
 - **Pagination Handling**: Handle large result sets with proper pagination

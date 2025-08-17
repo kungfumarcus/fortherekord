@@ -17,10 +17,12 @@ Automated build, test, and deployment pipeline using GitHub Actions to create cr
 ### Build Pipeline
 Single pipeline with sequential stages triggered on push to main branch, test branch, and pull requests:
 
-#### Stage 1: Unit Testing
+#### Stage 1: Code Quality & Testing
+- Run linting checks using flake8 and pylint
+- Execute type checking using mypy
 - Execute unit tests using pytest
 - Generate code coverage reports
-- Fail pipeline if any tests don't pass
+- Fail pipeline if any quality checks or tests don't pass
 
 #### Stage 2: Build
 - Run on multiple operating systems (Windows, macOS)

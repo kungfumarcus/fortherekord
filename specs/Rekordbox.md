@@ -7,7 +7,6 @@ Implements IMusicLibraryAdapter interface defined in [MusicLibraryInterface.md](
 
 ## Out of Scope
 
-- **XML Processing**: Uses direct database access only via pyrekordbox library
 - **Rekordbox Smart Playlist Creation**: Read-only access to existing playlists
 - **Multiple Database Versions**: Supports Rekordbox v6/v7 databases only
 - **Direct playlist synchronization logic**: (handled by PlaylistSync component)
@@ -30,6 +29,10 @@ Implements IMusicLibraryAdapter interface defined in [MusicLibraryInterface.md](
 
 ### Database Connection
 - Auto-detect Rekordbox installation and database location
+  - Windows: `%APPDATA%\Pioneer\rekordbox\datafiles\`
+  - macOS: `~/Library/Pioneer/rekordbox/datafiles/`
+  - If not found, prompt user for database path
+  - If found, confirm location with user before proceeding
 - Extract encryption key from local Rekordbox files
 - Establish secure database connection
 

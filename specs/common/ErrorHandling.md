@@ -17,7 +17,9 @@ Define reliable error handling strategies that provide useful diagnostic informa
 - **Processing Errors**: Invalid track data, matching failures, playlist sync issues
 
 ### Error Recovery
-- **Warnings**: Some issues can be warnings and are reported but application flow continues
+- **Partial Failures**: Unmatched tracks are recorded as unmapped in mapping file, log warning and continue processing
+- **Interactive Mode Errors**: Invalid user input gets error message and reprompt for selection
 - **Limited Retry**: Retry transient API errors with exponential backoff, limited by retry count
+- **Progress Reporting**: CLI progress bars for large library operations using Rich library
 - **Error Context**: Provide specific file paths and affected tracks/playlists in error messages
 - **Validation Gates**: Stop processing early when critical errors are detected

@@ -26,7 +26,7 @@ Define Python development standards and practices to ensure code quality, mainta
 
 ### Code Quality Practices
 - **Standard Libraries First**: Prefer Python standard library over third-party when functionality is equivalent
-- **Explicit Imports**: Use explicit imports rather than wildcard imports
+- **Explicit Imports**: Use explicit imports rather than wildcard imports (makes dependencies clear and helps AI understand code relationships)
 - **Error Handling**: Use specific exception types rather than broad Exception catches
 - **Resource Management**: Use context managers (with statements) for file operations and database connections
 
