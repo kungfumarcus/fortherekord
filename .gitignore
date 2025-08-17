@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Build artifacts
+build/
+dist/
+*.spec
+*.egg-info/
+
+# Test artifacts
+.coverage
+.pytest_cache/
+htmlcov/
+
+# IDE/Tools
+.mypy_cache/
+.vscode/
+
+# Application data
+data/
