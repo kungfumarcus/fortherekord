@@ -47,9 +47,14 @@ def load_library(library_path: str) -> RekordboxLibrary:
     return rekordbox
 
 
-def initialize_processor(config: dict) -> RekordboxMetadataProcessor:
-    """Create metadata processor."""
-    return RekordboxMetadataProcessor(config)
+def initialize_processor(config: dict, tracks: list) -> RekordboxMetadataProcessor:
+    """Create metadata processor and set original values on tracks."""
+    processor = RekordboxMetadataProcessor(config)
+    
+    # Process tracks to extract original values from enhanced titles
+    processor.extract_original_metadata(tracks)
+    
+    return processor
 
 
 def get_tracks_to_process(rekordbox: RekordboxLibrary, config: dict, all_tracks: bool) -> list:
@@ -74,21 +79,19 @@ def process_tracks(tracks: list, rekordbox: RekordboxLibrary, processor: Rekordb
     click.echo()
     click.echo("Updating track metadata...")
     
-    # Process each track to create enhanced versions
-    enhanced_tracks = []
+    # Process each track to enhance titles (modifies tracks in-place)
     for track in tracks:
-        enhanced_track = processor.enhance_track_title(track)
-        enhanced_tracks.append(enhanced_track)
+        processor.enhance_track_title(track)
 
     # Check for duplicates
     click.echo()
     click.echo("Checking for duplicates...")
-    processor.check_for_duplicates(enhanced_tracks)
+    processor.check_for_duplicates(tracks)
 
     # Save changes and get actual count of modified tracks
     click.echo()
     click.echo("Saving changes to database...")
-    saved_count = rekordbox.save_changes(enhanced_tracks)
+    saved_count = rekordbox.save_changes(tracks)
     
     if saved_count > 0:
         click.echo(f"Successfully updated {saved_count} tracks")
@@ -111,13 +114,13 @@ def cli(all_tracks: bool) -> None:
 
     try:
         rekordbox = load_library(config["rekordbox_library_path"])
-        processor = initialize_processor(config)
         
         tracks = get_tracks_to_process(rekordbox, config, all_tracks)
         if not tracks:
             click.echo("No tracks found to process")
             return
-            
+        
+        processor = initialize_processor(config, tracks)
         process_tracks(tracks, rekordbox, processor)
         
     except RuntimeError:

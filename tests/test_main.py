@@ -107,14 +107,16 @@ class TestInitializeProcessor:
 
     @patch("fortherekord.main.RekordboxMetadataProcessor")
     def test_initialize_processor(self, mock_processor_class):
-        """Test processor initialization."""
+        """Test processor initialization and original metadata extraction."""
         config = {"test": "config"}
         mock_processor = mock_processor_class.return_value
+        tracks = [Mock(title="Song - Artist [Am]"), Mock(title="Another Song")]
         
-        result = initialize_processor(config)
+        result = initialize_processor(config, tracks)
         
         assert result == mock_processor
         mock_processor_class.assert_called_once_with(config)
+        mock_processor.extract_original_metadata.assert_called_once_with(tracks)
 
 
 class TestGetTracksToProcess:

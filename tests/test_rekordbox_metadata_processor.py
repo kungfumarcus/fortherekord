@@ -180,23 +180,59 @@ class TestRekordboxMetadataProcessor:
         assert "WARNING: Duplicate track found: Same Song" in captured.out
 
     def test_extract_original_metadata(self):
-        """Test extracting original metadata from enhanced titles."""
+        """Test extracting original metadata from enhanced titles on track objects."""
         config = {}
         processor = RekordboxMetadataProcessor(config)
         
-        # Test with key
-        enhanced_title = "Test Song - Test Artist [Am]"
-        title, artist, key = processor.extract_original_metadata(enhanced_title)
-        assert title == "Test Song"
-        assert artist == "Test Artist"
-        assert key == "Am"
+        # Create test tracks with enhanced titles
+        track1 = Track(
+            id="1", 
+            title="Test Song - Test Artist [Am]", 
+            artist="Test Artist",
+            original_title=None,
+            original_artist=None
+        )
+        track2 = Track(
+            id="2", 
+            title="Another Song - Another Artist", 
+            artist="Another Artist",
+            original_title=None,
+            original_artist=None
+        )
+        track3 = Track(
+            id="3", 
+            title="Simple Song", 
+            artist="Simple Artist",
+            original_title=None,
+            original_artist=None
+        )
+        track4 = Track(
+            id="4", 
+            title="Original Title - Artist One [Am] - Artist Two [Cm] - Artist Three [Gm]", 
+            artist="Artist Three",
+            original_title=None,
+            original_artist=None
+        )
         
-        # Test without key
-        enhanced_title_no_key = "Test Song - Test Artist"
-        title2, artist2, key2 = processor.extract_original_metadata(enhanced_title_no_key)
-        assert title2 == "Test Song"
-        assert artist2 == "Test Artist"
-        assert key2 is None
+        tracks = [track1, track2, track3, track4]
+        
+        # Process tracks
+        processor.extract_original_metadata(tracks)
+        
+        # Check results
+        assert track1.original_title == "Test Song"
+        assert track1.original_artist == "Test Artist"
+        
+        assert track2.original_title == "Another Song"
+        assert track2.original_artist == "Another Artist"
+        
+        # Track with no enhancement should use current values
+        assert track3.original_title == "Simple Song"
+        assert track3.original_artist == "Simple Artist"
+        
+        # Track with multiple artist/key instances should remove all of them
+        assert track4.original_title == "Original Title"
+        assert track4.original_artist == "Artist Three"
 
     def test_remove_duplicate_artists_empty_artist(self):
         """Test removing duplicates when artist is empty."""

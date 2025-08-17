@@ -89,20 +89,20 @@ class RekordboxLibrary(IMusicLibrary):
             content: Rekordbox content object
             
         Returns:
-            Track object with original values set
+            Track object
         """
-        title = content.Title or "Unknown Title"
-        artist = content.Artist.Name if content.Artist else "Unknown Artist"
+        current_title = content.Title or "Unknown Title"
+        current_artist = content.Artist.Name if content.Artist else "Unknown Artist"
         
         return Track(
             id=str(content.ID),
-            title=title,
-            artist=artist,
+            title=current_title,
+            artist=current_artist,
             duration_ms=int(content.Length * 1000) if content.Length else None,
             key=content.Key,
             bpm=content.BPM,
-            original_title=title,
-            original_artist=artist
+            original_title=current_title,  # Will be set properly by processor
+            original_artist=current_artist  # Will be set properly by processor
         )
 
     def get_playlists(self, ignore_playlists: List[str] = None) -> List[Playlist]:

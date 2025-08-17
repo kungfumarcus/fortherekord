@@ -129,34 +129,41 @@ class RekordboxMetadataProcessor:
         
         return enhanced_title
     
-    def extract_original_metadata(self, enhanced_title: str) -> Tuple[str, str, Optional[str]]:
+    def extract_original_metadata(self, tracks: List[Track]) -> None:
         """
-        Extract original title, artist, and key from enhanced title.
+        Extract original title and artist from enhanced titles and update tracks directly.
         
         Args:
-            enhanced_title: Title in "Title - Artist [Key]" format
-            
-        Returns:
-            Tuple of (title, artist, key)
+            tracks: List of Track objects to process
         """
-        title = enhanced_title
-        artist = ""
-        key = None
-        
-        # Extract key from brackets
-        key_match = re.search(r'\s\[([^\]]+)\]$', title)
-        if key_match:
-            key = key_match.group(1)
-            title = title[:key_match.start()]
-        
-        # Extract artist after last " - "
-        if " - " in title:
-            parts = title.rsplit(" - ", 1)
-            if len(parts) == 2:
-                title = parts[0].strip()
-                artist = parts[1].strip()
-        
-        return title, artist, key
+        for track in tracks:
+            title = track.title
+            artist = track.artist
+            key = None
+            
+            # Extract key from brackets
+            key_match = re.search(r'\s\[([^\]]+)\]$', title)
+            if key_match:
+                key = key_match.group(1)
+                title = title[:key_match.start()]
+            
+            # Extract artist after last " - "
+            if " - " in title:
+                # Extract the last artist first
+                parts = title.rsplit(" - ", 1)
+                original_artist = parts[1].strip() if len(parts) == 2 else ""
+                
+                # Remove all " - artist" patterns to get original title
+                # This handles cases like "Title - Artist1 - Artist2 - Artist3"
+                original_title = re.sub(r'( - [^-]+)+$', '', title)
+                
+                # Update the track's original values
+                track.original_title = original_title
+                track.original_artist = original_artist
+            else:
+                # No enhancement detected, use current values as original
+                track.original_title = track.title
+                track.original_artist = track.artist
     
     def check_for_duplicates(self, tracks: List[Track]) -> None:
         """Check for duplicate track titles and print warnings."""
