@@ -19,16 +19,17 @@ Tests are derived from specification function points using these principles.
 - Function Point Coverage: Every capability in specs gets corresponding test scenarios
 - Fast Execution: Use small, focused test data sets
 - Isolated Testing: Mock external dependencies (database, filesystem, APIs)
+- Helper Functions: Reduce repetition with reusable test utilities
 **Outputs**: Pass/fail results with detailed failure information
 
 ### End-to-End Tests
-**Purpose**: Test the full application with realistic but small data sets
-**Inputs**: Small test data sets, various command arguments
+**Purpose**: Exercise major user workflows with as few tests as possible
+**Inputs**: Command arguments, actual executable/module
 **Processing**:
-- Complete Workflows: Test the full application with realistic but small data sets
+- Major Flow Coverage: As few tests as possible while covering all major user journeys
 - Integration Verification: Components working together through actual interfaces
-- Performance Validation: Ensure acceptable performance with test-sized data sets
-- Error Scenarios: Test failure modes and recovery behavior
+- No Mocking: Test the actual executable/module as users would experience it
+- Each test represents a distinct user workflow
 **Outputs**: Verified complete workflows with expected results
 
 ### Test Data Strategy
