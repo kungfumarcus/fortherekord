@@ -552,38 +552,117 @@ class TestRekordboxLibraryDatabaseWriting:
 
     @patch.dict("os.environ", {"FORTHEREKORD_TEST_MODE": "0"})
     def test_save_changes_success(self):
-        """Test successful save changes."""
-        mock_db = Mock()
+        """Test successful save changes counts modified tracks correctly."""
+        from fortherekord.models import Track
         
         library = RekordboxLibrary("/test/db.edb")
-        library._db = mock_db
+        library._db = Mock()
         
-        result = library.save_changes()
+        # Create track objects with current values
+        tracks = [
+            # Track 1: Title changed, artist unchanged
+            Track(
+                id="1",
+                title="New Title",  # Changed from "Original Title"
+                artist="Same Artist",  # Unchanged
+                original_title="Original Title",
+                original_artist="Same Artist"
+            ),
+            # Track 2: Title unchanged, artist changed  
+            Track(
+                id="2",
+                title="Same Title",  # Unchanged
+                artist="New Artist",  # Changed from "Original Artist"
+                original_title="Same Title", 
+                original_artist="Original Artist"
+            ),
+            # Track 3: Both title and artist unchanged
+            Track(
+                id="3",
+                title="Unchanged Title",  # Unchanged
+                artist="Unchanged Artist",  # Unchanged
+                original_title="Unchanged Title",
+                original_artist="Unchanged Artist"
+            ),
+            # Track 4: Both title and artist changed
+            Track(
+                id="4", 
+                title="Completely New Title",  # Changed from "Old Title"
+                artist="Completely New Artist",  # Changed from "Old Artist"
+                original_title="Old Title",
+                original_artist="Old Artist"
+            )
+        ]
         
-        assert result is True
-        mock_db.commit.assert_called_once()
-
-    def test_save_changes_no_db(self):
-        """Test save changes when no database is loaded."""
-        library = RekordboxLibrary("/test/db.edb")
-        library._db = None
+        result = library.save_changes(tracks)
         
-        result = library.save_changes()
-        
-        assert result is True  # Should return True for no-op
+        # Should count 3 modified tracks (track1, track2, track4) and ignore track3
+        assert result == 3
+        library._db.commit.assert_called_once()
 
     @patch.dict("os.environ", {"FORTHEREKORD_TEST_MODE": "0"})
     def test_save_changes_commit_exception(self):
         """Test save_changes when commit raises an exception."""
+        from fortherekord.models import Track
+        
         mock_db = Mock()
         mock_db.commit.side_effect = Exception("Database commit failed")
         
         library = RekordboxLibrary("/test/db.edb")
         library._db = mock_db
         
-        # Should now raise the exception instead of returning False
+        # Create a track with different original and current values to trigger commit
+        tracks = [
+            Track(
+                id="1",
+                title="New Title",
+                artist="New Artist", 
+                original_title="Old Title",  # Different from current
+                original_artist="Old Artist"  # Different from current
+            )
+        ]
+        
+        # Should now raise the exception since modified_count > 0 triggers commit
         with pytest.raises(Exception, match="Database commit failed"):
-            library.save_changes()
+            library.save_changes(tracks)
+
+    @patch.dict("os.environ", {"FORTHEREKORD_TEST_MODE": "0"})
+    def test_save_changes_update_failure(self):
+        """Test save_changes when update_track_metadata fails."""
+        from fortherekord.models import Track
+        import io
+        import sys
+        
+        library = RekordboxLibrary("/test/db.edb")
+        library._db = Mock()
+        library.update_track_metadata = Mock(return_value=False)  # Simulate update failure
+        
+        # Create a track with different original and current values
+        tracks = [
+            Track(
+                id="1",
+                title="New Title",
+                artist="New Artist", 
+                original_title="Old Title",  # Different from current
+                original_artist="Old Artist"  # Different from current
+            )
+        ]
+        
+        # Capture print output
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        
+        try:
+            result = library.save_changes(tracks)
+            
+            # Should return 0 since update failed
+            assert result == 0
+            
+            # Check that warning was printed
+            output = captured_output.getvalue()
+            assert "WARNING: Failed to update track 1: New Title" in output
+        finally:
+            sys.stdout = sys.__stdout__
 
 
 class TestDatabaseSafety:
@@ -600,10 +679,10 @@ class TestDatabaseSafety:
         
         try:
             # Call save_changes - should NOT call commit in test mode
-            result = library.save_changes()
+            result = library.save_changes([])
             
-            # Should succeed but never call actual commit
-            assert result is True
+            # Should return 0 (no tracks modified) but never call actual commit
+            assert result == 0
             mock_db.commit.assert_not_called()
         finally:
             cleanup_test_dump_file()
@@ -622,10 +701,10 @@ class TestDatabaseSafety:
         library = RekordboxLibrary("/test/db.edb")
         library._db = mock_db
         
-        result = library.save_changes()
+        result = library.save_changes([])
         
-        assert result is True
-        mock_db.commit.assert_called_once()
+        assert result == 0
+        mock_db.commit.assert_not_called()  # No tracks to commit
 
     def test_save_changes_creates_dump_file_in_test_mode(self):
         """Test that save_changes creates dump file instead of committing in test mode."""
@@ -639,10 +718,10 @@ class TestDatabaseSafety:
             library = RekordboxLibrary("/test/db.edb")
             library._db = mock_db
             
-            result = library.save_changes()
+            result = library.save_changes([])
             
-            # Should succeed
-            assert result is True
+            # Should return 0 for no tracks
+            assert result == 0
             
             # Should NOT call commit
             mock_db.commit.assert_not_called()

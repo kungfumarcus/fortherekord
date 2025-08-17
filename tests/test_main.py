@@ -171,15 +171,16 @@ class TestProcessTracks:
         
         mock_processor.enhance_track_title.return_value = enhanced_track
         mock_rekordbox.update_track_metadata.return_value = True
-        mock_rekordbox.save_changes.return_value = True
+        mock_rekordbox.save_changes.return_value = 1  # Return count of saved tracks
         
         with patch("fortherekord.main.click.echo") as mock_echo:
             process_tracks([original_track], mock_rekordbox, mock_processor)
             
         # Verify calls
         mock_processor.enhance_track_title.assert_called()
-        mock_rekordbox.update_track_metadata.assert_called_once_with("1", enhanced_track.title, enhanced_track.artist)
         mock_rekordbox.save_changes.assert_called_once()
+        # update_track_metadata should NOT be called from process_tracks anymore
+        mock_rekordbox.update_track_metadata.assert_not_called()
         
         # Check that success message was printed
         echo_calls = [str(call) for call in mock_echo.call_args_list]
@@ -189,21 +190,22 @@ class TestProcessTracks:
         """Test track processing when no changes are needed."""
         from fortherekord.models import Track
         
-        # Track that doesn't need enhancement
+        # Track that doesn't need enhancement - both title and artist unchanged
         track = Track(id="1", title="Test Song - Test Artist [Am]", artist="Test Artist", key="Am", bpm=120)
         
         # Setup mocks
         mock_rekordbox = MagicMock()
         mock_processor = MagicMock()
         
-        mock_processor.enhance_track_title.return_value = track  # Same track returned
+        mock_processor.enhance_track_title.return_value = track  # Same track returned (no changes)
+        mock_rekordbox.save_changes.return_value = 0  # No tracks were modified
         
         with patch("fortherekord.main.click.echo") as mock_echo:
             process_tracks([track], mock_rekordbox, mock_processor)
             
-        # Verify no update was attempted
+        # Verify save_changes was called (but returned 0)
+        mock_rekordbox.save_changes.assert_called_once()
         mock_rekordbox.update_track_metadata.assert_not_called()
-        mock_rekordbox.save_changes.assert_not_called()
         
         # Check that "No changes needed" message was printed
         echo_calls = [str(call) for call in mock_echo.call_args_list]
@@ -221,14 +223,14 @@ class TestProcessTracks:
         mock_processor = MagicMock()
         
         mock_processor.enhance_track_title.return_value = enhanced_track
-        mock_rekordbox.update_track_metadata.return_value = False  # Simulate failure
+        mock_rekordbox.save_changes.return_value = 0  # No tracks saved due to failure
         
         with patch("fortherekord.main.click.echo") as mock_echo:
             process_tracks([original_track], mock_rekordbox, mock_processor)
             
-        # Check that failure message was printed
+        # Check that "No changes needed" message was printed (since save_changes returned 0)
         echo_calls = [str(call) for call in mock_echo.call_args_list]
-        assert any("Failed to update track: Test Song" in call for call in echo_calls)
+        assert any("No changes needed" in call for call in echo_calls)
 
     def test_process_tracks_save_failure(self):
         """Test track processing when save fails."""
@@ -242,15 +244,14 @@ class TestProcessTracks:
         mock_processor = MagicMock()
         
         mock_processor.enhance_track_title.return_value = enhanced_track
-        mock_rekordbox.update_track_metadata.return_value = True
-        mock_rekordbox.save_changes.return_value = False  # Simulate save failure
+        mock_rekordbox.save_changes.return_value = 0  # Save returns 0 (no tracks saved)
         
         with patch("fortherekord.main.click.echo") as mock_echo:
             process_tracks([original_track], mock_rekordbox, mock_processor)
             
-        # Check that save failure message was printed
+        # Check that "No changes needed" message was printed (since save_changes returned 0)
         echo_calls = [str(call) for call in mock_echo.call_args_list]
-        assert any("Error: Failed to save changes" in call for call in echo_calls)
+        assert any("No changes needed" in call for call in echo_calls)
 
 
 class TestCLIIntegration:

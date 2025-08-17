@@ -81,6 +81,30 @@ class RekordboxLibrary(IMusicLibrary):
                 
         return self._db
 
+    def _create_track_from_content(self, content) -> Track:
+        """
+        Helper method to create a Track object from Rekordbox content.
+        
+        Args:
+            content: Rekordbox content object
+            
+        Returns:
+            Track object with original values set
+        """
+        title = content.Title or "Unknown Title"
+        artist = content.Artist.Name if content.Artist else "Unknown Artist"
+        
+        return Track(
+            id=str(content.ID),
+            title=title,
+            artist=artist,
+            duration_ms=int(content.Length * 1000) if content.Length else None,
+            key=content.Key,
+            bpm=content.BPM,
+            original_title=title,
+            original_artist=artist
+        )
+
     def get_playlists(self, ignore_playlists: List[str] = None) -> List[Playlist]:
         """
         Retrieve top-level playlists from Rekordbox database.
@@ -107,15 +131,7 @@ class RekordboxLibrary(IMusicLibrary):
             # Get tracks for this playlist
             tracks = []
             for song in rb_playlist.Songs:
-                content = song.Content
-                track = Track(
-                    id=str(content.ID),
-                    title=content.Title or "Unknown Title",
-                    artist=content.Artist.Name if content.Artist else "Unknown Artist",
-                    duration_ms=int(content.Length * 1000) if content.Length else None,
-                    key=content.Key,
-                    bpm=content.BPM,
-                )
+                track = self._create_track_from_content(song.Content)
                 tracks.append(track)
 
             # Create playlist object with parent_id
@@ -165,15 +181,7 @@ class RekordboxLibrary(IMusicLibrary):
             if str(rb_playlist.ID) == playlist_id:
                 tracks = []
                 for song in rb_playlist.Songs:
-                    content = song.Content
-                    track = Track(
-                        id=str(content.ID),
-                        title=content.Title or "Unknown Title",
-                        artist=content.Artist.Name if content.Artist else "Unknown Artist",
-                        duration_ms=int(content.Length * 1000) if content.Length else None,
-                        key=content.Key,
-                        bpm=content.BPM,
-                    )
+                    track = self._create_track_from_content(song.Content)
                     tracks.append(track)
                 return tracks
 
@@ -206,14 +214,7 @@ class RekordboxLibrary(IMusicLibrary):
         tracks = []
         
         for content in db.get_content():
-            track = Track(
-                id=str(content.ID),
-                title=content.Title or "Unknown Title",
-                artist=content.Artist.Name if content.Artist else "Unknown Artist",
-                duration_ms=int(content.Length * 1000) if content.Length else None,
-                key=content.Key,
-                bpm=content.BPM,
-            )
+            track = self._create_track_from_content(content)
             tracks.append(track)
         
         return tracks
@@ -255,14 +256,7 @@ class RekordboxLibrary(IMusicLibrary):
                 
                 if track_id not in track_ids:
                     track_ids.add(track_id)
-                    track = Track(
-                        id=track_id,
-                        title=content.Title or "Unknown Title",
-                        artist=content.Artist.Name if content.Artist else "Unknown Artist",
-                        duration_ms=int(content.Length * 1000) if content.Length else None,
-                        key=content.Key,
-                        bpm=content.BPM,
-                    )
+                    track = self._create_track_from_content(content)
                     tracks.append(track)
         
         print(f"Found {len(tracks)} tracks to process")
@@ -289,29 +283,47 @@ class RekordboxLibrary(IMusicLibrary):
             print(f"WARNING: Track not found for update: {track_id}")
             return False
         
-        # Update the fields directly
+        # Update the fields
         content.Title = title
         if content.Artist:
             content.Artist.Name = artist
             
         return True
     
-    def save_changes(self) -> bool:
+    def save_changes(self, tracks: list[Track]) -> int:
         """
-        Save all changes to the database.
+        Count how many tracks actually have different values and save only if there are changes.
         
-        In test mode (when FORTHEREKORD_TEST_MODE is set), changes are dumped
-        to a file instead of committing to the database.
-        
+        Args:
+            tracks: List of Track objects to check and save
+            
         Returns:
-            True if save was successful
+            Number of tracks that actually had different values
         """
         import os
         import json
         from datetime import datetime
         
-        if self._db is None:
-            return True
+        # Count tracks that actually have different values
+        modified_count = 0
+        
+        # Compare current values with original values for provided tracks
+        for track in tracks:
+            # Use the original values stored on the Track object
+            current_title = track.title or ""
+            current_artist = track.artist or ""
+            
+            original_title = track.original_title or ""
+            original_artist = track.original_artist or ""
+            
+            # Check if either title or artist has changed
+            if current_title != original_title or current_artist != original_artist:
+                # Update the track in the database
+                success = self.update_track_metadata(track.id, current_title, current_artist)
+                if success:
+                    modified_count += 1
+                else:
+                    print(f"WARNING: Failed to update track {track.id}: {current_title}")
             
         # Check if we're in test mode
         test_mode = os.getenv("FORTHEREKORD_TEST_MODE", "").lower() in ("1", "true", "yes")
@@ -320,10 +332,10 @@ class RekordboxLibrary(IMusicLibrary):
             # In test mode, dump changes to a file instead of committing
             dump_file = os.getenv("FORTHEREKORD_TEST_DUMP_FILE", "test_changes_dump.json")
             
-            # Collect pending changes (this would need to be implemented based on pyrekordbox's dirty tracking)
             changes = {
                 "timestamp": datetime.now().isoformat(),
                 "mode": "test_dump",
+                "modified_count": modified_count,
                 "message": "Changes would have been committed to database",
                 "note": "Database commit prevented in test mode"
             }
@@ -333,10 +345,10 @@ class RekordboxLibrary(IMusicLibrary):
                 json.dump(changes, f, indent=2)
             
             print(f"Test mode: Changes dumped to {dump_file} (database not modified)")
-            return True
+            return modified_count
         else:
-            # Normal mode: commit to database
-            # Commit changes using pyrekordbox's commit method
-            self._db.commit()
-            print("Changes saved to database")
-            return True
+            # Normal mode: commit to database only if there are changes
+            if modified_count > 0:
+                self._db.commit()
+                print("Changes saved to database")
+            return modified_count

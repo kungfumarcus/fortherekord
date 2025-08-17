@@ -45,10 +45,10 @@ class TestDatabaseSafetyFirst:
         
         try:
             # This should NOT call commit due to test mode
-            result = library.save_changes()
+            result = library.save_changes([])
             
-            # Verify it succeeded but never called commit
-            assert result is True, "save_changes should succeed in test mode"
+            # Verify it succeeded but never called commit (returns 0 for no tracks)
+            assert result == 0, "save_changes should return 0 for empty track list"
             mock_db.commit.assert_not_called(), "CRITICAL: Database commit was called during test mode!"
         finally:
             cleanup_test_dump_file()

@@ -64,13 +64,15 @@ class RekordboxMetadataProcessor:
         # Build enhanced title
         enhanced_title = self._format_enhanced_title(title, artist, key)
         
-        # Return new track with enhanced metadata
+        # Return new track with enhanced metadata, preserving original values
         return Track(
             id=track.id,
             title=enhanced_title,
             artist=artist,
             key=track.key,
-            bpm=track.bpm
+            bpm=track.bpm,
+            original_title=track.original_title,  # Preserve original values
+            original_artist=track.original_artist
         )
     
     def _apply_text_replacements(self, title: str, artist: str) -> Tuple[str, str]:

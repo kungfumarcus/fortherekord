@@ -74,37 +74,24 @@ def process_tracks(tracks: list, rekordbox: RekordboxLibrary, processor: Rekordb
     click.echo()
     click.echo("Updating track metadata...")
     
-    # Process each track
-    updated_count = 0
+    # Process each track to create enhanced versions
+    enhanced_tracks = []
     for track in tracks:
-        original_title = track.title
         enhanced_track = processor.enhance_track_title(track)
-        
-        if enhanced_track.title != original_title:
-            success = rekordbox.update_track_metadata(
-                track.id, 
-                enhanced_track.title, 
-                enhanced_track.artist
-            )
-            if success:
-                updated_count += 1
-            else:
-                click.echo(f"Failed to update track: {original_title}")
+        enhanced_tracks.append(enhanced_track)
 
     # Check for duplicates
     click.echo()
     click.echo("Checking for duplicates...")
-    enhanced_tracks = [processor.enhance_track_title(track) for track in tracks]
     processor.check_for_duplicates(enhanced_tracks)
 
-    # Save changes
-    if updated_count > 0:
-        click.echo()
-        click.echo("Saving changes to database...")
-        if rekordbox.save_changes():
-            click.echo(f"Successfully updated {updated_count} tracks")
-        else:
-            click.echo("Error: Failed to save changes")
+    # Save changes and get actual count of modified tracks
+    click.echo()
+    click.echo("Saving changes to database...")
+    saved_count = rekordbox.save_changes(enhanced_tracks)
+    
+    if saved_count > 0:
+        click.echo(f"Successfully updated {saved_count} tracks")
     else:
         click.echo("No changes needed")
 

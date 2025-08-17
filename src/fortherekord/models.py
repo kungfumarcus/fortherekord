@@ -24,6 +24,8 @@ class Track:
     duration_ms: Optional[int] = None
     key: Optional[str] = None
     bpm: Optional[float] = None
+    original_title: Optional[str] = None
+    original_artist: Optional[str] = None
 
 
 @dataclass

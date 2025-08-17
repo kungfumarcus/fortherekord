@@ -41,7 +41,10 @@ Implements IMusicLibrary interface defined in [MusicLibraryInterface.md](MusicLi
 
 ### Track Operations
 - Retrieve all tracks from collection with metadata
-- Update track metadata in database
+- **Track Change Detection**: Compare enhanced track title AND artist with original values to determine if modification is needed
+- **Conditional Updates**: Only call update_track_metadata() for tracks where enhanced title OR artist differs from original
+- **Modified Tracks Only**: Only save tracks that have actually been modified - never save unchanged tracks
+- **Accurate Reporting**: Report exact count of tracks that were actually updated and saved to database
 - **Save Error Handling**: Detect "Rekordbox is running" errors and provide actionable error messages
 
 ### Playlist Operations
