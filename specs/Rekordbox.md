@@ -3,12 +3,14 @@
 ## Scope
 
 Connects to and processes Rekordbox database files to extract track and playlist information, and performs track property cleanup operations directly on the database.
+Implements IMusicLibraryAdapter interface defined in [MusicLibraryInterface.md](MusicLibraryInterface.md) for use with [PlaylistSync.md](PlaylistSync.md) component.
 
 ## Out of Scope
 
 - **XML Processing**: Uses direct database access only via pyrekordbox library
 - **Rekordbox Smart Playlist Creation**: Read-only access to existing playlists
 - **Multiple Database Versions**: Supports Rekordbox v6/v7 databases only
+- **Direct playlist synchronization logic**: (handled by PlaylistSync component)
 
 ## Technical Requirements
 
@@ -17,6 +19,14 @@ Connects to and processes Rekordbox database files to extract track and playlist
 - **Database Modifications**: Direct updates to track metadata in live database
 
 ## Function Points
+
+### IMusicLibraryAdapter Implementation
+- **GetPlaylists**: Extract hierarchical playlist structure from database, applying ignore_playlists filter
+- **GetPlaylistTracks**: Load track associations for specified playlist
+- **CreatePlaylist**: Not supported (read-only for playlists)
+- **DeletePlaylist**: Not supported (read-only for playlists)
+- **FollowArtist**: Not supported (source library only)
+- **GetFollowedArtists**: Not supported (source library only)
 
 ### Database Connection
 - Auto-detect Rekordbox installation and database location
@@ -29,4 +39,5 @@ Connects to and processes Rekordbox database files to extract track and playlist
 
 ### Playlist Operations
 - Extract hierarchical playlist structure from database
+- Apply ignore_playlists configuration filter
 - Load track associations for each playlist

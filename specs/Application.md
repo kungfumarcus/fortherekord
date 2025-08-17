@@ -6,7 +6,6 @@ A command-line application that provides additional functionality for Rekordbox 
 * Update Rekordbox track properties such as title and artist, cleaning up unneeded text and adding extra information in titles (see [RekordboxMetadata.md](RekordboxMetadata.md))
 * Create and synchronize Spotify playlists matching your Rekordbox playlists. This requires fuzzy matching logic to match tracks with different text in title and artist (see [filematching.md](filematching.md) and [Spotify.md](Spotify.md))
 * Follow artists found in multiple tracks in your Rekordbox playlists
-* Create Rekordbox smart playlists based on playlist track MyTag values
 * Rich configuration allowing custom behavior to suit the user's requirements
 
 The application integrates directly with the Rekordbox database for real-time access and updates (see [Rekordbox.md](Rekordbox.md)).
@@ -17,6 +16,7 @@ The following features are explicitly not included in this initial implementatio
 
 - **Performance Requirements**: No specific performance targets defined (implement efficiently but no quantified metrics)
 - **GUI Interface**: Command-line only
+- **Smart Playlist Creation**: Create Rekordbox smart playlists based on playlist track MyTag values (future enhancement)
 
 ## Technical Requirements
 

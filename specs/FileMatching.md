@@ -47,16 +47,19 @@ Prepares clean strings for Spotify search API
 
 #### Cache Storage
 - Store mapping for each source track ID (e.g., Rekordbox track ID)
-- **target_track_id**: Target platform track ID or null if unmapped
-- **algorithm_version**: String identifier for mapping algorithm used (e.g., "v1.0-progressive")
-- **confidence_score**: Final confidence score of the match
-- **timestamp**: When mapping was created
-- **manual_override**: Boolean if user manually selected this match
+- Save to **RekordBoxSpotifyMapping.json** file
+- Make data available to other components
+- mapping data is:
+  - **target_track_id**: Target platform track ID or null if unmapped
+  - **algorithm_version**: String identifier for mapping algorithm used (e.g., "v1.0-progressive")
+  - **confidence_score**: Final confidence score of the match
+  - **timestamp**: When mapping was created
+  - **manual_override**: Boolean if user manually selected this match
 
 #### Cache Operations
-- Load existing mappings on startup
+- Load existing mappings from RekordBoxSpotifyMapping.json on startup
 - Skip remapping if cached entry exists (unless --remap flag used)
-- Save new mappings after each successful/failed match attempt
+- Save new mappings to RekordBoxSpotifyMapping.json after each successful/failed match attempt
 - Allow filtering by algorithm_version for selective remapping
 
 ### Interactive Matching Algorithm

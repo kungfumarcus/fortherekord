@@ -2,6 +2,10 @@
 
 ## Scope
 Spotify integration allowing playlist management, track searching and artist following.
+Implements IMusicLibraryAdapter interface defined in [MusicLibraryInterface.md](MusicLibraryInterface.md) for use with [PlaylistSync.md](PlaylistSync.md) and [FollowArtists.md](FollowArtists.md) components.
+
+## Out of Scope
+- Direct playlist synchronization logic (handled by PlaylistSync component)
 
 ## Technical Requirements
 - **Spotify API**: Integration with Spotify Web API for all operations
@@ -12,6 +16,14 @@ Spotify integration allowing playlist management, track searching and artist fol
 - **Rate Limiting**: Manage API rate limits with appropriate retry logic
 
 ## Function Points
+
+### IMusicLibraryAdapter Implementation
+- **GetPlaylists**: Retrieve user's Spotify playlists
+- **GetPlaylistTracks**: Get tracks from specified Spotify playlist
+- **CreatePlaylist**: Create new playlist with specified name and tracks
+- **DeletePlaylist**: Remove playlist from user's account
+- **FollowArtist**: Follow specified artist on behalf of authenticated user
+- **GetFollowedArtists**: Retrieve list of artists currently followed by user
 
 ### Authentication
 - **Authenticate User**: Execute OAuth 2.0 flow and maintain access tokens for Spotify API access
