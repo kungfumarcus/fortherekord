@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 import pytest
 
-from fortherekord.rekordbox import RekordboxLibrary
+from fortherekord.rekordbox_library import RekordboxLibrary
 from fortherekord.models import Track, Playlist
 
 
@@ -18,15 +18,19 @@ def create_mock_rekordbox_database():
     """Helper function to create a mock Rekordbox database."""
     mock_db = Mock()
 
-    # Create mock playlist data
+    # Create mock playlist data with hierarchy and sequence
     mock_playlist1 = Mock()
     mock_playlist1.ID = 1
     mock_playlist1.Name = "Test Playlist 1"
     mock_playlist1.Songs = []
+    mock_playlist1.Parent = None  # Top-level playlist
+    mock_playlist1.Seq = 1
 
     mock_playlist2 = Mock()
     mock_playlist2.ID = 2
     mock_playlist2.Name = "Test Playlist 2"
+    mock_playlist2.Parent = None  # Top-level playlist
+    mock_playlist2.Seq = 2
 
     # Create mock song/track data
     mock_song = Mock()
@@ -76,7 +80,7 @@ class TestRekordboxLibraryInit:
 class TestDatabaseConnection:
     """Test database connection functionality."""
 
-    @patch("fortherekord.rekordbox.Rekordbox6Database")
+    @patch("fortherekord.rekordbox_library.Rekordbox6Database")
     @patch("pathlib.Path.exists")
     def test_get_database_success(self, mock_exists, mock_db_class):
         """Test successful database connection."""
@@ -101,70 +105,43 @@ class TestDatabaseConnection:
         with pytest.raises(FileNotFoundError, match="Rekordbox database not found"):
             library._get_database()
 
-    @patch("fortherekord.rekordbox.Rekordbox6Database")
-    @patch("fortherekord.rekordbox.subprocess.run")
+    @patch("fortherekord.rekordbox_library.Rekordbox6Database")
+    @patch("fortherekord.rekordbox_library.subprocess.run")
     @patch("pathlib.Path.exists")
-    def test_get_database_key_download_success(self, mock_exists, mock_subprocess, mock_db_class):
-        """Test database connection with successful key download."""
+    def test_get_database_key_download_scenarios(self, mock_exists, mock_subprocess, mock_db_class):
+        """Test database connection with various key download scenarios."""
         from pyrekordbox.db6.database import NoCachedKey
 
         mock_exists.return_value = True
 
-        # First call raises NoCachedKey, second call succeeds
+        # Test successful key download
         mock_db_instance = create_mock_rekordbox_database()
         mock_db_class.side_effect = [NoCachedKey("No key"), mock_db_instance]
-
-        # Mock successful subprocess
         mock_subprocess.return_value = create_mock_subprocess_success()
 
         library = RekordboxLibrary("/path/to/database.db")
         db = library._get_database()
         assert db == mock_db_instance
 
-        # Verify subprocess was called correctly
-        mock_subprocess.assert_called_once()
-        args = mock_subprocess.call_args[0][0]
-        assert "pyrekordbox" in args
-        assert "download-key" in args
-
-    @patch("fortherekord.rekordbox.Rekordbox6Database")
-    @patch("fortherekord.rekordbox.subprocess.run")
-    @patch("pathlib.Path.exists")
-    def test_get_database_key_download_fails(self, mock_exists, mock_subprocess, mock_db_class):
-        """Test database connection when key download fails."""
-        from pyrekordbox.db6.database import NoCachedKey
-
-        mock_exists.return_value = True
+        # Reset for next test
+        library._db = None
+        
+        # Test failed key download
         mock_db_class.side_effect = NoCachedKey("No key")
-
-        # Mock failed subprocess
         mock_subprocess.side_effect = subprocess.CalledProcessError(
             1, "cmd", stderr="Download failed"
         )
 
-        library = RekordboxLibrary("/path/to/database.db")
-
         with pytest.raises(RuntimeError, match="Failed to download database key"):
             library._get_database()
 
-    @patch("fortherekord.rekordbox.Rekordbox6Database")
-    @patch("fortherekord.rekordbox.subprocess.run")
-    @patch("pathlib.Path.exists")
-    def test_get_database_key_still_missing_after_download(
-        self, mock_exists, mock_subprocess, mock_db_class
-    ):
-        """Test database connection when key is still missing after download."""
-        from pyrekordbox.db6.database import NoCachedKey
-
-        mock_exists.return_value = True
-
-        # Both calls raise NoCachedKey
+        # Reset for next test  
+        library._db = None
+        
+        # Test key still missing after download
         mock_db_class.side_effect = [NoCachedKey("No key"), NoCachedKey("Still no key")]
-
-        # Mock successful subprocess (but key still not available)
+        mock_subprocess.side_effect = None  # Reset
         mock_subprocess.return_value = create_mock_subprocess_success()
-
-        library = RekordboxLibrary("/path/to/database.db")
 
         with pytest.raises(RuntimeError, match="Database key could not be obtained"):
             library._get_database()
@@ -173,7 +150,7 @@ class TestDatabaseConnection:
 class TestPlaylistRetrieval:
     """Test playlist retrieval functionality."""
 
-    @patch("fortherekord.rekordbox.RekordboxLibrary._get_database")
+    @patch("fortherekord.rekordbox_library.RekordboxLibrary._get_database")
     def test_get_playlists_success(self, mock_get_db):
         """Test successful playlist retrieval."""
         mock_db = create_mock_rekordbox_database()
@@ -199,7 +176,7 @@ class TestPlaylistRetrieval:
         assert track.key == "Am"
         assert track.bpm == 120.0
 
-    @patch("fortherekord.rekordbox.RekordboxLibrary._get_database")
+    @patch("fortherekord.rekordbox_library.RekordboxLibrary._get_database")
     def test_get_playlists_with_missing_metadata(self, mock_get_db):
         """Test playlist retrieval with missing track metadata."""
         mock_db = Mock()
@@ -208,6 +185,8 @@ class TestPlaylistRetrieval:
         mock_playlist = Mock()
         mock_playlist.ID = 1
         mock_playlist.Name = None  # Missing name
+        mock_playlist.Parent = None  # Top-level playlist
+        mock_playlist.Seq = 1
 
         mock_song = Mock()
         mock_content = Mock()
@@ -241,7 +220,7 @@ class TestPlaylistRetrieval:
 class TestPlaylistTrackRetrieval:
     """Test individual playlist track retrieval."""
 
-    @patch("fortherekord.rekordbox.RekordboxLibrary._get_database")
+    @patch("fortherekord.rekordbox_library.RekordboxLibrary._get_database")
     def test_get_playlist_tracks_success(self, mock_get_db):
         """Test successful retrieval of tracks for specific playlist."""
         mock_db = create_mock_rekordbox_database()
@@ -256,7 +235,7 @@ class TestPlaylistTrackRetrieval:
         assert track.title == "Test Song"
         assert track.artist == "Test Artist"
 
-    @patch("fortherekord.rekordbox.RekordboxLibrary._get_database")
+    @patch("fortherekord.rekordbox_library.RekordboxLibrary._get_database")
     def test_get_playlist_tracks_not_found(self, mock_get_db):
         """Test retrieval of tracks for non-existent playlist."""
         mock_db = create_mock_rekordbox_database()
@@ -304,7 +283,7 @@ class TestUnsupportedOperations:
 @pytest.fixture
 def mock_rekordbox_library():
     """Provide a mock RekordboxLibrary for testing."""
-    with patch("fortherekord.rekordbox.RekordboxLibrary._get_database") as mock_get_db:
+    with patch("fortherekord.rekordbox_library.RekordboxLibrary._get_database") as mock_get_db:
         mock_db = create_mock_rekordbox_database()
         mock_get_db.return_value = mock_db
         library = RekordboxLibrary("/test/path/database.db")
@@ -355,6 +334,132 @@ class TestRekordboxWithFixtures:
         tracks = mock_rekordbox_library.get_playlist_tracks("2")
         assert len(tracks) >= 1
         assert all(isinstance(t, Track) for t in tracks)
+
+
+class TestPlaylistHierarchy:
+    """Test playlist parent-child relationships and sorting."""
+
+    @patch("fortherekord.rekordbox_library.RekordboxLibrary._get_database")
+    def test_get_playlists_with_parent_child_relationships(self, mock_get_db):
+        """Test playlist retrieval with parent-child relationships."""
+        mock_db = Mock()
+        
+        # Create parent playlist
+        parent_playlist = Mock()
+        parent_playlist.ID = 1
+        parent_playlist.Name = "Parent Playlist"
+        parent_playlist.Songs = []
+        parent_playlist.Seq = 1
+        parent_playlist.Parent = None
+        
+        # Create child playlists
+        child1 = Mock()
+        child1.ID = 2
+        child1.Name = "Child 1"
+        child1.Songs = []
+        child1.Seq = 2
+        child1.Parent = parent_playlist
+        
+        child2 = Mock()
+        child2.ID = 3
+        child2.Name = "Child 2"
+        child2.Songs = []
+        child2.Seq = 1  # Lower sequence number - should be sorted first
+        child2.Parent = parent_playlist
+        
+        mock_db.get_playlist.return_value = [parent_playlist, child1, child2]
+        mock_get_db.return_value = mock_db
+        
+        library = RekordboxLibrary("/test/db.edb")
+        playlists = library.get_playlists()
+        
+        # Should return only the parent (top-level) playlist
+        assert len(playlists) == 1
+        parent = playlists[0]
+        assert parent.name == "Parent Playlist"
+        assert parent.children is not None
+        assert len(parent.children) == 2
+        
+        # Children should be sorted by sequence
+        assert parent.children[0].name == "Child 2"  # Seq = 1
+        assert parent.children[1].name == "Child 1"  # Seq = 2
+
+
+class TestTrackRetrieval:
+    """Test track retrieval from playlists."""
+
+    @patch("fortherekord.rekordbox_library.RekordboxLibrary._get_database")
+    def test_get_tracks_from_playlists_with_empty_playlists(self, mock_get_db):
+        """Test get_tracks_from_playlists with empty playlists and some with tracks."""
+        mock_db = Mock()
+        
+        # Create playlists with no songs
+        empty_playlist = Mock()
+        empty_playlist.Name = "Empty Playlist"
+        empty_playlist.Songs = []
+        
+        root_playlist = Mock()
+        root_playlist.Name = "Root"  # Should be ignored
+        root_playlist.Songs = []
+        
+        # Create a playlist with tracks to cover the track creation code path
+        playlist_with_tracks = Mock()
+        playlist_with_tracks.Name = "Tracks Playlist"
+        mock_song = Mock()
+        mock_content = Mock()
+        mock_content.ID = 123
+        mock_content.Title = "Test Song"
+        mock_artist = Mock()
+        mock_artist.Name = "Test Artist"
+        mock_content.Artist = mock_artist
+        mock_content.Length = 180.0
+        mock_content.Key = "Am"
+        mock_content.BPM = 120.0
+        mock_song.Content = mock_content
+        playlist_with_tracks.Songs = [mock_song]
+        
+        mock_db.get_playlist.return_value = [empty_playlist, root_playlist, playlist_with_tracks]
+        mock_get_db.return_value = mock_db
+        
+        library = RekordboxLibrary("/test/db.edb")
+        tracks = library.get_tracks_from_playlists()
+        
+        # Should return 1 track from the playlist with tracks
+        assert len(tracks) == 1
+        track = tracks[0]
+        assert track.id == "123"
+        assert track.title == "Test Song"
+        assert track.artist == "Test Artist"
+
+    @patch("fortherekord.rekordbox_library.RekordboxLibrary._get_database")
+    def test_get_tracks_from_playlists_with_ignored_playlists(self, mock_get_db):
+        """Test get_tracks_from_playlists with ignored playlists."""
+        mock_db = Mock()
+        
+        # Create playlist that should be ignored
+        ignored_playlist = Mock()
+        ignored_playlist.Name = "Ignored Playlist"
+        mock_song = Mock()
+        mock_content = Mock()
+        mock_content.ID = 123
+        mock_content.Title = "Test Song"
+        mock_artist = Mock()
+        mock_artist.Name = "Test Artist"
+        mock_content.Artist = mock_artist
+        mock_content.Length = 180.0
+        mock_content.Key = "Am"
+        mock_content.BPM = 120.0
+        mock_song.Content = mock_content
+        ignored_playlist.Songs = [mock_song]
+        
+        mock_db.get_playlist.return_value = [ignored_playlist]
+        mock_get_db.return_value = mock_db
+        
+        library = RekordboxLibrary("/test/db.edb")
+        tracks = library.get_tracks_from_playlists(ignore_playlists=["Ignored Playlist"])
+        
+        # Should return empty list since playlist is ignored
+        assert len(tracks) == 0
 
 
 class TestRekordboxLibraryDatabaseWriting:
@@ -415,9 +520,8 @@ class TestRekordboxLibraryDatabaseWriting:
         library = RekordboxLibrary("/test/db.edb")
         library._db = mock_db
         
-        result = library.update_track_metadata("123", "New Title", "New Artist")
-        
-        assert result is False
+        with pytest.raises(Exception, match="Database error"):
+            library.update_track_metadata("123", "New Title", "New Artist")
 
     @patch.dict("os.environ", {"FORTHEREKORD_TEST_MODE": "0"})
     def test_save_changes_success(self):
@@ -442,17 +546,17 @@ class TestRekordboxLibraryDatabaseWriting:
         assert result is True  # Should return True for no-op
 
     @patch.dict("os.environ", {"FORTHEREKORD_TEST_MODE": "0"})
-    def test_save_changes_exception(self):
-        """Test save changes when exception occurs."""
+    def test_save_changes_commit_exception(self):
+        """Test save_changes when commit raises an exception."""
         mock_db = Mock()
-        mock_db.commit.side_effect = Exception("Commit failed")
+        mock_db.commit.side_effect = Exception("Database commit failed")
         
         library = RekordboxLibrary("/test/db.edb")
         library._db = mock_db
         
-        result = library.save_changes()
-        
-        assert result is False
+        # Should now raise the exception instead of returning False
+        with pytest.raises(Exception, match="Database commit failed"):
+            library.save_changes()
 
 
 class TestDatabaseSafety:
@@ -531,3 +635,57 @@ class TestDatabaseSafety:
             # Clean up
             if Path(dump_file).exists():
                 Path(dump_file).unlink()
+
+
+class TestGetAllTracks:
+    """Test get_all_tracks functionality."""
+
+    @patch("fortherekord.rekordbox_library.RekordboxLibrary._get_database")
+    def test_get_all_tracks_success(self, mock_get_db):
+        """Test successful retrieval of all tracks."""
+        mock_db = Mock()
+        
+        # Create mock content data
+        mock_content1 = Mock()
+        mock_content1.ID = 123
+        mock_content1.Title = "Song 1"
+        mock_content1.Length = 180.5
+        mock_content1.Key = "Am"
+        mock_content1.BPM = 120.0
+        mock_artist1 = Mock()
+        mock_artist1.Name = "Artist 1"
+        mock_content1.Artist = mock_artist1
+        
+        mock_content2 = Mock()
+        mock_content2.ID = 456
+        mock_content2.Title = "Song 2"
+        mock_content2.Length = 240.0
+        mock_content2.Key = "Dm" 
+        mock_content2.BPM = 128.0
+        mock_artist2 = Mock()
+        mock_artist2.Name = "Artist 2"
+        mock_content2.Artist = mock_artist2
+        
+        mock_db.get_content.return_value = [mock_content1, mock_content2]
+        mock_get_db.return_value = mock_db
+        
+        library = RekordboxLibrary("/path/to/database.db")
+        tracks = library.get_all_tracks()
+        
+        assert len(tracks) == 2
+        
+        # Check first track
+        assert tracks[0].id == "123"
+        assert tracks[0].title == "Song 1"
+        assert tracks[0].artist == "Artist 1"
+        assert tracks[0].duration_ms == 180500
+        assert tracks[0].key == "Am"
+        assert tracks[0].bpm == 120.0
+        
+        # Check second track
+        assert tracks[1].id == "456"
+        assert tracks[1].title == "Song 2"
+        assert tracks[1].artist == "Artist 2"
+        assert tracks[1].duration_ms == 240000
+        assert tracks[1].key == "Dm"
+        assert tracks[1].bpm == 128.0

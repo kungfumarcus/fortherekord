@@ -7,6 +7,8 @@ Implements IMusicLibrary interface for playlist synchronization.
 
 import subprocess
 import sys
+import logging
+import io
 from pathlib import Path
 from typing import List
 
@@ -28,6 +30,7 @@ class RekordboxLibrary(IMusicLibrary):
         """Initialize adapter with specified database path."""
         self.db_path = Path(db_path)
         self._db = None
+        self.is_rekordbox_running = False
 
     def _get_database(self) -> Rekordbox6Database:
         """Get database connection, opening if necessary."""
@@ -35,8 +38,20 @@ class RekordboxLibrary(IMusicLibrary):
             if not self.db_path.exists():
                 raise FileNotFoundError(f"Rekordbox database not found: {self.db_path}")
 
+            # Capture logging output from pyrekordbox to detect if Rekordbox is running
+            log_capture = io.StringIO()
+            handler = logging.StreamHandler(log_capture)
+            logger = logging.getLogger('pyrekordbox')
+            logger.addHandler(handler)
+            logger.setLevel(logging.WARNING)
+
             try:
                 self._db = Rekordbox6Database(str(self.db_path))
+                
+                # Check the log output for the warning message
+                log_output = log_capture.getvalue()
+                self.is_rekordbox_running = 'Rekordbox is running' in log_output
+                
             except NoCachedKey:
                 # Try to download the key automatically
                 print("Database key not found. Attempting to download...")
@@ -60,19 +75,34 @@ class RekordboxLibrary(IMusicLibrary):
                         "installed and has been run at least once, or manually download "
                         "the key using: python -m pyrekordbox download-key"
                     ) from e
+            finally:
+                # Clean up the logging handler
+                logger.removeHandler(handler)
+                
         return self._db
 
-    def get_playlists(self) -> List[Playlist]:
+    def get_playlists(self, ignore_playlists: List[str] = None) -> List[Playlist]:
         """
-        Retrieve all playlists from Rekordbox database.
+        Retrieve top-level playlists from Rekordbox database.
+        
+        Returns only playlists with no parent. Child playlists are accessible
+        through the children property of their parent playlists.
+
+        Args:
+            ignore_playlists: List of playlist names to exclude from results
 
         Returns:
-            List of playlists with track information
+            List of top-level playlists with full hierarchy built, ordered by Rekordbox sequence
         """
+        if ignore_playlists is None:
+            ignore_playlists = []
+            
         db = self._get_database()
-        playlists = []
+        all_playlists = []
+        playlist_map = {}  # For building parent-child relationships
+        seq_map = {}  # For storing Rekordbox sequence order
 
-        # Get all playlists from database
+        # First pass: Create all playlist objects and store sequence numbers
         for rb_playlist in db.get_playlist():
             # Get tracks for this playlist
             tracks = []
@@ -88,15 +118,35 @@ class RekordboxLibrary(IMusicLibrary):
                 )
                 tracks.append(track)
 
-            # Create playlist object
+            # Create playlist object with parent_id
             playlist = Playlist(
                 id=str(rb_playlist.ID),
                 name=rb_playlist.Name or "Unnamed Playlist",
                 tracks=tracks,
+                parent_id=str(rb_playlist.Parent.ID) if rb_playlist.Parent else None,
             )
-            playlists.append(playlist)
+            all_playlists.append(playlist)
+            playlist_map[playlist.id] = playlist
+            seq_map[playlist.id] = rb_playlist.Seq
 
-        return playlists
+        # Sort all playlists by their Rekordbox sequence order
+        all_playlists.sort(key=lambda p: seq_map[p.id])
+
+        # Second pass: Build parent-child relationships with sorted children
+        for playlist in all_playlists:
+            if playlist.parent_id and playlist.parent_id in playlist_map:
+                parent = playlist_map[playlist.parent_id]
+                if parent.children is None:
+                    parent.children = []
+                parent.children.append(playlist)
+
+        # Sort children for each parent by sequence order
+        for playlist in all_playlists:
+            if playlist.children:
+                playlist.children.sort(key=lambda p: seq_map[p.id])
+
+        # Return only top-level playlists (no parent) that are not ignored
+        return [p for p in all_playlists if p.parent_id is None and p.name not in ignore_playlists]
 
     def get_playlist_tracks(self, playlist_id: str) -> List[Track]:
         """
@@ -188,11 +238,16 @@ class RekordboxLibrary(IMusicLibrary):
         for playlist in db.get_playlist():
             playlist_name = playlist.Name
             
+            # Skip the root playlist (internal container)
+            if not playlist_name or playlist_name.lower() in ['root', '']:
+                continue
+            
             if playlist_name in ignore_playlists:
-                print(f"Ignoring playlist: {playlist_name}")
                 continue
                 
-            print(f"Processing playlist '{playlist_name}' with {len(playlist.Songs)} tracks")
+            # Only process playlists that contain tracks
+            if len(playlist.Songs) == 0:
+                continue
             
             for song in playlist.Songs:
                 content = song.Content
@@ -227,24 +282,19 @@ class RekordboxLibrary(IMusicLibrary):
         """
         db = self._get_database()
         
-        try:
-            # Find the content record using pyrekordbox query syntax
-            content = db.get_content(ID=track_id)
-            
-            if content is None:
-                print(f"WARNING: Track not found for update: {track_id}")
-                return False
-            
-            # Update the fields directly
-            content.Title = title
-            if content.Artist:
-                content.Artist.Name = artist
-                
-            return True
-            
-        except Exception as e:
-            print(f"ERROR: Failed to update track {track_id}: {e}")
+        # Find the content record using pyrekordbox query syntax
+        content = db.get_content(ID=track_id)
+        
+        if content is None:
+            print(f"WARNING: Track not found for update: {track_id}")
             return False
+        
+        # Update the fields directly
+        content.Title = title
+        if content.Artist:
+            content.Artist.Name = artist
+            
+        return True
     
     def save_changes(self) -> bool:
         """
@@ -268,34 +318,25 @@ class RekordboxLibrary(IMusicLibrary):
         
         if test_mode:
             # In test mode, dump changes to a file instead of committing
-            try:
-                dump_file = os.getenv("FORTHEREKORD_TEST_DUMP_FILE", "test_changes_dump.json")
-                
-                # Collect pending changes (this would need to be implemented based on pyrekordbox's dirty tracking)
-                changes = {
-                    "timestamp": datetime.now().isoformat(),
-                    "mode": "test_dump",
-                    "message": "Changes would have been committed to database",
-                    "note": "Database commit prevented in test mode"
-                }
-                
-                # Write to dump file
-                with open(dump_file, "w") as f:
-                    json.dump(changes, f, indent=2)
-                
-                print(f"Test mode: Changes dumped to {dump_file} (database not modified)")
-                return True
-                
-            except Exception as e:
-                print(f"ERROR: Failed to dump test changes: {e}")
-                return False
+            dump_file = os.getenv("FORTHEREKORD_TEST_DUMP_FILE", "test_changes_dump.json")
+            
+            # Collect pending changes (this would need to be implemented based on pyrekordbox's dirty tracking)
+            changes = {
+                "timestamp": datetime.now().isoformat(),
+                "mode": "test_dump",
+                "message": "Changes would have been committed to database",
+                "note": "Database commit prevented in test mode"
+            }
+            
+            # Write to dump file
+            with open(dump_file, "w") as f:
+                json.dump(changes, f, indent=2)
+            
+            print(f"Test mode: Changes dumped to {dump_file} (database not modified)")
+            return True
         else:
             # Normal mode: commit to database
-            try:
-                # Commit changes using pyrekordbox's commit method
-                self._db.commit()
-                print("Changes saved to database")
-                return True
-            except Exception as e:
-                print(f"ERROR: Failed to save changes: {e}")
-                return False
+            # Commit changes using pyrekordbox's commit method
+            self._db.commit()
+            print("Changes saved to database")
+            return True

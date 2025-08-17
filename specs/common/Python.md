@@ -17,6 +17,7 @@ Define Python development standards and practices to ensure code quality, mainta
 ### Code Organization
 - **Package Structure**: Standard Python package layout with `src/` directory
 - **Module Naming**: Use lowercase with underscores (snake_case)
+- **File Naming**: File names should match their primary class (e.g., `rekordbox_library.py` contains `RekordboxLibrary` class)
 - **Class Naming**: Use CapitalizedWords (PascalCase)
 - **Function Naming**: Use lowercase with underscores (snake_case)
 - **Constant Naming**: Use UPPERCASE with underscores

@@ -7,9 +7,106 @@ CLI application with Rekordbox metadata processing functionality.
 import click
 
 from fortherekord import __version__
-from .config import load_config, create_default_config, get_config_path
-from .rekordbox import RekordboxLibrary
+from .config import load_config as config_load_config, create_default_config, get_config_path
+from .rekordbox_library import RekordboxLibrary
 from .rekordbox_metadata_processor import RekordboxMetadataProcessor
+
+
+def load_config() -> dict | None:
+    """Load and validate configuration, creating default if needed."""
+    config = config_load_config()
+    
+    if not config.get("rekordbox_library_path"):
+        click.echo("Error: rekordbox_library_path not configured")
+        click.echo("Creating default config file...")
+        create_default_config()
+        click.echo(f"Config created at: {get_config_path()}")
+        click.echo("Please verify the database path and run again")
+        return None
+    
+    return config
+
+
+def load_library(library_path: str) -> RekordboxLibrary:
+    """Create and validate RekordboxLibrary, including Rekordbox running check."""
+    click.echo(f"Loading Rekordbox library from: {library_path}")
+    
+    # Create Rekordbox library
+    rekordbox = RekordboxLibrary(library_path)
+    
+    # Connect to Rekordbox database (this triggers the Rekordbox running detection)
+    rekordbox._get_database()
+    
+    # Early validation: Check if Rekordbox is running and we need to save changes
+    if rekordbox.is_rekordbox_running:
+        click.echo("ERROR: Rekordbox is currently running.")
+        click.echo("Please close Rekordbox completely before running ForTheRekord.")
+        click.echo("This prevents database corruption during metadata updates.")
+        raise RuntimeError("Rekordbox is currently running")
+    
+    return rekordbox
+
+
+def initialize_processor(config: dict) -> RekordboxMetadataProcessor:
+    """Create metadata processor."""
+    return RekordboxMetadataProcessor(config)
+
+
+def get_tracks_to_process(rekordbox: RekordboxLibrary, config: dict, all_tracks: bool) -> list:
+    """Get tracks to process based on --all-tracks flag and display playlist hierarchy."""
+    if all_tracks:
+        click.echo("Processing all tracks in collection...")
+        tracks = rekordbox.get_all_tracks()
+    else:
+        click.echo("Processing tracks from playlists...")
+        # Display playlist hierarchy in original Rekordbox order
+        print("Processing playlists:")
+        for playlist in rekordbox.get_playlists(config.get("ignore_playlists", [])):
+            playlist.display_tree(1)
+        
+        tracks = rekordbox.get_tracks_from_playlists(config.get("ignore_playlists", []))
+    
+    return tracks
+
+
+def process_tracks(tracks: list, rekordbox: RekordboxLibrary, processor: RekordboxMetadataProcessor) -> None:
+    """Process track metadata, check for duplicates, and save changes."""
+    click.echo()
+    click.echo("Updating track metadata...")
+    
+    # Process each track
+    updated_count = 0
+    for track in tracks:
+        original_title = track.title
+        enhanced_track = processor.enhance_track_title(track)
+        
+        if enhanced_track.title != original_title:
+            success = rekordbox.update_track_metadata(
+                track.id, 
+                enhanced_track.title, 
+                enhanced_track.artist
+            )
+            if success:
+                updated_count += 1
+            else:
+                click.echo(f"Failed to update track: {original_title}")
+
+    # Check for duplicates
+    click.echo()
+    click.echo("Checking for duplicates...")
+    enhanced_tracks = [processor.enhance_track_title(track) for track in tracks]
+    processor.check_for_duplicates(enhanced_tracks)
+
+    # Save changes
+    if updated_count > 0:
+        click.echo()
+        click.echo("Saving changes to database...")
+        if rekordbox.save_changes():
+            click.echo(f"Successfully updated {updated_count} tracks")
+        else:
+            click.echo("Error: Failed to save changes")
+    else:
+        click.echo("No changes needed")
 
 
 @click.command()
@@ -21,74 +118,24 @@ def cli(all_tracks: bool) -> None:
 
     Enhances track titles to standardized format: "Title - Artist [Key]"
     """
-    # Load configuration
     config = load_config()
-
-    if not config.get("rekordbox_library_path"):
-        click.echo("Error: rekordbox_library_path not configured")
-        click.echo("Creating default config file...")
-        create_default_config()
-        click.echo(f"Config created at: {get_config_path()}")
-        click.echo("Please verify the database path and run again")
+    if not config:
         return
 
-    library_path = config["rekordbox_library_path"]
-    click.echo(f"Loading Rekordbox library from: {library_path}")
-
     try:
-        # Create Rekordbox library and metadata processor
-        rekordbox = RekordboxLibrary(library_path)
-        processor = RekordboxMetadataProcessor(config)
+        rekordbox = load_library(config["rekordbox_library_path"])
+        processor = initialize_processor(config)
         
-        # Get tracks based on --all-tracks flag
-        if all_tracks:
-            click.echo("Processing all tracks in collection...")
-            tracks = rekordbox.get_all_tracks()
-        else:
-            click.echo("Processing tracks from playlists...")
-            tracks = rekordbox.get_tracks_from_playlists(config.get("ignore_playlists", []))
-
+        tracks = get_tracks_to_process(rekordbox, config, all_tracks)
         if not tracks:
             click.echo("No tracks found to process")
             return
-
-        click.echo()
-        click.echo("Updating track metadata...")
-        
-        # Process each track
-        updated_count = 0
-        for track in tracks:
-            original_title = track.title
-            enhanced_track = processor.enhance_track_title(track)
             
-            if enhanced_track.title != original_title:
-                success = rekordbox.update_track_metadata(
-                    track.id, 
-                    enhanced_track.title, 
-                    enhanced_track.artist
-                )
-                if success:
-                    updated_count += 1
-                else:
-                    click.echo(f"Failed to update track: {original_title}")
-
-        # Check for duplicates
-        click.echo()
-        click.echo("Checking for duplicates...")
-        enhanced_tracks = [processor.enhance_track_title(track) for track in tracks]
-        processor.check_for_duplicates(enhanced_tracks)
-
-        # Save changes
-        if updated_count > 0:
-            click.echo()
-            click.echo("Saving changes to database...")
-            if rekordbox.save_changes():
-                click.echo(f"Successfully updated {updated_count} tracks")
-            else:
-                click.echo("Error: Failed to save changes")
-        else:
-            click.echo("No changes needed")
-
+        process_tracks(tracks, rekordbox, processor)
+        
+    except RuntimeError:
+        # Rekordbox running error already handled in load_library
+        return
     except FileNotFoundError:
         click.echo("Error: Rekordbox database not found at configured path")
         click.echo(f"Please check the path in {get_config_path()}")

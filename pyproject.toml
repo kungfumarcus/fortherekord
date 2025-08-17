@@ -43,7 +43,7 @@ fortherekord = "fortherekord.main:cli"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --tb=short --timeout=5 --maxfail=1"
+addopts = "-ra -q --tb=short --timeout=5"
 testpaths = ["tests"]
 timeout = 5
 env = [

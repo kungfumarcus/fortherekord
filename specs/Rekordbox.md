@@ -16,24 +16,14 @@ Implements IMusicLibrary interface defined in [MusicLibraryInterface.md](MusicLi
 - **Version Support**: Rekordbox 5, 6, and 7 database formats (pyrekordbox tested: 5.8.6, 6.7.7, 7.0.9)
 - **SQLCipher**: Automatic key extraction from local Rekordbox installation
 - **Database Modifications**: Direct updates to track metadata in live database
-- **Runtime Requirement**: Database access works while Rekordbox is running (shows warning but functions normally)
+- **Database Lock Detection**: Detect if database is locked during save operations and provide clear error message
 - **Key Extraction**: Automatic key download via `python -m pyrekordbox download-key` for Rekordbox >6.6.5
 - **Database Location**: Windows: `%APPDATA%\Pioneer\rekordbox\master.db` (direct path, no datafiles subdirectory)
-
-## Version Support Strategy
-
-### Rekordbox 5/6/7 Compatibility
-- **Current Implementation**: Rekordbox 6/7 support only (SQLite database via `Rekordbox6Database`)
-- **pyrekordbox Support**: 
-  - Rekordbox 5: XML format via `RekordboxXml` class
-  - Rekordbox 6/7: SQLite database via `Rekordbox6Database` class
-- **Future Enhancement**: Add Rekordbox 5 XML support with format detection
-- **Implementation Strategy**: Detect database format (XML vs SQLite) and use appropriate API
 
 ## Function Points
 
 ### IMusicLibrary Implementation
-- **GetPlaylists**: Extract hierarchical playlist structure from database, applying ignore_playlists filter
+- **GetPlaylists**: Extract hierarchical playlist structure from database, applying ignore_playlists filter. Returns only top-level playlists (no parent). Each playlist object contains references to parent and children playlists for tree traversal.
 - **GetPlaylistTracks**: Load track associations for specified playlist
 - **CreatePlaylist**: Not supported (read-only for playlists)
 - **DeletePlaylist**: Not supported (read-only for playlists)
@@ -52,8 +42,31 @@ Implements IMusicLibrary interface defined in [MusicLibraryInterface.md](MusicLi
 ### Track Operations
 - Retrieve all tracks from collection with metadata
 - Update track metadata in database
+- **Save Error Handling**: Detect "Rekordbox is running" errors and provide actionable error messages
 
 ### Playlist Operations
 - Extract hierarchical playlist structure from database
 - Apply ignore_playlists configuration filter
 - Load track associations for each playlist
+- **Output Filtering**: Only show output for playlists that contain tracks (skip empty playlists)
+- **Database Lock Detection**: Capture pyrekordbox warning messages during database initialization to detect if Rekordbox is running
+
+### Playlist Hierarchy Display
+
+#### Requirements
+- **Hierarchical Structure**: Display playlists in their natural parent-child tree structure from Rekordbox
+- **Visual Indentation**: Show hierarchy depth through consistent indentation (2 spaces per level)
+- **Track Count Information**: Display track counts only for playlists that contain tracks
+- **Rekordbox Ordering**: Preserve the original playlist order from Rekordbox using the `Seq` property for sorting
+
+#### Output Format
+```
+- breaks
+- bush techno
+  - 130+
+  - all
+  - mytags
+    - 128+
+    - dark (15 tracks)
+    - deep (23 tracks)
+```

@@ -52,6 +52,9 @@ The following features are explicitly not included in this initial implementatio
 ### Main Flow
 - Load user configuration
 - Connect to Rekordbox database
+- **Early Validation**: Check if Rekordbox is running and save operations will be needed
+  - If Rekordbox is running and metadata changes are planned, exit with error message
+  - Provide clear instructions to close Rekordbox before running
 - Library Cleanup
   - Cleanup and update track name and artist properties directly in database
 - Sync Spotify
@@ -62,3 +65,8 @@ The following features are explicitly not included in this initial implementatio
     - Execute playlist synchronization
     - Save updated mappings
   - Follow popular artists based on threshold
+
+### Output Requirements
+- **Playlist Processing**: Only show output for playlists that contain tracks (skip empty playlists)
+- **Playlist Names**: Display target/destination playlist names, not source Rekordbox playlist names
+- **Progress Reporting**: Clear indication of processing status and track counts

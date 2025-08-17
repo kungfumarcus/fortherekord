@@ -39,6 +39,27 @@ class Playlist:
     name: str
     tracks: List[Track]
     parent_id: Optional[str] = None
+    children: Optional[List['Playlist']] = None
+
+    def display_tree(self, indent: int = 0) -> None:
+        """
+        Display this playlist and its children in a tree format.
+        
+        Args:
+            indent: Number of indentation levels (0 for root level)
+        """
+        indent_str = "  " * indent + "- "
+        track_count = len(self.tracks)
+        
+        if track_count > 0:
+            print(f"{indent_str}{self.name} ({track_count} tracks)")
+        else:
+            print(f"{indent_str}{self.name}")
+            
+        # Recursively display children in their original order
+        if self.children:
+            for child in self.children:
+                child.display_tree(indent + 1)
 
 
 class IMusicLibrary(Protocol):

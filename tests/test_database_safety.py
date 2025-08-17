@@ -35,7 +35,7 @@ class TestDatabaseSafetyFirst:
     def test_002_database_safety_mechanism_works(self):
         """CRITICAL: Verify the database safety mechanism prevents commits."""
         from unittest.mock import Mock
-        from fortherekord.rekordbox import RekordboxLibrary
+        from fortherekord.rekordbox_library import RekordboxLibrary
         
         # Test that save_changes never calls commit in test mode
         mock_db = Mock()
