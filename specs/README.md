@@ -38,13 +38,6 @@ The application is built using a modular architecture with clear separation of c
 
 **[common/Python.md](common/Python.md)** - Python development standards and AI-friendly coding practices
 
-## Implementation Priority
-
-1. **Phase 1**: Core infrastructure (config, CLI, data models)
-2. **Phase 2**: Rekordbox database integration and data extraction  
-3. **Phase 3**: Spotify authentication and API integration
-4. **Phase 4**: Track matching engine with basic Levenshtein distance
-5. **Phase 5**: Playlist synchronization and artist following
 
 ## Specification Guidelines
 
@@ -59,11 +52,11 @@ When specifications reference functionality handled by other components, always 
 - **Scope-Driven Development**: Resist the temptation to add "future-proofing" or "nice-to-have" features
 - **Incremental Complexity**: Each dependency, configuration option, and code component should serve the immediate scope
 - **Progressive Enhancement**: Add complexity incrementally as scope expands, not speculatively
+- **Avoid Temporary Logic**: When increasing scope, avoid/minimise implementing temporary logic that will be replaced soon
+- **E2E Testable Scope**: When increasing scope, ensure the new scope is testable in e2e (this might require some temporary logic, minimise this!)
 - **Important**: If unsure about any implementation decision, stop and ask the user for clarification
 
-## Current Implementation Status
-
-### Phase 1: Basic CLI Shell (✅ Complete)
+## Current Implementation Scope
 
 **Implemented Components:**
 - **Basic CLI Framework**: Click-based command-line interface with help and version support
@@ -71,6 +64,11 @@ When specifications reference functionality handled by other components, always 
 - **Entry Points**: Both `python -m fortherekord` and console script support
 - **Development Tools**: pytest testing framework with helper functions
 - **Git Integration**: Proper `.gitignore` for Python projects
+- **Simple YAML Configuration**: Basic config file with `rekordbox_library_path` setting
+- **Config Management**: Load/save config in standard location (`~/.config/fortherekord/config.yaml`)
+- **Basic Data Models**: Track and Playlist dataclasses with core fields (id, title, artist, key, bpm)
+- **Rekordbox Library Access**: Use pyrekordbox to load Rekordbox 6/7 database and extract playlist information
+- **Full tests**: unit and e2e tests for all implemented code
 
 **Available Commands:**
 ```bash
@@ -80,22 +78,25 @@ python -m fortherekord --help
 # Show version
 python -m fortherekord --version  
 
-# Run sync command (placeholder)
+# Run sync command (loads Rekordbox library, displays playlists)
 python -m fortherekord sync
 ```
 
 **Test Coverage:**
-- Unit tests with helper functions to reduce repetition
-- pytest fixtures for common setup patterns
-- 6 test cases covering CLI basics and error handling
-- Fast execution (< 0.1 seconds)
+- Aim for **100% test coverage** across all implemented components
+- Use configuration to disable coverage for code we agree does not need it
+- Unit tests for configuration management, Rekordbox integration, and CLI functionality
+- pytest fixtures and helper functions to reduce repetition
+- End-to-end test covering complete CLI workflow
+- Cross-platform testing strategies (Windows development, macOS runtime support)
+- Comprehensive error handling and edge case coverage
+- Fast execution with proper mocking of external dependencies
 
 **Current Scope Limitations:**
-- No Rekordbox database integration yet
 - No Spotify API functionality yet  
-- No configuration management yet
 - No actual synchronization logic yet
 - No logging or CI/CD yet (error handling is included)
-- Sync command shows "not yet implemented" message
+- Sync command loads and displays Rekordbox data but doesn't sync to Spotify
+- Rekordbox 6/7 database support only (Rekordbox 5 XML format deferred)
 
-**Next Phase Ready:** The foundation is established for Phase 2 implementation of Rekordbox database integration.
+**Next Phase Ready:** Foundation established for Spotify API integration and actual playlist synchronization.

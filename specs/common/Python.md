@@ -8,6 +8,9 @@ Define Python development standards and practices to ensure code quality, mainta
 - **Code Style**: Follow PEP 8 standards
 - **Documentation**: Clear docstrings and strategic commenting
 - **Type Hints**: Use type annotations for better code clarity
+- **Platform Support**: Cross-platform (Windows/macOS) for Rekordbox ecosystem compatibility
+- **Development Platform**: Development on Windows only (.bat scripts for build automation)
+- **Path Handling**: Use pathlib.Path for cross-platform compatibility
 
 ## Function Points
 
@@ -48,7 +51,7 @@ Define Python development standards and practices to ensure code quality, mainta
 - **Global Configuration**: Keep pylint strict by default - only disable checks when absolutely necessary
 - **File-Specific Disables**: Use `# pylint: disable=check-name` comments for specific cases rather than global disables
 - **Framework-Specific Issues**: Disable `no-value-for-parameter` for Click decorated functions (Click handles argument injection)
-- **Generated Files**: Disable `invalid-name` for auto-generated files like `_version.py` that don't follow naming conventions
+- **Generated Files**: Exclude auto-generated files like `_version.py` from quality checks using ignore configuration
 - **External Libraries**: Use `ignored-modules` in `.pylintrc` for third-party libraries (pyrekordbox, spotipy, click)
 
 ### Build and Quality Standards

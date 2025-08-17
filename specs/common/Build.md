@@ -3,6 +3,9 @@
 ## Scope
 Define the development workflow, build process, and quality assurance tools for local development and CI/CD integration.
 
+## Out of Scope
+- Cross-platform build system (Makefile, Python build scripts, nox)
+
 ## Technical Requirements
 - **Build System**: pyproject.toml with editable installation for development
 - **Quality Tools**: Integrated linting, type checking, and testing

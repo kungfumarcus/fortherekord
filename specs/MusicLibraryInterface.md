@@ -9,11 +9,11 @@ Defines the generic adapter interface for music platform integration, enabling c
 
 ## Function Points
 
-### Adapter Interface Definition
-Provides the contract that all music platform adapters must implement.
+### Library Interface Definition
+Provides the contract that all music platform libraries must implement.
 
 ```csharp
-interface IMusicLibraryAdapter 
+interface IMusicLibrary 
 {
     List<IMusicLibraryPlaylist> GetPlaylists();
     List<IMusicLibraryTrack> GetPlaylistTracks(string playlistId);

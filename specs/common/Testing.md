@@ -20,6 +20,7 @@ Tests are derived from specification function points using these principles.
 - Fast Execution: Use small, focused test data sets
 - Isolated Testing: Mock external dependencies (database, filesystem, APIs)
 - Helper Functions: Reduce repetition with reusable test utilities
+- Skip Simple Data Models: Don't test basic data classes/models that only hold data without logic
 **Outputs**: Pass/fail results with detailed failure information
 
 ### End-to-End Tests
@@ -40,3 +41,13 @@ Tests are derived from specification function points using these principles.
 - Representative Complexity: Include key scenarios like track variations, missing matches, playlist hierarchies
 - Deterministic: Consistent results across test runs and environments
 **Outputs**: Reusable test data creation methods
+
+### What NOT to Test
+**Purpose**: Focus testing effort on valuable areas and avoid testing overhead
+**Skip These Areas**:
+- Simple Data Models: Basic dataclasses, NamedTuples, or simple classes that only hold data
+- Property Getters/Setters: Unless they contain validation logic
+- Framework Code: Don't test Click CLI decorators, pytest fixtures, or other framework functionality
+- Constructor Assignment: Don't test that constructor parameters are assigned to instance variables
+- String Representations: Don't test __str__ or __repr__ unless they contain complex formatting logic
+**Focus Instead On**: Business logic, data transformations, error handling, integration points

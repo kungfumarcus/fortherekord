@@ -1,12 +1,11 @@
 @echo off
 echo Building ForTheRekord...
 
-REM Install development dependencies
-echo Installing development dependencies...
-pip install -e .[dev]
-
+REM Format code with black
+echo Formatting code with black...
+python -m black --line-length 100 src/ tests/
 if %ERRORLEVEL% NEQ 0 (
-    echo Build failed during dependency installation!
+    echo black formatting failed!
     exit /b 1
 )
 

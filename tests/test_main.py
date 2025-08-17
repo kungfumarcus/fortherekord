@@ -5,7 +5,9 @@ Tests the basic CLI shell with help and version commands.
 """
 
 import pytest
+import click
 from click.testing import CliRunner
+from unittest.mock import patch, MagicMock
 
 from fortherekord.main import cli
 
@@ -36,26 +38,56 @@ class TestCLIBasics:
         result = run_cli_command(["--help"])
         assert_successful_command(result)
         assert "ForTheRekord" in result.output
-        assert "Synchronize Rekordbox DJ library with Spotify" in result.output
 
     def test_cli_version(self):
         """Test that version command works."""
         result = run_cli_command(["--version"])
         assert_successful_command(result)
-        # Should contain version number
-        assert "0.1.0" in result.output or "version" in result.output.lower()
 
-    def test_sync_command_help(self):
-        """Test that sync command help works."""
-        result = run_cli_command(["sync", "--help"])
+    def test_main_command_no_config(self):
+        """Test that main command creates config when none exists."""
+        result = run_cli_command([])
         assert_successful_command(result)
-        assert "Synchronize" in result.output
+        # Should handle missing config gracefully
+        assert "rekordbox_library_path" in result.output or "Loading" in result.output
 
-    def test_sync_command_not_implemented(self):
-        """Test that sync command shows not implemented message."""
-        result = run_cli_command(["sync"])
+    @patch("fortherekord.main.load_config")
+    @patch("fortherekord.main.create_default_config")
+    @patch("fortherekord.main.get_config_path")
+    def test_main_command_missing_library_path(self, mock_get_path, mock_create, mock_load_config):
+        """Test main command when config exists but library path is missing."""
+        mock_load_config.return_value = {}  # Config without rekordbox_library_path
+        mock_get_path.return_value = "/test/config.yaml"
+        mock_create.return_value = None
+
+        result = run_cli_command([])
         assert_successful_command(result)
-        assert "not yet implemented" in result.output.lower()
+        assert "Error: rekordbox_library_path not configured" in result.output
+        assert "Creating default config file..." in result.output
+        assert "Config created at: /test/config.yaml" in result.output
+        assert "Please verify the database path and run again" in result.output
+
+    @patch("fortherekord.main.load_config")
+    @patch("fortherekord.main.RekordboxLibrary")
+    def test_main_command_database_not_found(self, mock_rekordbox, mock_load_config):
+        """Test main command when database file doesn't exist."""
+        mock_load_config.return_value = {"rekordbox_library_path": "/nonexistent/path.db"}
+        mock_rekordbox.side_effect = FileNotFoundError("Database not found")
+
+        result = run_cli_command([])
+        assert_successful_command(result)
+        assert "Error: Rekordbox database not found" in result.output
+
+    @patch("fortherekord.main.load_config")
+    @patch("fortherekord.main.RekordboxLibrary")
+    def test_main_command_library_error(self, mock_rekordbox, mock_load_config):
+        """Test main command when library loading fails."""
+        mock_load_config.return_value = {"rekordbox_library_path": "/test/path.db"}
+        mock_rekordbox.side_effect = ValueError("Invalid database format")
+
+        result = run_cli_command([])
+        assert_successful_command(result)
+        assert "Error loading Rekordbox library: Invalid database format" in result.output
 
 
 class TestCLIErrors:

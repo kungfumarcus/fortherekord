@@ -23,6 +23,8 @@ classifiers = [
 
 dependencies = [
     "click>=8.0.0",
+    "PyYAML>=6.0.0",
+    "pyrekordbox>=0.4.0",
 ]
 
 [project.optional-dependencies]
@@ -31,6 +33,7 @@ dev = [
     "flake8>=5.0.0",
     "pylint>=2.15.0",
     "mypy>=1.0.0",
+    "black>=23.0.0",
 ]
 
 [project.scripts]
@@ -41,11 +44,42 @@ minversion = "7.0"
 addopts = "-ra -q --tb=short"
 testpaths = ["tests"]
 
+[tool.black]
+line-length = 100
+target-version = ['py39']
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/_version.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__", 
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "class.*\\(Protocol\\):",
+    "@dataclass",
+    "@pytest.fixture",
+    "except ImportError:",  # Hard to test missing _version.py in normal test runs
+]
+skip_covered = true
+show_missing = true
+
+[tool.pylint.MASTER]
+ignore = ["_version.py"]
+
 [tool.mypy]
 python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+ignore_missing_imports = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
