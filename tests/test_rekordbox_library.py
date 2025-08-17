@@ -108,40 +108,67 @@ class TestDatabaseConnection:
     @patch("fortherekord.rekordbox_library.Rekordbox6Database")
     @patch("fortherekord.rekordbox_library.subprocess.run")
     @patch("pathlib.Path.exists")
-    def test_get_database_key_download_scenarios(self, mock_exists, mock_subprocess, mock_db_class):
-        """Test database connection with various key download scenarios."""
+    def test_get_database_key_download_success(self, mock_exists, mock_subprocess, mock_db_class):
+        """Test database connection with successful key download."""
         from pyrekordbox.db6.database import NoCachedKey
 
         mock_exists.return_value = True
 
-        # Test successful key download
+        # First call raises NoCachedKey, second call succeeds
         mock_db_instance = create_mock_rekordbox_database()
         mock_db_class.side_effect = [NoCachedKey("No key"), mock_db_instance]
+
+        # Mock successful subprocess
         mock_subprocess.return_value = create_mock_subprocess_success()
 
         library = RekordboxLibrary("/path/to/database.db")
         db = library._get_database()
         assert db == mock_db_instance
 
-        # Reset for next test
-        library._db = None
-        
-        # Test failed key download
+        # Verify subprocess was called correctly
+        mock_subprocess.assert_called_once()
+        args = mock_subprocess.call_args[0][0]
+        assert "pyrekordbox" in args
+        assert "download-key" in args
+
+    @patch("fortherekord.rekordbox_library.Rekordbox6Database")
+    @patch("fortherekord.rekordbox_library.subprocess.run")
+    @patch("pathlib.Path.exists")
+    def test_get_database_key_download_fails(self, mock_exists, mock_subprocess, mock_db_class):
+        """Test database connection when key download fails."""
+        from pyrekordbox.db6.database import NoCachedKey
+
+        mock_exists.return_value = True
         mock_db_class.side_effect = NoCachedKey("No key")
+
+        # Mock failed subprocess
         mock_subprocess.side_effect = subprocess.CalledProcessError(
             1, "cmd", stderr="Download failed"
         )
 
+        library = RekordboxLibrary("/path/to/database.db")
+
         with pytest.raises(RuntimeError, match="Failed to download database key"):
             library._get_database()
 
-        # Reset for next test  
-        library._db = None
-        
-        # Test key still missing after download
+    @patch("fortherekord.rekordbox_library.Rekordbox6Database")
+    @patch("fortherekord.rekordbox_library.subprocess.run")
+    @patch("pathlib.Path.exists")
+    def test_get_database_key_still_missing_after_download(
+        self, mock_exists, mock_subprocess, mock_db_class
+    ):
+        """Test database connection when key is still missing after download."""
+        from pyrekordbox.db6.database import NoCachedKey
+
+        mock_exists.return_value = True
+
+        # Both calls raise NoCachedKey
         mock_db_class.side_effect = [NoCachedKey("No key"), NoCachedKey("Still no key")]
-        mock_subprocess.side_effect = None  # Reset
+
+        # Mock successful subprocess (but key still not available)
         mock_subprocess.return_value = create_mock_subprocess_success()
+
+        library = RekordboxLibrary("/path/to/database.db")
 
         with pytest.raises(RuntimeError, match="Database key could not be obtained"):
             library._get_database()
@@ -565,17 +592,21 @@ class TestDatabaseSafety:
     def test_save_changes_never_commits_during_tests(self):
         """Test that save_changes never calls db.commit() during test execution."""
         # This test validates that our test safety mechanism is working
+        from .conftest import cleanup_test_dump_file
         mock_db = Mock()
         
         library = RekordboxLibrary("/test/db.edb")
         library._db = mock_db
         
-        # Call save_changes - should NOT call commit in test mode
-        result = library.save_changes()
-        
-        # Should succeed but never call actual commit
-        assert result is True
-        mock_db.commit.assert_not_called()
+        try:
+            # Call save_changes - should NOT call commit in test mode
+            result = library.save_changes()
+            
+            # Should succeed but never call actual commit
+            assert result is True
+            mock_db.commit.assert_not_called()
+        finally:
+            cleanup_test_dump_file()
 
     def test_test_mode_environment_is_set(self):
         """Test that FORTHEREKORD_TEST_MODE is set during test runs."""
@@ -596,45 +627,39 @@ class TestDatabaseSafety:
         assert result is True
         mock_db.commit.assert_called_once()
 
-    @patch.dict("os.environ", {"FORTHEREKORD_TEST_MODE": "1", "FORTHEREKORD_TEST_DUMP_FILE": "test_dump.json"})
     def test_save_changes_creates_dump_file_in_test_mode(self):
         """Test that save_changes creates dump file instead of committing in test mode."""
-        import tempfile
         import json
         from pathlib import Path
-        
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp_file:
-            dump_file = tmp_file.name
+        from .conftest import cleanup_test_dump_file
         
         try:
-            with patch.dict("os.environ", {"FORTHEREKORD_TEST_DUMP_FILE": dump_file}):
-                mock_db = Mock()
-                
-                library = RekordboxLibrary("/test/db.edb")
-                library._db = mock_db
-                
-                result = library.save_changes()
-                
-                # Should succeed
-                assert result is True
-                
-                # Should NOT call commit
-                mock_db.commit.assert_not_called()
-                
-                # Should create dump file
-                assert Path(dump_file).exists()
-                
-                # Dump file should contain expected data
-                with open(dump_file) as f:
-                    dump_data = json.load(f)
-                
-                assert dump_data["mode"] == "test_dump"
-                assert "Database commit prevented" in dump_data["note"]
-                
+            mock_db = Mock()
+            
+            library = RekordboxLibrary("/test/db.edb")
+            library._db = mock_db
+            
+            result = library.save_changes()
+            
+            # Should succeed
+            assert result is True
+            
+            # Should NOT call commit
+            mock_db.commit.assert_not_called()
+            
+            # Should create dump file
+            dump_file = "test_changes_dump.json"
+            assert Path(dump_file).exists()
+            
+            # Dump file should contain expected data
+            with open(dump_file) as f:
+                dump_data = json.load(f)
+            
+            assert dump_data["mode"] == "test_dump"
+            assert "Database commit prevented" in dump_data["note"]
+            
         finally:
-            # Clean up
-            if Path(dump_file).exists():
-                Path(dump_file).unlink()
+            cleanup_test_dump_file()
 
 
 class TestGetAllTracks:

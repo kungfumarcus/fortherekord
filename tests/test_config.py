@@ -16,6 +16,8 @@ from fortherekord.config import (
     load_config,
     save_config,
     create_default_config,
+    validate_config,
+    ConfigValidationError,
 )
 
 
@@ -193,3 +195,114 @@ class TestConfigWithFixtures:
             save_config(sample_config)
             loaded_config = load_config()
             assert loaded_config == sample_config
+
+
+class TestConfigValidation:
+    """Test configuration validation functionality."""
+
+    def test_validate_empty_config(self):
+        """Test validation of empty config."""
+        config = {}
+        result = validate_config(config)
+        assert result == {}
+
+    def test_validate_valid_config(self):
+        """Test validation of valid config."""
+        config = {
+            "rekordbox_library_path": "/path/to/library.db",
+            "replace_in_title": {
+                " (Original Mix)": "",
+                " (Extended Mix)": " (ext)"
+            },
+            "ignore_playlists": ["playlist1", "playlist2"]
+        }
+        result = validate_config(config)
+        assert result == config
+
+    def test_validate_invalid_library_path_type(self):
+        """Test validation fails for non-string library path."""
+        config = {"rekordbox_library_path": 123}
+        
+        with pytest.raises(ConfigValidationError, match="rekordbox_library_path must be a string, got int"):
+            validate_config(config)
+
+    def test_validate_replace_in_title_list_format_fails(self):
+        """Test validation fails for list format replace_in_title."""
+        config = {
+            "replace_in_title": [" (Original Mix)", " (Extended Mix): (ext)"]
+        }
+        
+        with pytest.raises(ConfigValidationError, match="replace_in_title must be a dictionary"):
+            validate_config(config)
+
+    def test_validate_replace_in_title_invalid_type(self):
+        """Test validation fails for invalid replace_in_title type."""
+        config = {"replace_in_title": "not a dict or list"}
+        
+        with pytest.raises(ConfigValidationError, match="replace_in_title must be a dictionary"):
+            validate_config(config)
+
+    def test_validate_replace_in_title_invalid_key_type(self):
+        """Test validation fails for non-string keys in replace_in_title."""
+        config = {
+            "replace_in_title": {123: "value"}
+        }
+        
+        with pytest.raises(ConfigValidationError, match="replace_in_title keys must be strings, got int"):
+            validate_config(config)
+
+    def test_validate_replace_in_title_invalid_value_type(self):
+        """Test validation fails for invalid value types in replace_in_title."""
+        config = {
+            "replace_in_title": {"key": 123}
+        }
+        
+        with pytest.raises(ConfigValidationError, match="replace_in_title values must be strings or None, got int"):
+            validate_config(config)
+
+    def test_validate_replace_in_title_none_value(self):
+        """Test validation passes for None values in replace_in_title."""
+        config = {
+            "replace_in_title": {"key": None}
+        }
+        result = validate_config(config)
+        assert result == config
+
+    def test_validate_ignore_playlists_invalid_type(self):
+        """Test validation fails for non-list ignore_playlists."""
+        config = {"ignore_playlists": "not a list"}
+        
+        with pytest.raises(ConfigValidationError, match="ignore_playlists must be a list, got str"):
+            validate_config(config)
+
+    def test_validate_ignore_playlists_invalid_item_type(self):
+        """Test validation fails for non-string items in ignore_playlists."""
+        config = {"ignore_playlists": ["valid", 123, "also valid"]}
+        
+        with pytest.raises(ConfigValidationError, match="ignore_playlists items must be strings, got int"):
+            validate_config(config)
+
+    def test_validate_config_with_extra_fields(self):
+        """Test validation passes through extra fields unchanged."""
+        config = {
+            "rekordbox_library_path": "/path/to/library.db",
+            "extra_field": "extra_value",
+            "nested": {"field": "value"}
+        }
+        result = validate_config(config)
+        assert result == config
+
+    def test_load_config_with_validation_error(self):
+        """Test load_config when validation fails."""
+        invalid_config = {"replace_in_title": ["invalid", "list", "format"]}
+        
+        with patch("fortherekord.config.get_config_path") as mock_path:
+            mock_config_path = Path("test_config.yaml")
+            mock_path.return_value = mock_config_path
+            
+            # Mock file exists and reading
+            with patch("pathlib.Path.exists", return_value=True):
+                with patch("builtins.open", mock_open()):
+                    with patch("yaml.safe_load", return_value=invalid_config):
+                        with pytest.raises(ConfigValidationError, match="Invalid configuration in.*replace_in_title must be a dictionary"):
+                            load_config()

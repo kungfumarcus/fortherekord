@@ -1,6 +1,0 @@
-{
-  "timestamp": "2025-08-18T00:28:35.857670",
-  "mode": "test_dump",
-  "message": "Changes would have been committed to database",
-  "note": "Database commit prevented in test mode"
-}

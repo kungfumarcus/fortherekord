@@ -36,18 +36,22 @@ class TestDatabaseSafetyFirst:
         """CRITICAL: Verify the database safety mechanism prevents commits."""
         from unittest.mock import Mock
         from fortherekord.rekordbox_library import RekordboxLibrary
+        from .conftest import cleanup_test_dump_file
         
         # Test that save_changes never calls commit in test mode
         mock_db = Mock()
         library = RekordboxLibrary("/test/db.edb")
         library._db = mock_db
         
-        # This should NOT call commit due to test mode
-        result = library.save_changes()
-        
-        # Verify it succeeded but never called commit
-        assert result is True, "save_changes should succeed in test mode"
-        mock_db.commit.assert_not_called(), "CRITICAL: Database commit was called during test mode!"
+        try:
+            # This should NOT call commit due to test mode
+            result = library.save_changes()
+            
+            # Verify it succeeded but never called commit
+            assert result is True, "save_changes should succeed in test mode"
+            mock_db.commit.assert_not_called(), "CRITICAL: Database commit was called during test mode!"
+        finally:
+            cleanup_test_dump_file()
 
 
 # If any of these tests fail, we want to stop immediately
