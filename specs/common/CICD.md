@@ -18,9 +18,10 @@ Automated build, test, and deployment pipeline using GitHub Actions to create cr
 Single pipeline with sequential stages triggered on push to main branch, test branch, and pull requests:
 
 #### Stage 1: Code Quality & Testing
-- Run linting checks using flake8 and pylint
+- Run linting checks using flake8 with 100-character line length limit (.flake8 configuration)
+- Execute static analysis using pylint
 - Execute type checking using mypy
-- Execute unit tests using pytest
+- Execute unit tests using pytest with coverage reporting
 - Generate code coverage reports
 - Fail pipeline if any quality checks or tests don't pass
 

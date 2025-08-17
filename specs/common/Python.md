@@ -37,10 +37,26 @@ Define Python development standards and practices to ensure code quality, mainta
 - **Logical Grouping**: Group related functionality into cohesive modules and classes
 
 ### Development Tools
-- **Linting**: Use pylint or flake8 for code quality checks
-- **Formatting**: Use black or autopep8 for consistent code formatting
+- **Linting**: Use flake8 for code quality checks with 100-character line length limit
+- **Static Analysis**: Use pylint for comprehensive code analysis
+- **Formatting**: Use black for consistent code formatting
 - **Type Checking**: Use mypy for static type checking
-- **Testing**: Use pytest for unit and integration testing
+- **Testing**: Use pytest for unit and integration testing with coverage reporting
+- **Configuration**: Use `.flake8` configuration file for consistent linting rules across team
+
+### Pylint Configuration Strategy
+- **Global Configuration**: Keep pylint strict by default - only disable checks when absolutely necessary
+- **File-Specific Disables**: Use `# pylint: disable=check-name` comments for specific cases rather than global disables
+- **Framework-Specific Issues**: Disable `no-value-for-parameter` for Click decorated functions (Click handles argument injection)
+- **Generated Files**: Disable `invalid-name` for auto-generated files like `_version.py` that don't follow naming conventions
+- **External Libraries**: Use `ignored-modules` in `.pylintrc` for third-party libraries (pyrekordbox, spotipy, click)
+
+### Build and Quality Standards
+- **Line Length**: Maximum 100 characters (configured in .flake8)
+- **Import Order**: Follow PEP 8 import ordering (standard library, third-party, local imports)
+- **Exception Handling**: Use specific exception types, avoid broad Exception catches
+- **Interface Implementation**: Use `raise NotImplementedError` instead of `...` ellipsis in abstract methods
+- **Code Cleanliness**: Remove unused parameters and avoid TODO comments (implementation details tracked in specifications)
 
 ### Example Code Structure
 ```python

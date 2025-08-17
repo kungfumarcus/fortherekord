@@ -4,9 +4,11 @@
 Tests are derived from specification function points using these principles.
 
 ## Technical Requirements
-- Use pytest testing framework
+- Use pytest testing framework with coverage reporting (pytest-cov)
+- Always report coverage statistics during test runs
 - Mock external dependencies appropriately
 - Follow established testing patterns
+- Provide batch files for easy development workflow (run_unit_tests.bat, run_e2e_tests.bat)
 
 ## Function Points
 

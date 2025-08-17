@@ -22,9 +22,9 @@ The following features are explicitly not included in this initial implementatio
 
 - **Platform**: Python 3.8+ console application
 - **Package Management**: pyproject.toml with modern Python packaging
-- **CLI Framework**: Click for command-line interface
-- **Configuration**: PyYAML for YAML configuration files
-- **Logging**: Python standard logging module
+- **CLI Framework**: Click for command-line interface with Rich for styled output
+- **Configuration**: PyYAML for YAML configuration files with Pydantic validation
+- **Logging**: Python standard logging module with Rich handler for console output
 - **Progress UI**: Rich library for progress bars and formatted output
 - **String Similarity**: python-Levenshtein for fast text matching
 - **Spotify Integration**: spotipy library for OAuth and API operations
