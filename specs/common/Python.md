@@ -48,6 +48,11 @@ Define Python development standards and practices to ensure code quality, mainta
 - **Testing**: Use pytest for unit and integration testing with coverage reporting
 - **Configuration**: Use `.flake8` configuration file for consistent linting rules across team
 
+### MyPy Type Handling
+- **Unknown Types**: Use `str()` or equivalent casting  instead of complex type annotations
+- **Optional Parameters**: Always use `Optional[Type]` instead of `Type = None`
+- **Null Checks**: Add runtime guards (`if not self.client:`) before using Optional attributes
+
 ### Pylint Configuration Strategy
 - **Global Configuration**: Keep pylint strict by default - only disable checks when absolutely necessary
 - **File-Specific Disables**: Use `# pylint: disable=check-name` comments for specific cases rather than global disables

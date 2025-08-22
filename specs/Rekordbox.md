@@ -24,6 +24,7 @@ Implements IMusicLibrary interface defined in [MusicLibraryInterface.md](MusicLi
 
 ### IMusicLibrary Implementation
 - **GetPlaylists**: Extract hierarchical playlist structure from database, applying ignore_playlists filter. Returns only top-level playlists (no parent). Each playlist object contains references to parent and children playlists for tree traversal.
+- **GetCollection**: Return a complete Collection containing all playlists (with ignore_playlists filter applied) and providing efficient access to all tracks. This avoids multiple database queries when both playlists and tracks are needed.
 - **GetPlaylistTracks**: Load track associations for specified playlist
 - **CreatePlaylist**: Not supported (read-only for playlists)
 - **DeletePlaylist**: Not supported (read-only for playlists)

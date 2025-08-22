@@ -10,7 +10,7 @@ from typing import List, Optional, Protocol
 
 
 @dataclass
-class Track:
+class Track:  # pylint: disable=too-many-instance-attributes
     """
     Represents a music track with metadata.
 
@@ -23,7 +23,6 @@ class Track:
     artist: str
     duration_ms: Optional[int] = None
     key: Optional[str] = None
-    bpm: Optional[float] = None
     original_title: Optional[str] = None
     original_artist: Optional[str] = None
 
@@ -41,23 +40,23 @@ class Playlist:
     name: str
     tracks: List[Track]
     parent_id: Optional[str] = None
-    children: Optional[List['Playlist']] = None
+    children: Optional[List["Playlist"]] = None
 
     def display_tree(self, indent: int = 0) -> None:
         """
         Display this playlist and its children in a tree format.
-        
+
         Args:
             indent: Number of indentation levels (0 for root level)
         """
         indent_str = "  " * indent + "- "
         track_count = len(self.tracks)
-        
+
         if track_count > 0:
             print(f"{indent_str}{self.name} ({track_count} tracks)")
         else:
             print(f"{indent_str}{self.name}")
-            
+
         # Recursively display children in their original order
         if self.children:
             for child in self.children:
@@ -95,3 +94,28 @@ class IMusicLibrary(Protocol):
     def get_followed_artists(self) -> List[str]:
         """Get list of currently followed artists."""
         raise NotImplementedError
+
+
+@dataclass
+class Collection:
+    """
+    Represents a music collection with playlists and tracks.
+
+    Encapsulates all data loaded from a music library (like Rekordbox)
+    to avoid multiple database calls.
+    """
+
+    playlists: List[Playlist]
+
+    def get_all_tracks(self) -> List[Track]:
+        """Get all unique tracks from all playlists."""
+        all_tracks = []
+        track_ids = set()
+
+        for playlist in self.playlists:
+            for track in playlist.tracks:
+                if track.id not in track_ids:
+                    track_ids.add(track.id)
+                    all_tracks.append(track)
+
+        return all_tracks

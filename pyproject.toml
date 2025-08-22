@@ -25,6 +25,7 @@ dependencies = [
     "click>=8.0.0",
     "PyYAML>=6.0.0",
     "pyrekordbox>=0.4.0",
+    "spotipy>=2.22.0",
 ]
 
 [project.optional-dependencies]

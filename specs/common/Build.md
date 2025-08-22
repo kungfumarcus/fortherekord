@@ -31,8 +31,8 @@ Define the development workflow, build process, and quality assurance tools for 
 
 ### Development Scripts
 - **build.bat**: Complete build with dependency installation and quality checks
-- **unit_tests.bat**: Unit test execution with coverage reporting  
-- **e2e_tests.bat**: End-to-end test execution
+- **unit_test.bat**: Unit test execution with coverage reporting  
+- **e2e_test.bat**: End-to-end test execution
 
 ### Configuration Files Required
 - **.flake8**: Line length and style configuration

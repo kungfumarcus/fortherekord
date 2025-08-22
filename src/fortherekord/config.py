@@ -2,25 +2,24 @@
 
 import os
 from pathlib import Path
-from typing import Dict, Any, List, Union
+from typing import Dict, Any
 import yaml
 
 
 class ConfigValidationError(Exception):
     """Raised when configuration validation fails."""
-    pass
 
 
 def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Validate configuration values.
-    
+
     Args:
         config: Raw configuration dictionary
-        
+
     Returns:
         The same configuration if valid
-        
+
     Raises:
         ConfigValidationError: If configuration is invalid
     """
@@ -28,19 +27,21 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     if "rekordbox_library_path" in config:
         if not isinstance(config["rekordbox_library_path"], str):
             raise ConfigValidationError(
-                f"rekordbox_library_path must be a string, got {type(config['rekordbox_library_path']).__name__}"
+                f"rekordbox_library_path must be a string, got "
+                f"{type(config['rekordbox_library_path']).__name__}"
             )
-    
+
     # Validate replace_in_title - must be a dictionary
     if "replace_in_title" in config:
         replace_config = config["replace_in_title"]
-        
+
         if not isinstance(replace_config, dict):
             raise ConfigValidationError(
-                f"replace_in_title must be a dictionary ({{\"from\": \"to\"}}), got {type(replace_config).__name__}. "
-                f"Example: {{\" (Original Mix)\": \"\", \" (Extended Mix)\": \" (ext)\"}}"
+                f'replace_in_title must be a dictionary ({{"from": "to"}}), '
+                f"got {type(replace_config).__name__}. "
+                f'Example: {{" (Original Mix)": "", " (Extended Mix)": " (ext)"}}'
             )
-        
+
         # Validate dictionary contents
         for key, value in replace_config.items():
             if not isinstance(key, str):
@@ -51,7 +52,7 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
                 raise ConfigValidationError(
                     f"replace_in_title values must be strings or None, got {type(value).__name__}"
                 )
-    
+
     # Validate ignore_playlists
     if "ignore_playlists" in config:
         ignore_playlists = config["ignore_playlists"]
@@ -64,12 +65,17 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
                 raise ConfigValidationError(
                     f"ignore_playlists items must be strings, got {type(item).__name__}"
                 )
-    
+
     return config
 
 
 def get_config_path() -> Path:
     """Get the path to the configuration file."""
+    # Check for test config path first
+    test_config_path = os.environ.get("FORTHEREKORD_CONFIG_PATH")
+    if test_config_path:
+        return Path(test_config_path)
+
     if os.name == "nt":  # Windows
         config_dir = Path.home() / "AppData" / "Local" / "fortherekord"
     else:  # Unix-like  # pragma: no cover
@@ -89,11 +95,11 @@ def load_config() -> Dict[str, Any]:
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             raw_config = yaml.safe_load(f) or {}
-        
+
         # Validate the configuration (throws error if invalid)
         validate_config(raw_config)
         return raw_config
-        
+
     except (FileNotFoundError, yaml.YAMLError, OSError):
         return {}
     except ConfigValidationError as e:
@@ -117,10 +123,9 @@ def create_default_config() -> None:
 
     default_config = {
         "rekordbox_library_path": default_path,
-        "replace_in_title": {
-            " (Original Mix)": "",
-            " (Extended Mix)": " (ext)"
-        },
-        "ignore_playlists": []
+        "replace_in_title": {" (Original Mix)": "", " (Extended Mix)": " (ext)"},
+        "ignore_playlists": [],
+        "spotify_client_id": "",
+        "spotify_client_secret": "",
     }
     save_config(default_config)

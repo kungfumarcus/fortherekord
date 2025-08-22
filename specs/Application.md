@@ -56,11 +56,14 @@ The following features are explicitly not included in this initial implementatio
   - If Rekordbox is running and metadata changes are planned, exit with error message
   - Provide clear instructions to close Rekordbox before running
 - Library Cleanup
+  - Load Collection from Rekordbox (contains all playlists and tracks with filtering applied)
+  - Display playlist hierarchy with track counts
   - Cleanup and update track name and artist properties directly in database
 - Sync Spotify
   - Authenticate with Spotify using OAuth
   - Load Spotify liked tracks
   - Sync Spotify Playlists
+    - Use Collection for efficient access to Rekordbox playlists and tracks
     - Load cached track mappings
     - Execute playlist synchronization
     - Save updated mappings

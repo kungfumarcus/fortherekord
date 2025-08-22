@@ -57,7 +57,7 @@ The application is built using a modular architecture with clear separation of c
 - **Spotify Integration**: spotipy library for OAuth and API operations
 - **String Matching**: python-Levenshtein for fast text similarity
 - **Progress UI**: Rich library for progress bars and formatted output
-- **Testing**: pytest with comprehensive mocking
+- **Testing**: pytest with comprehensive mocking and e2e testing with real API integration
 - **CI/CD**: GitHub Actions with code quality checks (flake8, pylint, mypy)
 
 ## File Organization
@@ -155,6 +155,53 @@ The application performs these key operations:
 6. **Interactive Mode**: Allows manual track selection when automatic matching fails
 7. **Artist Following**: Automatically follows artists with multiple liked tracks
 8. **Playlist Sync**: Creates/updates/deletes Spotify playlists to match Rekordbox
+
+## End-to-End Testing
+
+The application includes comprehensive end-to-end (e2e) testing infrastructure that validates the complete workflow from command-line execution through Spotify integration.
+
+### Test Environment Features
+
+**Database Safety Override**: E2E tests use environment variables to prevent accidental modification of real Rekordbox databases:
+- `FORTHEREKORD_TEST_MODE=1` - Enables test mode with database write protection
+- `FORTHEREKORD_TEST_DUMP_FILE=path` - Redirects database writes to JSON dump files instead of modifying SQLite
+
+**Configuration Override**: Tests can specify custom configuration files:
+- `FORTHEREKORD_CONFIG_PATH=path` - Overrides default config file location for isolated testing
+
+**Real Spotify Credentials**: E2E tests support real Spotify API testing using local credential files:
+- `tests/e2e/test-credentials.yaml` - Git-ignored file containing real Spotify client credentials
+- Template provided in `tests/e2e/test-credentials.yaml.template`
+- Tests fail explicitly if credentials are not provided (no silent skipping)
+
+### Setting Up E2E Tests
+
+1. **Copy credential template**:
+   ```bash
+   cp tests/e2e/test-credentials.yaml.template tests/e2e/test-credentials.yaml
+   ```
+
+2. **Add real Spotify credentials**:
+   ```yaml
+   spotify:
+     client_id: your_spotify_client_id
+     client_secret: your_spotify_client_secret
+   ```
+
+3. **Run e2e tests**:
+   ```bash
+   python -m pytest tests/e2e/ -v
+   ```
+
+### E2E Test Coverage
+
+- **Configuration validation** - Tests config loading, validation, and error handling
+- **Spotify authentication** - Tests OAuth flow with real credentials
+- **Database safety** - Verifies test mode prevents accidental database modification
+- **Command-line interface** - Tests CLI arguments and help/version commands
+- **Error scenarios** - Tests missing credentials, invalid paths, and graceful failure modes
+
+The e2e testing approach ensures the complete application workflow is validated while maintaining safety through database write protection and isolated test environments.
 
 ### Implementation Priority
 

@@ -66,7 +66,7 @@ When specifications reference functionality handled by other components, always 
 - **Git Integration**: Proper `.gitignore` for Python projects
 - **Simple YAML Configuration**: Basic config file with `rekordbox_library_path` setting
 - **Config Management**: Load/save config in standard location (`~/.config/fortherekord/config.yaml`)
-- **Basic Data Models**: Track and Playlist dataclasses with core fields (id, title, artist, key, bpm)
+- **Basic Data Models**: Track and Playlist dataclasses with core fields (id, title, artist, key)
 - **Rekordbox Library Access**: Use pyrekordbox to load Rekordbox 6/7 database and extract playlist information
 - **Full tests**: unit and e2e tests for all implemented code
 

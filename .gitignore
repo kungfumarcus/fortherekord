@@ -12,6 +12,7 @@ dist/
 .coverage
 .pytest_cache/
 htmlcov/
+tests/e2e/test-credentials.yaml
 
 # IDE/Tools
 .mypy_cache/

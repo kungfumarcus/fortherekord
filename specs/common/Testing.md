@@ -8,7 +8,7 @@ Tests are derived from specification function points using these principles.
 - Always report coverage statistics during test runs
 - Mock external dependencies appropriately
 - Follow established testing patterns
-- Provide batch files for easy development workflow (run_unit_tests.bat, run_e2e_tests.bat)
+- Provide batch files for easy development workflow (unit_test.bat, e2e_test.bat)
 
 ## Function Points
 
@@ -33,6 +33,7 @@ Tests are derived from specification function points using these principles.
 - Integration Verification: Components working together through actual interfaces
 - No Mocking: Test the actual executable/module as users would experience it
 - Each test represents a distinct user workflow
+- **File Organization**: Each E2E test should test a different application flow and be in a separate file (e.g., `test_e2e_help_command.py`, `test_e2e_spotify_auth.py`)
 - **Timeout Management**: Configure appropriate timeouts (30s for E2E tests) via `pytest_configure()`
 **Outputs**: Verified complete workflows with expected results
 
