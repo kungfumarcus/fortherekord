@@ -150,11 +150,15 @@ class TestLoadLibrary:
 class TestInitializeProcessor:
     """Test initialize_processor function."""
 
-    @patch("fortherekord.main.RekordboxMetadataProcessor")
+    @patch("fortherekord.main.MusicLibraryProcessor")
     def test_initialize_processor(self, mock_processor_class):
         """Test processor initialization and original metadata extraction."""
         config = {"test": "config"}
         mock_processor = mock_processor_class.return_value
+        # Mock processor with features enabled
+        mock_processor.add_key_to_title = True
+        mock_processor.add_artist_to_title = True
+        mock_processor.remove_artists_in_title = True
         tracks = [Mock(title="Song - Artist [Am]"), Mock(title="Another Song")]
 
         result = initialize_processor(config, tracks)
@@ -162,6 +166,26 @@ class TestInitializeProcessor:
         assert result == mock_processor
         mock_processor_class.assert_called_once_with(config)
         mock_processor.extract_original_metadata.assert_called_once_with(tracks)
+
+    @patch("fortherekord.main.MusicLibraryProcessor")
+    @patch("fortherekord.main.click.echo")
+    def test_initialize_processor_disabled(self, mock_echo, mock_processor_class):
+        """Test processor initialization when all features are disabled."""
+        config = {"test": "config"}
+        mock_processor = mock_processor_class.return_value
+        # Mock processor with all features disabled
+        mock_processor.add_key_to_title = False
+        mock_processor.add_artist_to_title = False
+        mock_processor.remove_artists_in_title = False
+        tracks = [Mock(title="Song - Artist [Am]")]
+
+        result = initialize_processor(config, tracks)
+
+        assert result is None
+        mock_processor_class.assert_called_once_with(config)
+        # Verify the disabled messages are shown
+        assert mock_echo.call_count >= 4  # Should show multiple echo messages
+        mock_processor.extract_original_metadata.assert_not_called()
 
 
 class TestGetCollectionToProcess:
@@ -199,28 +223,22 @@ class TestProcessTracks:
         """Test successful track processing."""
         # Create test tracks using utility
         original_track = create_sample_track()
-        enhanced_track = create_sample_track(title="Test Song - Test Artist [Am]")
 
         # Setup mocks
         mock_rekordbox = MagicMock()
         mock_processor = MagicMock()
 
-        mock_processor.enhance_track_title.return_value = enhanced_track
         mock_rekordbox.update_track_metadata.return_value = True
         mock_rekordbox.save_changes.return_value = 1  # Return count of saved tracks
 
-        with silence_click_echo() as mock_echo:
+        with silence_click_echo():
             process_tracks([original_track], mock_rekordbox, mock_processor)
 
         # Verify calls
-        mock_processor.enhance_track_title.assert_called()
+        mock_processor.process_track.assert_called()
         mock_rekordbox.save_changes.assert_called_once()
         # update_track_metadata should NOT be called from process_tracks anymore
         mock_rekordbox.update_track_metadata.assert_not_called()
-
-        # Check that success message was printed
-        echo_calls = [str(call) for call in mock_echo.call_args_list]
-        assert any("Successfully updated 1 tracks" in call for call in echo_calls)
 
     def test_process_tracks_no_changes(self):
         """Test track processing when no changes are needed."""
@@ -231,65 +249,82 @@ class TestProcessTracks:
         mock_rekordbox = MagicMock()
         mock_processor = MagicMock()
 
-        mock_processor.enhance_track_title.return_value = track  # Same track returned (no changes)
         mock_rekordbox.save_changes.return_value = 0  # No tracks were modified
 
-        with patch("fortherekord.main.click.echo") as mock_echo:
+        with silence_click_echo():
             process_tracks([track], mock_rekordbox, mock_processor)
 
         # Verify save_changes was called (but returned 0)
         mock_rekordbox.save_changes.assert_called_once()
         mock_rekordbox.update_track_metadata.assert_not_called()
 
-        # Check that "No changes needed" message was printed
-        echo_calls = [str(call) for call in mock_echo.call_args_list]
-        assert any("No changes needed" in call for call in echo_calls)
-
     def test_process_tracks_update_failure(self):
         """Test track processing when update fails."""
         from fortherekord.models import Track
 
         original_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am")
-        enhanced_track = Track(
-            id="1", title="Test Song - Test Artist [Am]", artist="Test Artist", key="Am"
-        )
+        # enhanced_track not used since we're testing in-place modification
 
         # Setup mocks
         mock_rekordbox = MagicMock()
         mock_processor = MagicMock()
 
-        mock_processor.enhance_track_title.return_value = enhanced_track
         mock_rekordbox.save_changes.return_value = 0  # No tracks saved due to failure
 
-        with patch("fortherekord.main.click.echo") as mock_echo:
+        with silence_click_echo():
             process_tracks([original_track], mock_rekordbox, mock_processor)
-
-        # Check that "No changes needed" message was printed (since save_changes returned 0)
-        echo_calls = [str(call) for call in mock_echo.call_args_list]
-        assert any("No changes needed" in call for call in echo_calls)
 
     def test_process_tracks_save_failure(self):
         """Test track processing when save fails."""
         from fortherekord.models import Track
 
         original_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am")
-        enhanced_track = Track(
-            id="1", title="Test Song - Test Artist [Am]", artist="Test Artist", key="Am"
-        )
+        # enhanced_track not used since we're testing in-place modification
 
         # Setup mocks
         mock_rekordbox = MagicMock()
         mock_processor = MagicMock()
 
-        mock_processor.enhance_track_title.return_value = enhanced_track
         mock_rekordbox.save_changes.return_value = 0  # Save returns 0 (no tracks saved)
 
-        with patch("fortherekord.main.click.echo") as mock_echo:
+        with silence_click_echo():
             process_tracks([original_track], mock_rekordbox, mock_processor)
 
-        # Check that "No changes needed" message was printed (since save_changes returned 0)
-        echo_calls = [str(call) for call in mock_echo.call_args_list]
-        assert any("No changes needed" in call for call in echo_calls)
+    def test_process_tracks_dry_run_with_changes(self):
+        """Test track processing in dry-run mode with changes."""
+        from fortherekord.models import Track
+
+        original_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am")
+
+        # Setup mocks
+        mock_rekordbox = Mock()
+        mock_processor = Mock()
+
+        mock_rekordbox.save_changes.return_value = 1  # Would modify 1 track
+
+        with silence_click_echo():
+            process_tracks([original_track], mock_rekordbox, mock_processor, dry_run=True)
+
+        # Verify save_changes called with dry_run=True
+        mock_rekordbox.save_changes.assert_called_once_with([original_track], dry_run=True)
+
+    def test_process_tracks_dry_run_no_changes(self):
+        """Test track processing in dry-run mode with no changes."""
+        from fortherekord.models import Track
+
+        track = Track(id="1", title="Test Song - Test Artist [Am]", artist="Test Artist", key="Am")
+
+        # Setup mocks
+        mock_rekordbox = Mock()
+        mock_processor = Mock()
+
+        mock_rekordbox.save_changes.return_value = 0  # No changes needed
+
+        with silence_click_echo():
+            process_tracks([track], mock_rekordbox, mock_processor, dry_run=True)
+
+        # Verify save_changes called with dry_run=True
+        mock_rekordbox.save_changes.assert_called_once_with([track], dry_run=True)
 
 
 class TestCLIIntegration:
@@ -385,7 +420,9 @@ class TestCLIIntegration:
 
         result = run_cli_command([])
         assert result.exit_code == 0
-        mock_process_tracks.assert_called_once_with(mock_tracks, mock_rekordbox, mock_processor)
+        mock_process_tracks.assert_called_once_with(
+            mock_tracks, mock_rekordbox, mock_processor, False
+        )
 
     @patch("fortherekord.main.load_config")
     @patch("fortherekord.main.load_library")
@@ -401,13 +438,15 @@ class TestCLIIntegration:
     @patch("fortherekord.main.load_config")
     @patch("fortherekord.main.load_library")
     @patch("fortherekord.main.SpotifyLibrary")
-    @patch("fortherekord.playlist_sync.PlaylistSyncService")
+    @patch("fortherekord.main.PlaylistSyncService")
+    @patch("fortherekord.main.get_collection_to_process")
     @patch("fortherekord.main.initialize_processor")
     @patch("fortherekord.main.process_tracks")
     def test_cli_successful_spotify_sync(
         self,
         mock_process_tracks,
         mock_initialize_processor,
+        mock_get_collection,
         mock_sync_service_class,
         mock_spotify_class,
         mock_load_library,
@@ -445,10 +484,9 @@ class TestCLIIntegration:
 
         mock_collection = Collection(playlists=[mock_playlist1, mock_playlist2])
 
-        mock_rekordbox.get_collection.return_value = mock_collection
+        # Need to provide tracks for the CLI to continue to Spotify sync
+        mock_get_collection.return_value = (mock_collection, [sample_track])
 
-        # Mock empty tracks list so metadata processing is skipped
-        mock_rekordbox.get_all_tracks.return_value = []
         mock_load_library.return_value = mock_rekordbox
 
         # Mock successful Spotify authentication
@@ -467,7 +505,12 @@ class TestCLIIntegration:
         # Verify the workflow
         mock_spotify_class.assert_called_once_with("test_client_id", "test_client_secret")
         mock_sync_service_class.assert_called_once_with(mock_rekordbox, mock_spotify)
-        mock_sync_service.sync_collection.assert_called_once_with(mock_collection)
+        mock_sync_service.sync_collection.assert_called_once_with(mock_collection, dry_run=False)
+
+        # Verify process_tracks was called with dry_run=False
+        mock_process_tracks.assert_called_once_with(
+            [sample_track], mock_rekordbox, mock_initialize_processor.return_value, False
+        )
 
         # Check output messages
         assert "Authenticated with Spotify as user: test_user" in result.output
@@ -523,3 +566,120 @@ class TestCLIIntegration:
 
         # Check error handling
         assert "Failed to authenticate with Spotify: Invalid credentials" in result.output
+
+    @patch("fortherekord.main.load_config")
+    @patch("fortherekord.main.load_library")
+    @patch("fortherekord.main.SpotifyLibrary")
+    @patch("fortherekord.main.PlaylistSyncService")
+    @patch("fortherekord.main.get_collection_to_process")
+    @patch("fortherekord.main.initialize_processor")
+    @patch("fortherekord.main.process_tracks")
+    def test_cli_dry_run_mode(
+        self,
+        mock_process_tracks,
+        mock_initialize_processor,
+        mock_get_collection,
+        mock_sync_service_class,
+        mock_spotify_class,
+        mock_load_library,
+        mock_load_config,
+    ):
+        """Test CLI with --dry-run flag passes dry_run=True to relevant functions."""
+        # Mock config with Spotify credentials
+        mock_load_config.return_value = {
+            "rekordbox_library_path": "/test/db.edb",
+            "spotify_client_id": "test_client_id",
+            "spotify_client_secret": "test_client_secret",
+        }
+
+        # Setup mocks
+        mock_rekordbox = Mock()
+        mock_load_library.return_value = mock_rekordbox
+
+        # Mock collection and tracks
+        from fortherekord.models import Track, Collection
+
+        sample_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am")
+        mock_collection = Collection(playlists=[])
+        mock_get_collection.return_value = (mock_collection, [sample_track])
+
+        # Mock Spotify
+        mock_spotify = Mock()
+        mock_spotify.user_id = "test_user"
+        mock_spotify_class.return_value = mock_spotify
+
+        # Mock sync service
+        mock_sync_service = Mock()
+        mock_sync_service_class.return_value = mock_sync_service
+
+        # Run with --dry-run flag
+        result = run_cli_command(["--dry-run"])
+        assert_successful_command(result)
+
+        # Verify dry_run=True was passed to the right functions
+        mock_process_tracks.assert_called_once_with(
+            [sample_track], mock_rekordbox, mock_initialize_processor.return_value, True
+        )
+        mock_sync_service.sync_collection.assert_called_once_with(mock_collection, dry_run=True)
+
+        # The output will show the normal workflow - the key test is that
+        # dry_run=True was passed correctly
+        assert "Spotify playlist sync complete" in result.output
+
+    @patch("fortherekord.main.PlaylistSyncService")
+    @patch("fortherekord.main.SpotifyLibrary")
+    @patch("fortherekord.main.process_tracks")
+    @patch("fortherekord.main.initialize_processor")
+    @patch("fortherekord.main.get_collection_to_process")
+    @patch("fortherekord.main.load_library")
+    @patch("fortherekord.main.load_config")
+    def test_cli_processor_disabled_continues_to_spotify(
+        self,
+        mock_load_config,
+        mock_load_library,
+        mock_get_collection,
+        mock_initialize_processor,
+        mock_process_tracks,
+        mock_spotify_class,
+        mock_sync_service_class,
+    ):
+        """Test CLI when processor is disabled but continues to Spotify sync."""
+        # Mock basic setup
+        mock_load_config.return_value = {
+            "rekordbox_library_path": "/test/db.edb",
+            "spotify_client_id": "test_id",
+            "spotify_client_secret": "test_secret",
+        }
+        mock_rekordbox = Mock()
+        mock_load_library.return_value = mock_rekordbox
+
+        # Mock collection with tracks
+        from fortherekord.models import Track, Collection
+
+        sample_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am")
+        mock_collection = Collection(playlists=[])
+        mock_get_collection.return_value = (mock_collection, [sample_track])
+
+        # Mock processor as disabled (returns None)
+        mock_initialize_processor.return_value = None
+
+        # Mock Spotify
+        mock_spotify = Mock()
+        mock_spotify.user_id = "test_user"
+        mock_spotify_class.return_value = mock_spotify
+
+        # Mock sync service
+        mock_sync_service = Mock()
+        mock_sync_service_class.return_value = mock_sync_service
+
+        result = run_cli_command([])
+        assert_successful_command(result)
+
+        # Verify process_tracks was NOT called (processor disabled)
+        mock_process_tracks.assert_not_called()
+
+        # Verify Spotify sync still happened
+        mock_sync_service.sync_collection.assert_called_once_with(mock_collection, dry_run=False)
+
+        assert "Skipping track processing - processor disabled" in result.output
+        assert "Spotify playlist sync complete" in result.output

@@ -223,6 +223,6 @@ class SpotifyLibrary(IMusicLibrary):
         """Update track metadata - not supported by Spotify API."""
         raise NotImplementedError("Track metadata updates not supported by Spotify API")
 
-    def save_changes(self, tracks: list[Track]) -> int:
+    def save_changes(self, tracks: list[Track], dry_run: bool = False) -> int:
         """Save changes - not applicable for Spotify read operations."""
         raise NotImplementedError("Save changes not applicable for Spotify")

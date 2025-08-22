@@ -20,24 +20,38 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         self.rekordbox = rekordbox
         self.spotify = spotify
 
-    def sync_collection(self, collection: Collection) -> None:
+    def sync_collection(self, collection: Collection, dry_run: bool = False) -> None:
         """
         Sync playlists from a Collection to Spotify.
 
         Args:
             collection: Collection with playlists and tracks already loaded and filtered
+            dry_run: If True, preview changes without making them
         """
+        if dry_run:
+            click.echo("🔍 DRY RUN MODE - Previewing changes without making them")
+            click.echo()
+
         click.echo("Loading Spotify playlists...")
         spotify_playlists = self.spotify.get_playlists()
         spotify_playlist_map = {p.name: p for p in spotify_playlists}
 
-        click.echo(f"Syncing {len(collection.playlists)} playlists to Spotify")
+        action_verb = "Previewing" if dry_run else "Syncing"
+        click.echo(f"{action_verb} {len(collection.playlists)} playlists to Spotify")
 
         for rekordbox_playlist in collection.playlists:
-            self._sync_single_playlist(rekordbox_playlist, spotify_playlist_map)
+            self._sync_single_playlist(rekordbox_playlist, spotify_playlist_map, dry_run)
+
+        if dry_run:
+            click.echo()
+            click.echo("🔍 DRY RUN COMPLETE - No changes were made to Spotify")
+            click.echo("   Run without --dry-run to apply these changes")
 
     def _sync_single_playlist(
-        self, rekordbox_playlist: Playlist, spotify_playlist_map: Dict[str, Playlist]
+        self,
+        rekordbox_playlist: Playlist,
+        spotify_playlist_map: Dict[str, Playlist],
+        dry_run: bool = False,
     ) -> None:
         """
         Sync a single playlist from Rekordbox to Spotify.
@@ -45,31 +59,38 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         Args:
             rekordbox_playlist: Source playlist from Rekordbox (with tracks already loaded)
             spotify_playlist_map: Map of existing Spotify playlists by name
+            dry_run: If True, preview changes without making them
         """
         playlist_name = rekordbox_playlist.name
-        click.echo(f"\\nSyncing playlist: {playlist_name}")
+        action_verb = "Previewing" if dry_run else "Syncing"
+        click.echo(f"\\n{action_verb} playlist: {playlist_name}")
 
         # Get tracks from the playlist (already loaded in Collection)
         rekordbox_tracks = rekordbox_playlist.tracks
         click.echo(f"  Found {len(rekordbox_tracks)} tracks in Rekordbox")
 
         # Find matching tracks on Spotify
-        matched_tracks = self._find_spotify_matches(rekordbox_tracks)
+        matched_tracks = self._find_spotify_matches(rekordbox_tracks, dry_run)
         click.echo(f"  Matched {len(matched_tracks)} tracks on Spotify")
 
         if playlist_name in spotify_playlist_map:
             # Update existing playlist
-            self._update_spotify_playlist(spotify_playlist_map[playlist_name], matched_tracks)
+            self._update_spotify_playlist(
+                spotify_playlist_map[playlist_name], matched_tracks, dry_run
+            )
         else:
             # Create new playlist
-            self._create_spotify_playlist(playlist_name, matched_tracks)
+            self._create_spotify_playlist(playlist_name, matched_tracks, dry_run)
 
-    def _find_spotify_matches(self, rekordbox_tracks: List[Track]) -> List[str]:
+    def _find_spotify_matches(
+        self, rekordbox_tracks: List[Track], dry_run: bool = False
+    ) -> List[str]:
         """
         Find Spotify track IDs for Rekordbox tracks using simple search.
 
         Args:
             rekordbox_tracks: List of tracks from Rekordbox
+            dry_run: If True, preview matches without detailed search output
 
         Returns:
             List of Spotify track IDs that were found
@@ -81,19 +102,26 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             spotify_id = self.spotify.search_track(track.title, track.artist)
             if spotify_id:
                 spotify_track_ids.append(spotify_id)
-            else:
+            elif not dry_run:  # Only show detailed failures when not in dry-run
                 click.echo(f"    ✗ No match: {track.title} - {track.artist}")
 
         return spotify_track_ids
 
-    def _create_spotify_playlist(self, name: str, track_ids: List[str]) -> None:
+    def _create_spotify_playlist(
+        self, name: str, track_ids: List[str], dry_run: bool = False
+    ) -> None:
         """
         Create a new Spotify playlist with tracks.
 
         Args:
             name: Playlist name
             track_ids: List of Spotify track IDs to add
+            dry_run: If True, preview creation without making changes
         """
+        if dry_run:
+            click.echo(f"  📝 Would create new playlist '{name}' with {len(track_ids)} tracks")
+            return
+
         click.echo("  Creating new Spotify playlist...")
 
         if not self.spotify.sp or not self.spotify.user_id:
@@ -112,14 +140,32 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
 
         click.echo(f"  ✓ Created playlist with {len(track_ids)} tracks")
 
-    def _update_spotify_playlist(self, spotify_playlist: Playlist, track_ids: List[str]) -> None:
+    def _update_spotify_playlist(
+        self, spotify_playlist: Playlist, track_ids: List[str], dry_run: bool = False
+    ) -> None:
         """
         Update existing Spotify playlist to match Rekordbox tracks.
 
         Args:
             spotify_playlist: Existing Spotify playlist
             track_ids: List of Spotify track IDs that should be in playlist
+            dry_run: If True, preview changes without making them
         """
+        if dry_run:
+            click.echo(f"  📝 Would update existing playlist '{spotify_playlist.name}'")
+            # Get current tracks for comparison
+            current_tracks = self.spotify.get_playlist_tracks(spotify_playlist.id)
+            current_track_ids = {track.id for track in current_tracks}
+            new_track_ids = set(track_ids)
+
+            # Calculate differences
+            tracks_to_add = new_track_ids - current_track_ids
+            tracks_to_remove = current_track_ids - new_track_ids
+
+            click.echo(f"      Would add {len(tracks_to_add)} tracks")
+            click.echo(f"      Would remove {len(tracks_to_remove)} tracks")
+            return
+
         click.echo("  Updating existing Spotify playlist...")
 
         # Get current tracks

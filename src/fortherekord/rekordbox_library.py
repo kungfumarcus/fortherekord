@@ -112,7 +112,11 @@ class RekordboxLibrary(MusicLibrary):
             title=current_title,
             artist=current_artist,
             duration_ms=int(content.Length * 1000) if content.Length else None,
-            key=content.Key,
+            key=(
+                content.Key.ScaleName
+                if hasattr(content.Key, "ScaleName") and content.Key
+                else (content.Key if isinstance(content.Key, str) else None)
+            ),
             original_title=current_title,  # Will be set properly by processor
             original_artist=current_artist,  # Will be set properly by processor
         )
@@ -271,12 +275,15 @@ class RekordboxLibrary(MusicLibrary):
 
         return True
 
-    def save_changes(self, tracks: list[Track]) -> int:  # pylint: disable=too-many-locals
+    def save_changes(
+        self, tracks: list[Track], dry_run: bool = False
+    ) -> int:  # pylint: disable=too-many-locals
         """
         Count how many tracks actually have different values and save only if there are changes.
 
         Args:
             tracks: List of Track objects to check and save
+            dry_run: If True, only count changes without making them
 
         Returns:
             Number of tracks that actually had different values
@@ -295,15 +302,23 @@ class RekordboxLibrary(MusicLibrary):
 
             # Check if either title or artist has changed
             if current_title != original_title or current_artist != original_artist:
-                # Update the track in the database
-                success = self.update_track_metadata(track.id, current_title, current_artist)
-                if success:
+                if dry_run:
+                    # In dry-run mode, just count the change without making it
                     modified_count += 1
                 else:
-                    print(f"WARNING: Failed to update track {track.id}: {current_title}")
+                    # Update the track in the database
+                    success = self.update_track_metadata(track.id, current_title, current_artist)
+                    if success:
+                        modified_count += 1
+                    else:
+                        print(f"WARNING: Failed to update track {track.id}: {current_title}")
 
         # Check if we're in test mode
         test_mode = os.getenv("FORTHEREKORD_TEST_MODE", "").lower() in ("1", "true", "yes")
+
+        if dry_run:
+            # In dry-run mode, don't commit anything
+            return modified_count
 
         if test_mode:
             # In test mode, dump changes to a file instead of committing

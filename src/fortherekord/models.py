@@ -95,6 +95,10 @@ class IMusicLibrary(Protocol):
         """Get list of currently followed artists."""
         raise NotImplementedError
 
+    def save_changes(self, tracks: List[Track], dry_run: bool = False) -> int:
+        """Save track changes to the music library."""
+        raise NotImplementedError
+
 
 @dataclass
 class Collection:

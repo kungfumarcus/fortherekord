@@ -10,9 +10,10 @@ import click
 
 from fortherekord import __version__
 from .config import load_config as config_load_config, create_default_config, get_config_path
+from .music_library import MusicLibrary
 from .playlist_sync import PlaylistSyncService
 from .rekordbox_library import RekordboxLibrary
-from .rekordbox_metadata_processor import RekordboxMetadataProcessor
+from .music_library_processor import MusicLibraryProcessor
 from .spotify_library import SpotifyLibrary
 
 
@@ -51,9 +52,22 @@ def load_library(library_path: str) -> RekordboxLibrary:
     return rekordbox
 
 
-def initialize_processor(config: dict, tracks: list) -> RekordboxMetadataProcessor:
-    """Create metadata processor and set original values on tracks."""
-    processor = RekordboxMetadataProcessor(config)
+def initialize_processor(config: dict, tracks: list) -> Optional[MusicLibraryProcessor]:
+    """Create music library processor and set original values on tracks."""
+    processor = MusicLibraryProcessor(config)
+
+    # Check if all enhancement features are disabled
+    if not (
+        processor.add_key_to_title
+        or processor.add_artist_to_title
+        or processor.remove_artists_in_title
+    ):
+        click.echo("Music library processor is disabled (all enhancement features are turned off)")
+        click.echo("Enable features in config.yaml under rekordbox section:")
+        click.echo("  add_key_to_title: true")
+        click.echo("  add_artist_to_title: true")
+        click.echo("  remove_artists_in_title: true")
+        return None
 
     # Process tracks to extract original values from enhanced titles
     processor.extract_original_metadata(tracks)
@@ -63,32 +77,40 @@ def initialize_processor(config: dict, tracks: list) -> RekordboxMetadataProcess
 
 def get_collection_to_process(rekordbox: RekordboxLibrary, config: dict) -> tuple:
     """Get collection to process and display playlist hierarchy."""
-    click.echo("Loading collection from playlists...")
-
     # Pass the full config to RekordboxLibrary, let it extract what it needs
     collection = rekordbox.get_collection(config)
 
-    # Display playlist hierarchy in original Rekordbox order
-    print("Processing playlists:")
-    for playlist in collection.playlists:
-        playlist.display_tree(1)
-
     # Get all tracks from the collection (automatically deduplicated)
     tracks = collection.get_all_tracks()
+
+    # Display summary with counts
+    print(f"Loaded {len(collection.playlists)} playlists with {len(tracks)} tracks:")
+    for playlist in collection.playlists:
+        playlist.display_tree(1)
 
     return collection, tracks
 
 
 def process_tracks(
-    tracks: list, rekordbox: RekordboxLibrary, processor: RekordboxMetadataProcessor
+    tracks: list,
+    music_library: MusicLibrary,
+    processor: MusicLibraryProcessor,
+    dry_run: bool = False,
 ) -> None:
-    """Process track metadata, check for duplicates, and save changes."""
-    click.echo()
-    click.echo("Updating track metadata...")
+    """Process track library, check for duplicates, and save changes."""
+    print("Processing playlist metadata...")
+
+    if dry_run:
+        click.echo()
+        click.echo("DRY RUN MODE - Previewing track metadata changes")
+    else:
+        click.echo()
+        click.echo("Updating track metadata...")
 
     # Process each track to enhance titles (modifies tracks in-place)
+    click.echo()
     for track in tracks:
-        processor.enhance_track_title(track)
+        processor.process_track(track)
 
     # Check for duplicates
     click.echo()
@@ -97,18 +119,27 @@ def process_tracks(
 
     # Save changes and get actual count of modified tracks
     click.echo()
-    click.echo("Saving changes to database...")
-    saved_count = rekordbox.save_changes(tracks)
-
-    if saved_count > 0:
-        click.echo(f"Successfully updated {saved_count} tracks")
+    if dry_run:
+        click.echo("Would save changes to database...")
+        # Count how many tracks would be modified using dry_run mode
+        modified_count = music_library.save_changes(tracks, dry_run=True)
+        if modified_count > 0:
+            click.echo(f"Would update {modified_count} tracks")
+        else:
+            click.echo("No changes needed")
     else:
-        click.echo("No changes needed")
+        click.echo("Saving changes to database...")
+        saved_count = music_library.save_changes(tracks, dry_run=False)
+        if saved_count > 0:
+            click.echo(f"Successfully updated {saved_count} tracks")
+        else:
+            click.echo("No changes needed")
 
 
 @click.command()
 @click.version_option(version=__version__)
-def cli() -> None:  # pylint: disable=too-many-return-statements
+@click.option("--dry-run", is_flag=True, help="Preview changes without making them")
+def cli(dry_run: bool) -> None:  # pylint: disable=too-many-return-statements
     """
     ForTheRekord - Process Rekordbox track metadata.
 
@@ -127,7 +158,10 @@ def cli() -> None:  # pylint: disable=too-many-return-statements
             return
 
         processor = initialize_processor(config, tracks)
-        process_tracks(tracks, rekordbox, processor)
+        if processor is None:
+            click.echo("Skipping track processing - processor disabled")
+        else:
+            process_tracks(tracks, rekordbox, processor, dry_run)
 
         # Sync Spotify - Authenticate with Spotify using OAuth
         try:
@@ -146,7 +180,7 @@ def cli() -> None:  # pylint: disable=too-many-return-statements
 
             # Use PlaylistSyncService to sync the playlists
             sync_service = PlaylistSyncService(rekordbox, spotify)
-            sync_service.sync_collection(collection)
+            sync_service.sync_collection(collection, dry_run=dry_run)
 
             click.echo("Spotify playlist sync complete.")
         except (ValueError, ConnectionError, OSError) as e:

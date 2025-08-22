@@ -67,6 +67,12 @@ Define Python development standards and practices to ensure code quality, mainta
 - **Interface Implementation**: Use `raise NotImplementedError` instead of `...` ellipsis in abstract methods
 - **Code Cleanliness**: Remove unused parameters and avoid TODO comments (implementation details tracked in specifications)
 
+### User Output Standards
+- **Output Consistency**: Use `print()` statements for user-facing output to ensure testability and 100% code coverage
+- **No Icons in Code**: Avoid unicode icons/emojis in output messages - use plain text only for cross-platform compatibility
+- **Click Echo Usage**: Only use `click.echo()` when Click framework features are specifically needed, otherwise prefer `print()`
+- **Test Coverage**: For 100% coverage, either don't mock output statements or use `silence_print()` helper without assertions on output content
+
 ### Example Code Structure
 ```python
 """

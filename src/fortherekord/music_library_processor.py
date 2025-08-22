@@ -1,15 +1,7 @@
 """
-Rekordbox metadata processing functionality.
+Music library processing functionality.
 
-Handles title        # Return new track with enhanced metadata, preserving original values
-        return Track(
-            id=track.id,
-            title=enhanced_title,
-            artist=artist,
-            key=track.key,
-            original_title=track.original_title,  # Preserve original values
-            original_artist=track.original_artist,
-        )nt, artist processing, and text replacements
+Handles title enhancement, artist processing, and text replacements
 based on configuration settings.
 """
 
@@ -18,8 +10,8 @@ from typing import Dict, List, Tuple, Optional
 from .models import Track
 
 
-class RekordboxMetadataProcessor:
-    """Processes and enhances Rekordbox track metadata."""
+class MusicLibraryProcessor:
+    """Processes and enhances music library track metadata."""
 
     def __init__(self, config: Dict) -> None:
         """Initialize with configuration settings."""
@@ -27,19 +19,30 @@ class RekordboxMetadataProcessor:
         self.replace_in_title = config.get("replace_in_title", {})
         self.ignore_playlists = config.get("ignore_playlists", [])
 
-    def enhance_track_title(self, track: Track) -> Track:
+        # Configuration for enhancement features - defaults to False for safety
+        self.add_key_to_title = config.get("add_key_to_title", False)
+        self.add_artist_to_title = config.get("add_artist_to_title", False)
+        self.remove_artists_in_title = config.get("remove_artists_in_title", False)
+
+    def process_track(self, track: Track) -> None:
         """
-        Enhance track title to format: "Title - Artist [Key]"
+        Process track to enhance title format: "Title - Artist [Key]"
+        Modifies the track object in-place.
 
         Args:
-            track: Original track with metadata
-
-        Returns:
-            Track with enhanced title and cleaned artist field
+            track: Track object to process (modified in-place)
         """
+        # Check if any enhancement features are enabled
+        if not (self.add_key_to_title or self.add_artist_to_title or self.remove_artists_in_title):
+            # No enhancements configured, return without changes
+            return
+
         # Start with original values
-        title = track.title.strip() if track.title else ""
-        artist = track.artist.strip() if track.artist else ""
+        original_title = track.title.strip() if track.title else ""
+        original_artist = track.artist.strip() if track.artist else ""
+
+        title = original_title
+        artist = original_artist
         key = track.key
 
         # Clean up whitespace
@@ -60,27 +63,25 @@ class RekordboxMetadataProcessor:
         # Apply configured text replacements
         title, artist = self._apply_text_replacements(title, artist)
 
-        # Remove duplicate artists from title
+        # Remove artist suffix if already present in title (do this early)
         if artist:
-            artist = self._remove_duplicate_artists(title, artist)
-
-            # Remove artist suffix if already present in title
             artist_suffix = f" - {artist}"
             if title.endswith(artist_suffix):
                 title = title[: -len(artist_suffix)]
 
-        # Build enhanced title
+        # Remove duplicate artists from title (only if enabled)
+        if artist and self.remove_artists_in_title:
+            artist = self._remove_duplicate_artists(title, artist)
+
+        # Build enhanced title based on configuration
         enhanced_title = self._format_enhanced_title(title, artist, key)
 
-        # Return new track with enhanced metadata, preserving original values
-        return Track(
-            id=track.id,
-            title=enhanced_title,
-            artist=artist,
-            key=track.key,
-            original_title=track.original_title,  # Preserve original values
-            original_artist=track.original_artist,
-        )
+        # Print detailed change information
+        self._print_track_changes(original_title, enhanced_title, original_artist, artist)
+
+        # Modify track in-place with enhanced metadata
+        track.title = enhanced_title
+        track.artist = artist
 
     def _apply_text_replacements(self, title: str, artist: str) -> Tuple[str, str]:
         """Apply configured text replacements to title and artist."""
@@ -97,6 +98,31 @@ class RekordboxMetadataProcessor:
 
         return title, artist
 
+    def _print_track_changes(
+        self,
+        original_title: str,
+        new_title: str,
+        original_artist: str,
+        new_artist: str,
+    ) -> None:
+        """Print detailed information about track changes."""
+        title_changed = original_title != new_title
+        artist_changed = original_artist != new_artist
+
+        if not title_changed and not artist_changed:
+            return  # No changes, don't print anything
+
+        if title_changed and artist_changed:
+            print(
+                f"Updating title '{original_title}' to '{new_title}' "
+                f"and artist '{original_artist}' to '{new_artist}'"
+            )
+        elif title_changed:
+            print(f"Updating title '{original_title}' to '{new_title}'")
+        # Note: Artist-only changes are currently not possible due to title enhancement logic
+        # elif artist_changed:
+        #     print(f"Updating '{original_title}' artist '{original_artist}' to '{new_artist}'")
+
     def _remove_duplicate_artists(self, title: str, artist: str) -> str:
         """Remove artist names that appear in title, keeping remaining artists."""
         if not artist:
@@ -107,10 +133,8 @@ class RekordboxMetadataProcessor:
         removed_artists = []
         retained_artists = []
 
-        title_minus_artist = title.replace(f" - {artist}", "")
-
         for individual_artist in artists:
-            if individual_artist in title_minus_artist:
+            if individual_artist in title:
                 removed_artists.append(individual_artist)
             else:
                 retained_artists.append(individual_artist)
@@ -122,16 +146,16 @@ class RekordboxMetadataProcessor:
         return artist
 
     def _format_enhanced_title(self, title: str, artist: str, key: Optional[str]) -> str:
-        """Format the final enhanced title."""
+        """Format the final enhanced title based on configuration flags."""
         # Start with cleaned title
         enhanced_title = title
 
-        # Add artist if present
-        if artist:
+        # Add artist if enabled and present
+        if artist and self.add_artist_to_title:
             enhanced_title = f"{enhanced_title} - {artist}"
 
-        # Add key if present
-        if key:
+        # Add key if enabled and present
+        if key and self.add_key_to_title:
             enhanced_title = f"{enhanced_title} [{key}]"
 
         return enhanced_title

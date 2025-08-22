@@ -625,6 +625,34 @@ class TestDatabaseSafety:
         finally:
             cleanup_test_dump_file()
 
+    def test_save_changes_dry_run_counts_all_changes(self):
+        """Test save_changes with dry_run=True counts changes without modifying database."""
+        library = RekordboxLibrary("/test/db.edb")
+        library._db = Mock()
+
+        # Multiple tracks with changes
+        track1 = Track(id="1", title="New Title 1", artist="New Artist 1")
+        track1.original_title = "Original Title 1"
+        track1.original_artist = "Original Artist 1"
+
+        track2 = Track(id="2", title="New Title 2", artist="New Artist 2")
+        track2.original_title = "Original Title 2"
+        track2.original_artist = "Original Artist 2"
+
+        # Track with no changes
+        track3 = Track(id="3", title="Same Title", artist="Same Artist")
+        track3.original_title = "Same Title"
+        track3.original_artist = "Same Artist"
+
+        # Call save_changes with dry_run=True
+        result = library.save_changes([track1, track2, track3], dry_run=True)
+
+        # Should count only the changed tracks
+        assert result == 2
+
+        # Verify that no database operations were performed (no commit called)
+        library._db.commit.assert_not_called()
+
 
 class TestGetAllTracks:
     """Test get_all_tracks functionality."""

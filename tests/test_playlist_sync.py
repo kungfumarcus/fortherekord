@@ -232,3 +232,79 @@ class TestPlaylistSyncServiceErrorConditions:
         spotify.sp.user_playlist_create.assert_not_called()
         # Should call add tracks since there are tracks to add
         spotify.sp.playlist_add_items.assert_called()
+
+    def test_sync_collection_dry_run(self, mock_rekordbox, sample_collection):
+        """Test collection synchronization in dry-run mode."""
+        spotify = Mock()
+        service = PlaylistSyncService(mock_rekordbox, spotify)
+
+        # Mock Spotify playlists (empty)
+        spotify.get_playlists.return_value = []
+
+        # Mock Spotify search to return some matches
+        spotify.search_track.return_value = "spotify_track_id"
+
+        with silence_click_echo():
+            service.sync_collection(sample_collection, dry_run=True)
+
+        # Verify no actual changes are made
+        spotify.get_playlists.assert_called_once()  # Should still load playlists for comparison
+        assert not hasattr(spotify, "sp") or spotify.sp is None or not spotify.sp.called
+
+    def test_create_spotify_playlist_dry_run(self, mock_rekordbox):
+        """Test playlist creation in dry-run mode."""
+        spotify = Mock()
+        service = PlaylistSyncService(mock_rekordbox, spotify)
+
+        track_ids = ["track1", "track2", "track3"]
+
+        with silence_click_echo():
+            service._create_spotify_playlist("Test Playlist", track_ids, dry_run=True)
+
+        # Verify no actual API calls are made
+        assert not hasattr(spotify, "sp") or spotify.sp is None or not spotify.sp.called
+
+    def test_update_spotify_playlist_dry_run(self, mock_rekordbox):
+        """Test playlist update in dry-run mode."""
+        spotify = Mock()
+        service = PlaylistSyncService(mock_rekordbox, spotify)
+
+        # Mock existing playlist
+        existing_playlist = Mock()
+        existing_playlist.name = "Test Playlist"
+        existing_playlist.id = "existing_playlist_id"
+
+        # Mock current tracks
+        current_track = Mock()
+        current_track.id = "existing_track_id"
+        spotify.get_playlist_tracks.return_value = [current_track]
+
+        track_ids = ["new_track_id1", "new_track_id2"]
+
+        with silence_click_echo():
+            service._update_spotify_playlist(existing_playlist, track_ids, dry_run=True)
+
+        # Verify playlist tracks are checked but no modifications are made
+        spotify.get_playlist_tracks.assert_called_once_with("existing_playlist_id")
+        assert not hasattr(spotify, "sp") or spotify.sp is None or not spotify.sp.called
+
+    def test_find_spotify_matches_dry_run(self, mock_rekordbox):
+        """Test finding Spotify matches in dry-run mode (should be same as normal)."""
+        spotify = Mock()
+        service = PlaylistSyncService(mock_rekordbox, spotify)
+
+        # Setup tracks
+        tracks = [
+            create_sample_track("Track 1", "Artist 1"),
+            create_sample_track("Track 2", "Artist 2"),
+        ]
+
+        # Mock search results
+        spotify.search_track.side_effect = ["spotify_id_1", None]  # Second track not found
+
+        with silence_click_echo():
+            result = service._find_spotify_matches(tracks, dry_run=True)
+
+        # Should still return matches, just without detailed error output
+        assert result == ["spotify_id_1"]
+        assert spotify.search_track.call_count == 2

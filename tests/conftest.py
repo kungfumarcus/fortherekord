@@ -54,6 +54,18 @@ def temp_test_file():
 
 
 @pytest.fixture
+def default_processor_config():
+    """Create default processor configuration for tests with Spotify credentials."""
+    return {
+        "add_key_to_title": True,
+        "add_artist_to_title": True,
+        "remove_artists_in_title": True,
+        "replace_in_title": {},
+        "ignore_playlists": [],
+    }
+
+
+@pytest.fixture
 def sample_track():
     """Create a sample track for testing."""
     return create_sample_track()
