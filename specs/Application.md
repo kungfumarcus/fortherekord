@@ -36,6 +36,7 @@ The following features are explicitly not included in this initial implementatio
 
 **Basic Usage:**
 - `fortherekord` - Standard usage, processes Rekordbox database and implements configured behaviors
+- `fortherekord --dry-run` - Preview changes without making them to the database
 - `fortherekord --remap` - Clear existing track mappings and then run as normal
 - `fortherekord --spoify-cache` - Use cached liked tracks instead of fetching from Spotify
 - `fortherekord --interactive` - Enable interactive track matching mode

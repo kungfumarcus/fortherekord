@@ -1,4 +1,4 @@
-# Rekordbox Metadata Processing Specification
+# Music Library Processing Processing Specification
 
 ## Scope
 Processing and enhancing Rekordbox track metadata, specifically title field standardization in format: "Title - Artist [Key]"

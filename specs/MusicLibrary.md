@@ -17,40 +17,36 @@ A Collection represents a complete snapshot of a music library's playlists and t
 
 Collections are returned by source music libraries (like Rekordbox) to enable efficient processing of large music libraries without repeated database access.
 
-```csharp
-interface IMusicLibrary 
-{
-    IMusicLibraryCollection GetCollection();
-    void CreatePlaylist(string name, List<IMusicLibraryTrack> tracks);
-    void DeletePlaylist(string playlistId);
-    void FollowArtist(string artistId);
-    List<IMusicLibraryArtist> GetFollowedArtists();
-}
+**Music Library Interface:**
+- `get_collection()` - Returns a Collection containing all playlists and tracks
+- `save_changes(tracks, dry_run=False)` - Saves track modifications, returns count of changed tracks
+- `get_playlists()` - Returns list of all playlists
+- `get_playlist_tracks(playlist_id)` - Returns tracks for a specific playlist
+- `create_playlist(name, tracks)` - Creates new playlist with given tracks
+- `delete_playlist(playlist_id)` - Removes a playlist
+- `follow_artist(artist_name)` - Follows an artist, returns success status
+- `get_followed_artists()` - Returns list of currently followed artists
 
-interface IMusicLibraryCollection
-{
-    List<IMusicLibraryPlaylist> Playlists { get; }
-    List<IMusicLibraryTrack> GetAllTracks();
-}
+**Collection Interface:**
+- `playlists` - Property containing list of all playlists
+- `get_all_tracks()` - Returns deduplicated list of all tracks across playlists
 
-interface IMusicLibraryTrack 
-{
-    string Id { get; }
-    string Title { get; }
-    string Artist { get; }
-    string ArtistId { get; }
-}
+**Track Interface:**
+- `id` - Unique track identifier
+- `title` - Track title (may be enhanced with metadata)
+- `artist` - Primary artist name
+- `duration_ms` - Track duration in milliseconds (optional)
+- `key` - Musical key notation like "Am", "5B" (optional)
+- `original_title` - Original title before enhancement (optional)
+- `original_artist` - Original artist before enhancement (optional)
 
-interface IMusicLibraryPlaylist 
-{
-    string Id { get; }
-    string Name { get; }
-    List<IMusicLibraryTrack> Tracks { get; }
-}
+**Playlist Interface:**
+- `id` - Unique playlist identifier  
+- `name` - Display name of the playlist
+- `tracks` - List of Track objects in this playlist
+- `parent_id` - Parent playlist ID for hierarchical organization (optional)
+- `children` - List of child playlists (optional)
 
-interface IMusicLibraryArtist 
-{
-    string Id { get; }
-    string Name { get; }
-}
-```
+**Artist Interface:**
+- `id` - Unique artist identifier
+- `name` - Artist display name

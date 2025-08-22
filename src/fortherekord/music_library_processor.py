@@ -124,25 +124,47 @@ class MusicLibraryProcessor:
         #     print(f"Updating '{original_title}' artist '{original_artist}' to '{new_artist}'")
 
     def _remove_duplicate_artists(self, title: str, artist: str) -> str:
-        """Remove artist names that appear in title, keeping remaining artists."""
+        """
+        Remove artist names that appear in title, keeping remaining artists.
+
+        This matches the PowerShell logic:
+        - Remove artist suffix from title temporarily for checking
+        - Split artists by comma (with whitespace handling)
+        - Only remove artists if some would remain
+        - Return original artist if all would be removed
+        """
         if not artist:
             return artist
 
-        # Split multiple artists
-        artists = [a.strip() for a in artist.split(",")]
+        # Remove artist suffix temporarily to check for duplicates in base title
+        # This matches PowerShell: $titleMinusArtist = $title.Replace(" - $artist", "")
+        title_minus_artist = title.replace(f" - {artist}", "")
+
+        # Split multiple artists by comma with whitespace normalization
+        # This matches PowerShell: $artist -split '\s*,\s*'
+        artists = [a.strip() for a in artist.split(",") if a.strip()]
         removed_artists = []
         retained_artists = []
 
+        # Check each individual artist
         for individual_artist in artists:
-            if individual_artist in title:
+            if individual_artist in title_minus_artist:
                 removed_artists.append(individual_artist)
             else:
                 retained_artists.append(individual_artist)
 
-        # Only remove if some artists remain
+        # Only remove artists if some remain (PowerShell logic)
+        # if ($removedArtists.Count -gt 0 -and $retainedArtists.Count -gt 0)
         if removed_artists and retained_artists:
-            return ", ".join(retained_artists)
+            new_artist = ", ".join(retained_artists)
+            removed_list = ", ".join(removed_artists)
+            print(
+                f"Removed artist(s) '{removed_list}' from title "
+                f"'{title_minus_artist}' with artists '{new_artist}'"
+            )
+            return new_artist
 
+        # Return original artist if no duplicates or all would be removed
         return artist
 
     def _format_enhanced_title(self, title: str, artist: str, key: Optional[str]) -> str:

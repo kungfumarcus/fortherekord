@@ -20,28 +20,25 @@ YAML-based configuration management for API credentials, user preferences, and p
 ## Configuration Template
 
 ```yaml
+# Application Settings (MANDATORY)
+log_file: "data/fortherekord.log"            # MANDATORY: Log file location, defaults to data/fortherekord.log if not specified
+
 # Rekordbox Configuration (MANDATORY)
+rekordbox_library_path: "/path/to/rekordbox/database.edb"  # MANDATORY: Path to Rekordbox database file
 rekordbox:
   # Database access configuration
-  ignore_playlists:                           # OPTIONAL: Playlists to skip during processing
-    - "twiggy"
-    - "intensity" 
-    - "no rating"
-    - "spacer"
+  ignore_playlists: []                        # OPTIONAL: Playlists to skip during processing
+  # Enhancement feature flags (current implementation)
+  add_key_to_title: true                      # OPTIONAL: Add key (e.g., [Am]) to track title, defaults to false
+  add_artist_to_title: true                   # OPTIONAL: Add artist name to track title, defaults to false
+  remove_artists_in_title: true               # OPTIONAL: Remove duplicate artists from title, defaults to false
+  # Legacy structure (deprecated but supported for backward compatibility)
   enhance_title:
-    include_artist: false                     # OPTIONAL: Add artist name to track title, defaults to false
-    include_tonality: false                   # OPTIONAL: Add tonality (1A, 5B, etc.) to track title, defaults to false
-    replace:                                  # OPTIONAL: Text cleaning rules for track titles
-      - from: " (Original Mix)"
-        to: ""
-      - from: "(Extended Mix)"
-        to: "(ext)"
-      - from: "(Ext. Mix)"  
-        to: "(ext)"
+    include_artist: false                     # OPTIONAL: Legacy flag, superseded by add_artist_to_title
+    include_tonality: false                   # OPTIONAL: Legacy flag, superseded by add_key_to_title
+    replace: []                               # OPTIONAL: Legacy array structure
   enhance_artist:
-    replace:                                  # OPTIONAL: Text cleaning rules for artist names
-      - from: "feat."
-        to: "ft."
+    replace: []                               # OPTIONAL: Legacy array structure for artist replacements
 
 # Spotify Configuration (OPTIONAL)
 spotify:
@@ -51,36 +48,28 @@ spotify:
 
 # Generic Playlist Sync Configuration (OPTIONAL)  
 sync_playlists:
-  ignore_playlists:                           # OPTIONAL: Playlists to exclude from sync
-    - "old school"
-  exclude_from_playlist_names:                # OPTIONAL: Remove these terms from playlist names
-    - "mytags"
-  replace_in_playlist_name:                   # OPTIONAL: Text replacements for playlist names
-    - from: "something"
-      to: "replacement"
-  replace_in_title:                           # OPTIONAL: Text replacements for track titles in target platform
-    - from: "(ext)"
-      to: "(Extended Mix)"
-    - from: "(Ext. Mix)"
-      to: "(Extended Mix)"
-
-# Application Settings (MANDATORY)
-log_file: "data/fortherekord.log"            # MANDATORY: Log file location, defaults to data/fortherekord.log if not specified
+  ignore_playlists: []                        # OPTIONAL: Playlists to exclude from sync
+  exclude_from_playlist_names: []             # OPTIONAL: Remove these terms from playlist names
+  replace_in_playlist_name: []                # OPTIONAL: Text replacements for playlist names
+  replace_in_title: []                        # OPTIONAL: Text replacements for track titles in target platform
 ```
 
 ### Configuration Field Documentation
 
 **MANDATORY Fields:**
+- `rekordbox_library_path`: Path to Rekordbox database file (.edb)
 - `spotify.client_id`: Spotify application client ID string (if spotify section exists)
 - `spotify.client_secret`: Spotify application client secret string (if spotify section exists)
 - `log_file`: Log file path string (default: "data/fortherekord.log")
-- `replace[].from`: Original text string (if replace sections exist)
-- `replace[].to`: Replacement text string (if replace sections exist)
 
 **OPTIONAL Fields with Defaults:**
 - `rekordbox.ignore_playlists`: Array of playlist names to skip (default: empty)
-- `rekordbox.enhance_title.include_artist`: Boolean flag (default: false)
-- `rekordbox.enhance_title.include_tonality`: Boolean flag (default: false)
+- `rekordbox.add_key_to_title`: Boolean flag to add key to title (default: false)
+- `rekordbox.add_artist_to_title`: Boolean flag to add artist to title (default: false) 
+- `rekordbox.remove_artists_in_title`: Boolean flag to remove duplicate artists (default: false)
+- `rekordbox.replace_in_title`: Dictionary of text replacements (default: empty)
+- `rekordbox.enhance_title.include_artist`: Boolean flag (default: false) [LEGACY]
+- `rekordbox.enhance_title.include_tonality`: Boolean flag (default: false) [LEGACY]
 - `spotify.follow_threshold`: Integer 0+ (default: 3)
 - `sync_playlists.ignore_playlists`: Array of playlist names to exclude from sync (default: empty)
 - `sync_playlists.exclude_from_playlist_names`: Array of terms to remove from playlist names (default: empty)
