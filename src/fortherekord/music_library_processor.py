@@ -15,8 +15,8 @@ class MusicLibraryProcessor:
 
     def __init__(self, config: Dict) -> None:
         """Initialize with configuration settings."""
-        # Support both dictionary and list formats for replace_in_title
-        self.replace_in_title = config.get("replace_in_title", {})
+        # Use list format for replace_in_title: [{"from": "old", "to": "new"}, ...]
+        self.replace_in_title = config.get("replace_in_title", [])
         self.ignore_playlists = config.get("ignore_playlists", [])
 
         # Configuration for enhancement features - defaults to False for safety
@@ -76,19 +76,19 @@ class MusicLibraryProcessor:
         # Build enhanced title based on configuration
         enhanced_title = self._format_enhanced_title(title, artist, key)
 
-        # Print detailed change information
-        self._print_track_changes(original_title, enhanced_title, original_artist, artist)
-
         # Modify track in-place with enhanced metadata
         track.title = enhanced_title
         track.artist = artist
 
+        # Print detailed change information
+        self._print_track_changes(track)
+
     def _apply_text_replacements(self, title: str, artist: str) -> Tuple[str, str]:
         """Apply configured text replacements to title and artist."""
-        # Dictionary format: {"from": "to"}
-        for text_from, text_to in self.replace_in_title.items():
-            if text_to is None:
-                text_to = ""
+        # List format: [{"from": "old", "to": "new"}, ...]
+        for replacement in self.replace_in_title:
+            text_from = replacement.get("from", "")
+            text_to = replacement.get("to", "")
 
             if text_from in title:
                 title = title.replace(text_from, text_to).strip()
@@ -98,14 +98,13 @@ class MusicLibraryProcessor:
 
         return title, artist
 
-    def _print_track_changes(
-        self,
-        original_title: str,
-        new_title: str,
-        original_artist: str,
-        new_artist: str,
-    ) -> None:
+    def _print_track_changes(self, track: Track) -> None:
         """Print detailed information about track changes."""
+        original_title = track.original_title
+        original_artist = track.original_artist
+        new_title = track.title
+        new_artist = track.artist
+
         title_changed = original_title != new_title
         artist_changed = original_artist != new_artist
 
@@ -124,47 +123,25 @@ class MusicLibraryProcessor:
         #     print(f"Updating '{original_title}' artist '{original_artist}' to '{new_artist}'")
 
     def _remove_duplicate_artists(self, title: str, artist: str) -> str:
-        """
-        Remove artist names that appear in title, keeping remaining artists.
-
-        This matches the PowerShell logic:
-        - Remove artist suffix from title temporarily for checking
-        - Split artists by comma (with whitespace handling)
-        - Only remove artists if some would remain
-        - Return original artist if all would be removed
-        """
+        """Remove artist names that appear in title, keeping remaining artists."""
         if not artist:
             return artist
 
-        # Remove artist suffix temporarily to check for duplicates in base title
-        # This matches PowerShell: $titleMinusArtist = $title.Replace(" - $artist", "")
-        title_minus_artist = title.replace(f" - {artist}", "")
-
-        # Split multiple artists by comma with whitespace normalization
-        # This matches PowerShell: $artist -split '\s*,\s*'
-        artists = [a.strip() for a in artist.split(",") if a.strip()]
+        # Split multiple artists
+        artists = [a.strip() for a in artist.split(",")]
         removed_artists = []
         retained_artists = []
 
-        # Check each individual artist
         for individual_artist in artists:
-            if individual_artist in title_minus_artist:
+            if individual_artist in title:
                 removed_artists.append(individual_artist)
             else:
                 retained_artists.append(individual_artist)
 
-        # Only remove artists if some remain (PowerShell logic)
-        # if ($removedArtists.Count -gt 0 -and $retainedArtists.Count -gt 0)
+        # Only remove if some artists remain
         if removed_artists and retained_artists:
-            new_artist = ", ".join(retained_artists)
-            removed_list = ", ".join(removed_artists)
-            print(
-                f"Removed artist(s) '{removed_list}' from title "
-                f"'{title_minus_artist}' with artists '{new_artist}'"
-            )
-            return new_artist
+            return ", ".join(retained_artists)
 
-        # Return original artist if no duplicates or all would be removed
         return artist
 
     def _format_enhanced_title(self, title: str, artist: str, key: Optional[str]) -> str:

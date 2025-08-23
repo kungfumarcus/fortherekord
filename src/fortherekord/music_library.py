@@ -19,46 +19,39 @@ class MusicLibrary(IMusicLibrary, ABC):
     while requiring concrete implementations to provide platform-specific data access.
     """
 
-    def __init__(self) -> None:
-        """Initialize the music library base."""
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+        """Initialize the music library base with configuration."""
         super().__init__()
+        self.config = config or {}
 
     @abstractmethod
-    def _get_raw_playlists(self, ignore_playlists: Optional[List[str]] = None) -> List[Playlist]:
+    def get_collection(self) -> Collection:
         """
-        Get raw playlists from the music library platform.
+        Get the complete collection including all playlists and tracks (raw, unfiltered).
 
         Concrete implementations should override this to provide platform-specific
-        playlist retrieval. Filtering logic is handled by the base class.
-
-        Args:
-            ignore_playlists: List of playlist names to exclude from results
+        data loading without any filtering.
 
         Returns:
-            List of playlists with filtering applied
+            Collection containing all playlists and tracks without filtering
         """
-        raise NotImplementedError("Subclasses must implement _get_raw_playlists")
+        raise NotImplementedError("Subclasses must implement get_collection")
 
-    def get_collection(self, config: Optional[Dict[str, Any]] = None) -> Collection:
+    def get_filtered_collection(self) -> Collection:
         """
-        Get the complete collection including all playlists and tracks.
+        Get the complete collection with configuration-based filtering applied.
 
-        This method efficiently loads all data in one pass, applying configuration
-        internally. The Collection provides access to all tracks via get_all_tracks().
-
-        Args:
-            config: Configuration dictionary (implementations extract what they need)
+        This method calls get_collection() to get raw data, then applies ignore_playlists
+        filtering from the configuration.
 
         Returns:
-            Collection containing all playlists (filtered) and providing track access
+            Collection containing filtered playlists and providing track access
         """
-        # Extract ignore_playlists from config, let subclass handle other config
-        ignore_playlists = None
-        if config:
-            ignore_playlists = config.get("ignore_playlists")
-
-        playlists = self._get_raw_playlists(ignore_playlists)
-        return Collection(playlists=playlists)
+        raw_collection = self.get_collection()
+        # Get ignore_playlists from appropriate config section
+        ignore_list = self.config.get("rekordbox", {}).get("ignore_playlists", [])
+        filtered_playlists = [p for p in raw_collection.playlists if p.name not in ignore_list]
+        return Collection(playlists=filtered_playlists, tracks=raw_collection.tracks)
 
     def deduplicate_tracks(self, tracks: List[Track]) -> List[Track]:
         """
@@ -79,24 +72,6 @@ class MusicLibrary(IMusicLibrary, ABC):
                 unique_tracks.append(track)
 
         return unique_tracks
-
-    def filter_playlists_by_name(
-        self, playlists: List[Playlist], ignore_playlists: Optional[List[str]] = None
-    ) -> List[Playlist]:
-        """
-        Filter playlists by excluding specified names.
-
-        Args:
-            playlists: List of playlists to filter
-            ignore_playlists: List of playlist names to exclude
-
-        Returns:
-            Filtered list of playlists
-        """
-        if ignore_playlists is None:
-            ignore_playlists = []
-
-        return [p for p in playlists if p.name not in ignore_playlists]
 
     def filter_empty_playlists(self, playlists: List[Playlist]) -> List[Playlist]:
         """
@@ -126,3 +101,17 @@ class MusicLibrary(IMusicLibrary, ABC):
             all_tracks.extend(playlist.tracks)
 
         return self.deduplicate_tracks(all_tracks)
+
+    @abstractmethod
+    def save_changes(self, tracks: List[Track], dry_run: bool = False) -> int:
+        """
+        Save changes to tracks in the music library.
+
+        Args:
+            tracks: List of tracks with potential changes
+            dry_run: If True, only count changes without saving
+
+        Returns:
+            Number of tracks that were (or would be) modified
+        """
+        raise NotImplementedError

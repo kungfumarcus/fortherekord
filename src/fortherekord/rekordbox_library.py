@@ -21,12 +21,12 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Any
+from typing import List, Any
 
 from pyrekordbox import Rekordbox6Database
 from pyrekordbox.db6.database import NoCachedKey
 
-from .models import Track, Playlist
+from .models import Track, Playlist, Collection
 from .music_library import MusicLibrary
 
 
@@ -38,10 +38,18 @@ class RekordboxLibrary(MusicLibrary):
     a configured database path.
     """
 
-    def __init__(self, db_path: str):
-        """Initialize adapter with specified database path."""
-        super().__init__()
-        self.db_path = Path(db_path)
+    def __init__(self, config: dict):
+        """Initialize adapter with configuration."""
+        super().__init__(config)
+
+        # Extract rekordbox-specific config
+        rekordbox_config = config.get("rekordbox", {})
+        library_path = rekordbox_config.get("library_path")
+        if not library_path:
+            raise ValueError("rekordbox.library_path not configured")
+
+        self.db_path = Path(library_path)
+        self.ignore_playlists = rekordbox_config.get("ignore_playlists", [])
         self._db = None
         self.is_rekordbox_running = False
 
@@ -121,34 +129,48 @@ class RekordboxLibrary(MusicLibrary):
             original_artist=current_artist,  # Will be set properly by processor
         )
 
-    def _get_raw_playlists(self, ignore_playlists: Optional[List[str]] = None) -> List[Playlist]:
+    def get_collection(self) -> Collection:
         """
-        Retrieve top-level playlists from Rekordbox database.
+        Get the complete collection including all playlists and tracks.
 
         Returns only playlists with no parent. Child playlists are accessible
         through the children property of their parent playlists.
 
-        Args:
-            ignore_playlists: List of playlist names to exclude from results
-
         Returns:
-            List of top-level playlists with full hierarchy built, ordered by Rekordbox sequence
+            Collection with top-level playlists with full hierarchy built,
+            ordered by Rekordbox sequence
         """
-        if ignore_playlists is None:
-            ignore_playlists = []
-
         db = self._get_database()
         all_playlists = []
         playlist_map = {}  # For building parent-child relationships
         seq_map = {}  # For storing Rekordbox sequence order
+        track_map: dict[str, Track] = {}  # For storing all unique tracks
 
         # First pass: Create all playlist objects and store sequence numbers
         for rb_playlist in db.get_playlist():
-            # Get tracks for this playlist
+            # Get track list for this playlist
             tracks = []
-            for song in rb_playlist.Songs:
-                track = self._create_track_from_content(song.Content)
-                tracks.append(track)
+
+            # Use get_playlist_contents which works for both regular and smart playlists
+            try:
+                playlist_contents = db.get_playlist_contents(rb_playlist).all()
+                for content in playlist_contents:
+                    track_id = str(content.ID)
+
+                    # Check if track is already in the hash
+                    if track_id in track_map:
+                        # Reuse existing track object
+                        track = track_map[track_id]
+                    else:
+                        # Create new track and add to hash
+                        track = self._create_track_from_content(content)
+                        track_map[track_id] = track
+
+                    tracks.append(track)
+            except (AttributeError, KeyError, TypeError):
+                # If get_playlist_contents fails, fall back to empty list
+                # This handles edge cases where the playlist might be corrupted
+                pass
 
             # Create playlist object with parent_id
             playlist = Playlist(
@@ -177,43 +199,9 @@ class RekordboxLibrary(MusicLibrary):
             if playlist.children:
                 playlist.children.sort(key=lambda p: seq_map[p.id])
 
-        # Return only top-level playlists (no parent) that are not ignored
-        return [p for p in all_playlists if p.parent_id is None and p.name not in ignore_playlists]
-
-    def get_playlists(self, ignore_playlists: Optional[List[str]] = None) -> List[Playlist]:
-        """
-        Get top-level playlists (for backward compatibility).
-
-        Args:
-            ignore_playlists: List of playlist names to exclude from results
-
-        Returns:
-            List of top-level playlists with filtering applied
-        """
-        return self._get_raw_playlists(ignore_playlists)
-
-    def get_playlist_tracks(self, playlist_id: str) -> List[Track]:
-        """
-        Get all tracks from a specific playlist.
-
-        Args:
-            playlist_id: ID of the playlist to get tracks for
-
-        Returns:
-            List of tracks in the playlist
-        """
-        db = self._get_database()
-
-        # Find the specific playlist
-        for rb_playlist in db.get_playlist():
-            if str(rb_playlist.ID) == playlist_id:
-                tracks = []
-                for song in rb_playlist.Songs:
-                    track = self._create_track_from_content(song.Content)
-                    tracks.append(track)
-                return tracks
-
-        raise ValueError(f"Playlist not found: {playlist_id}")
+        # Return only top-level playlists (no parent) - filtering is done in base class
+        top_level_playlists = [p for p in all_playlists if p.parent_id is None]
+        return Collection(playlists=top_level_playlists, tracks=track_map)
 
     def create_playlist(self, name: str, tracks: List[Track]) -> str:
         """Create playlist - not supported (read-only)."""

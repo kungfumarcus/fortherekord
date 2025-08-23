@@ -37,6 +37,34 @@ def assert_failed_command(result, expected_exit_code: int = 1) -> None:
     assert result.exit_code == expected_exit_code
 
 
+def create_mock_playlist(name: str = "Test Playlist", tracks: list = None):
+    """Helper function to create a mock playlist with tracks."""
+    if tracks is None:
+        tracks = []
+
+    mock_playlist = Mock()
+    mock_playlist.name = name
+    mock_playlist.tracks = tracks
+    mock_playlist.display_tree = Mock()
+    return mock_playlist
+
+
+def create_mock_collection(playlists: list = None):
+    """Helper function to create a mock collection from playlists."""
+    from fortherekord.models import Collection
+
+    if playlists is None:
+        playlists = []
+
+    # Extract all tracks from playlists and create tracks dictionary for efficient lookup
+    tracks_dict = {}
+    for playlist in playlists:
+        for track in playlist.tracks:
+            tracks_dict[track.id] = track
+
+    return Collection(playlists=playlists, tracks=tracks_dict)
+
+
 class TestCLIBasics:
     """Test basic CLI functionality."""
 
@@ -69,7 +97,7 @@ class TestCLIBasics:
     @patch("fortherekord.main.load_config")
     def test_main_command_missing_credentials(self, mock_load_config, mock_load_library):
         """Test main command with missing Spotify credentials."""
-        mock_load_config.return_value = {"rekordbox_library_path": "/test/db"}
+        mock_load_config.return_value = {"rekordbox": {"library_path": "/test/db"}}
         # Mock successful library loading so we get to the Spotify credentials check
         mock_rekordbox = Mock()
         mock_load_library.return_value = mock_rekordbox
@@ -93,13 +121,11 @@ class TestCLIBasics:
 class TestLoadConfig:
     """Test load_config function."""
 
-    @patch("fortherekord.main.config_load_config")
     @patch("fortherekord.main.create_default_config")
-    @patch("fortherekord.main.get_config_path")
-    def test_load_config_missing_library_path(self, mock_get_path, mock_create, mock_load_config):
+    @patch("fortherekord.main.config_load_config")
+    def test_load_config_missing_library_path(self, mock_load_config, mock_create):
         """Test load_config when rekordbox_library_path is missing."""
         mock_load_config.return_value = {}
-        mock_get_path.return_value = "/test/config.yaml"
 
         with patch("fortherekord.main.click.echo") as mock_echo:
             result = load_config()
@@ -111,7 +137,7 @@ class TestLoadConfig:
     @patch("fortherekord.main.config_load_config")
     def test_load_config_valid(self, mock_load_config):
         """Test load_config with valid configuration."""
-        expected_config = {"rekordbox_library_path": "/test/db.edb"}
+        expected_config = {"rekordbox": {"library_path": "/test/db.edb"}}
         mock_load_config.return_value = expected_config
 
         result = load_config()
@@ -128,8 +154,9 @@ class TestLoadLibrary:
         mock_rekordbox = mock_rekordbox_class.return_value
         mock_rekordbox.is_rekordbox_running = False
 
+        config = {"rekordbox": {"library_path": "/test/db.edb"}}
         with patch("fortherekord.main.click.echo"):
-            result = load_library("/test/db.edb")
+            result = load_library(config)
 
         assert result == mock_rekordbox
         mock_rekordbox._get_database.assert_called_once()
@@ -140,11 +167,30 @@ class TestLoadLibrary:
         mock_rekordbox = mock_rekordbox_class.return_value
         mock_rekordbox.is_rekordbox_running = True
 
+        config = {"rekordbox": {"library_path": "/test/db.edb"}}
         with patch("fortherekord.main.click.echo") as mock_echo:
             with pytest.raises(RuntimeError, match="Rekordbox is currently running"):
-                load_library("/test/db.edb")
+                load_library(config)
 
         assert mock_echo.call_count == 4  # Loading + 3 error messages
+
+    @patch("fortherekord.main.RekordboxLibrary")
+    def test_load_library_rekordbox_running_dry_run(self, mock_rekordbox_class):
+        """Test library loading when Rekordbox is running but in dry-run mode."""
+        mock_rekordbox = mock_rekordbox_class.return_value
+        mock_rekordbox.is_rekordbox_running = True
+
+        config = {"rekordbox": {"library_path": "/test/db.edb"}}
+        with patch("fortherekord.main.click.echo") as mock_echo:
+            result = load_library(config, dry_run=True)
+
+        assert result == mock_rekordbox
+        mock_rekordbox._get_database.assert_called_once()
+        # Should get loading message + warning about Rekordbox running
+        assert mock_echo.call_count == 2
+        assert "Note: Rekordbox is running, but continuing in dry-run mode" in str(
+            mock_echo.call_args_list
+        )
 
 
 class TestInitializeProcessor:
@@ -202,14 +248,12 @@ class TestGetCollectionToProcess:
         mock_collection.get_all_tracks.return_value = mock_tracks
         mock_rekordbox.get_collection.return_value = mock_collection
 
-        config = {"ignore_playlists": ["test"]}
-
         with patch("fortherekord.main.click.echo"), patch("builtins.print"):
-            collection, tracks = get_collection_to_process(mock_rekordbox, config)
+            collection, tracks = get_collection_to_process(mock_rekordbox)
 
         assert collection == mock_collection
         assert tracks == mock_tracks
-        mock_rekordbox.get_collection.assert_called_once_with({"ignore_playlists": ["test"]})
+        mock_rekordbox.get_collection.assert_called_once_with()
         mock_collection.get_all_tracks.assert_called_once()
         # Verify display_tree was called on each playlist
         for playlist in mock_playlists:
@@ -260,9 +304,7 @@ class TestProcessTracks:
 
     def test_process_tracks_update_failure(self):
         """Test track processing when update fails."""
-        from fortherekord.models import Track
-
-        original_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am")
+        original_track = create_sample_track()
         # enhanced_track not used since we're testing in-place modification
 
         # Setup mocks
@@ -276,9 +318,7 @@ class TestProcessTracks:
 
     def test_process_tracks_save_failure(self):
         """Test track processing when save fails."""
-        from fortherekord.models import Track
-
-        original_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am")
+        original_track = create_sample_track()
         # enhanced_track not used since we're testing in-place modification
 
         # Setup mocks
@@ -330,20 +370,22 @@ class TestProcessTracks:
 class TestCLIIntegration:
     """Test CLI integration with error handling."""
 
+    @patch("fortherekord.main.create_default_config")
     @patch("fortherekord.main.config_load_config")
-    def test_cli_no_config(self, mock_load_config):
+    def test_cli_no_config(self, mock_load_config, mock_create_default):
         """Test CLI when config is missing."""
         mock_load_config.return_value = {}
 
         result = run_cli_command([])
         assert_successful_command(result)
-        assert "Error: rekordbox_library_path not configured" in result.output
+        assert "Error: rekordbox library_path not configured" in result.output
+        mock_create_default.assert_called_once()
 
     @patch("fortherekord.main.load_config")
     @patch("fortherekord.main.load_library")
     def test_cli_rekordbox_running(self, mock_load_library, mock_load_config):
         """Test CLI when Rekordbox is running."""
-        mock_load_config.return_value = {"rekordbox_library_path": "/test/db.edb"}
+        mock_load_config.return_value = {"rekordbox": {"library_path": "/test/db.edb"}}
         mock_load_library.side_effect = RuntimeError("Rekordbox is currently running")
 
         result = run_cli_command([])
@@ -353,7 +395,7 @@ class TestCLIIntegration:
     @patch("fortherekord.main.load_library")
     def test_cli_file_not_found(self, mock_load_library, mock_load_config):
         """Test CLI when database file doesn't exist."""
-        mock_load_config.return_value = {"rekordbox_library_path": "/test/db.edb"}
+        mock_load_config.return_value = {"rekordbox": {"library_path": "/test/db.edb"}}
         mock_load_library.side_effect = FileNotFoundError()
 
         result = run_cli_command([])
@@ -364,7 +406,7 @@ class TestCLIIntegration:
     def test_cli_file_not_found_direct(self, mock_load_config):
         """Test CLI when database file doesn't exist - direct path test."""
         # Set up config to point to a non-existent database file
-        mock_load_config.return_value = {"rekordbox_library_path": "/nonexistent/path/db.edb"}
+        mock_load_config.return_value = {"rekordbox": {"library_path": "/nonexistent/path/db.edb"}}
 
         result = run_cli_command([])
         assert result.exit_code == 0  # CLI handles the error gracefully
@@ -384,7 +426,7 @@ class TestCLIIntegration:
         mock_process_tracks,
     ):
         """Test CLI when no tracks are found to process."""
-        mock_load_config.return_value = {"rekordbox_library_path": "/test/db.edb"}
+        mock_load_config.return_value = {"rekordbox": {"library_path": "/test/db.edb"}}
         mock_load_library.return_value = Mock()
         mock_init_processor.return_value = Mock()
         mock_get_collection.return_value = (Mock(), [])  # No tracks found
@@ -408,7 +450,7 @@ class TestCLIIntegration:
         mock_process_tracks,
     ):
         """Test CLI when tracks are successfully processed."""
-        mock_load_config.return_value = {"rekordbox_library_path": "/test/db.edb"}
+        mock_load_config.return_value = {"rekordbox": {"library_path": "/test/db.edb"}}
         mock_rekordbox = Mock()
         mock_processor = Mock()
         mock_tracks = [Mock(), Mock()]  # Some tracks to process
@@ -428,7 +470,7 @@ class TestCLIIntegration:
     @patch("fortherekord.main.load_library")
     def test_cli_os_error(self, mock_load_library, mock_load_config):
         """Test CLI when OS error occurs."""
-        mock_load_config.return_value = {"rekordbox_library_path": "/test/db.edb"}
+        mock_load_config.return_value = {"rekordbox": {"library_path": "/test/db.edb"}}
         mock_load_library.side_effect = OSError("Permission denied")
 
         result = run_cli_command([])
@@ -455,34 +497,21 @@ class TestCLIIntegration:
         """Test CLI with successful Spotify sync workflow."""
         # Mock config with Spotify credentials
         mock_load_config.return_value = {
-            "rekordbox_library_path": "/test/db.edb",
-            "spotify_client_id": "test_client_id",
-            "spotify_client_secret": "test_client_secret",
+            "rekordbox": {"library_path": "/test/db.edb"},
+            "spotify": {
+                "client_id": "test_client_id",
+                "client_secret": "test_client_secret",
+            },
         }
 
         # Mock successful library loading
         mock_rekordbox = Mock()
 
         # Create mock playlists with proper attributes
-        mock_playlist1 = Mock()
-        mock_playlist1.name = "Test Playlist 1"
-        mock_playlist1.tracks = []
-        mock_playlist1.display_tree = Mock()  # Mock the display_tree method
-
-        # Create a sample track for the second playlist
-        from fortherekord.models import Track
-
-        sample_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am")
-
-        mock_playlist2 = Mock()
-        mock_playlist2.name = "Test Playlist 2"
-        mock_playlist2.tracks = [sample_track]  # Add a track so there are tracks to process
-        mock_playlist2.display_tree = Mock()  # Mock the display_tree method
-
-        # Create actual Collection object instead of Mock
-        from fortherekord.models import Collection
-
-        mock_collection = Collection(playlists=[mock_playlist1, mock_playlist2])
+        sample_track = create_sample_track()
+        mock_playlist1 = create_mock_playlist("Test Playlist 1", [])
+        mock_playlist2 = create_mock_playlist("Test Playlist 2", [sample_track])
+        mock_collection = create_mock_collection([mock_playlist1, mock_playlist2])
 
         # Need to provide tracks for the CLI to continue to Spotify sync
         mock_get_collection.return_value = (mock_collection, [sample_track])
@@ -533,25 +562,20 @@ class TestCLIIntegration:
         """Test CLI when Spotify authentication fails."""
         # Mock config with Spotify credentials
         mock_load_config.return_value = {
-            "rekordbox_library_path": "/test/db.edb",
-            "spotify_client_id": "test_client_id",
-            "spotify_client_secret": "test_client_secret",
+            "rekordbox": {"library_path": "/test/db.edb"},
+            "spotify": {
+                "client_id": "test_client_id",
+                "client_secret": "test_client_secret",
+            },
         }
 
         # Mock successful library loading
         mock_rekordbox = Mock()
 
         # Create a sample track so Spotify sync is attempted
-        from fortherekord.models import Track, Collection
-
-        sample_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am")
-
-        mock_playlist = Mock()
-        mock_playlist.name = "Test Playlist"
-        mock_playlist.tracks = [sample_track]
-        mock_playlist.display_tree = Mock()
-
-        mock_collection = Collection(playlists=[mock_playlist])
+        sample_track = create_sample_track()
+        mock_playlist = create_mock_playlist("Test Playlist", [sample_track])
+        mock_collection = create_mock_collection([mock_playlist])
         mock_rekordbox.get_collection.return_value = mock_collection
 
         # Mock empty tracks so metadata processing is skipped
@@ -587,9 +611,11 @@ class TestCLIIntegration:
         """Test CLI with --dry-run flag passes dry_run=True to relevant functions."""
         # Mock config with Spotify credentials
         mock_load_config.return_value = {
-            "rekordbox_library_path": "/test/db.edb",
-            "spotify_client_id": "test_client_id",
-            "spotify_client_secret": "test_client_secret",
+            "rekordbox": {"library_path": "/test/db.edb"},
+            "spotify": {
+                "client_id": "test_client_id",
+                "client_secret": "test_client_secret",
+            },
         }
 
         # Setup mocks
@@ -597,10 +623,9 @@ class TestCLIIntegration:
         mock_load_library.return_value = mock_rekordbox
 
         # Mock collection and tracks
-        from fortherekord.models import Track, Collection
-
-        sample_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am")
-        mock_collection = Collection(playlists=[])
+        sample_track = create_sample_track()
+        mock_playlist = create_mock_playlist("Test Playlist", [sample_track])
+        mock_collection = create_mock_collection([mock_playlist])
         mock_get_collection.return_value = (mock_collection, [sample_track])
 
         # Mock Spotify
@@ -646,18 +671,19 @@ class TestCLIIntegration:
         """Test CLI when processor is disabled but continues to Spotify sync."""
         # Mock basic setup
         mock_load_config.return_value = {
-            "rekordbox_library_path": "/test/db.edb",
-            "spotify_client_id": "test_id",
-            "spotify_client_secret": "test_secret",
+            "rekordbox": {"library_path": "/test/db.edb"},
+            "spotify": {
+                "client_id": "test_id",
+                "client_secret": "test_secret",
+            },
         }
         mock_rekordbox = Mock()
         mock_load_library.return_value = mock_rekordbox
 
         # Mock collection with tracks
-        from fortherekord.models import Track, Collection
-
-        sample_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am")
-        mock_collection = Collection(playlists=[])
+        sample_track = create_sample_track()
+        mock_playlist = create_mock_playlist("Test Playlist", [sample_track])
+        mock_collection = create_mock_collection([mock_playlist])
         mock_get_collection.return_value = (mock_collection, [sample_track])
 
         # Mock processor as disabled (returns None)
@@ -681,5 +707,5 @@ class TestCLIIntegration:
         # Verify Spotify sync still happened
         mock_sync_service.sync_collection.assert_called_once_with(mock_collection, dry_run=False)
 
-        assert "Skipping track processing - processor disabled" in result.output
+        assert "Skipping track processing (processor is disabled)" in result.output
         assert "Spotify playlist sync complete" in result.output

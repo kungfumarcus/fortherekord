@@ -9,12 +9,12 @@ from typing import List, Optional
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
-from .models import Track, Playlist, IMusicLibrary
+from .models import Track, Playlist
 
 
-class SpotifyLibrary(IMusicLibrary):
+class SpotifyLibrary:
     """
-    Spotify API adapter implementing IMusicLibrary interface.
+    Spotify API adapter for playlist management.
 
     Provides playlist management and track operations using Spotify Web API.
     """
@@ -86,8 +86,10 @@ class SpotifyLibrary(IMusicLibrary):
 
         playlists = []
         results = self.sp.current_user_playlists()
+        pagination_count = 0
+        max_pages = 100  # Safety limit to prevent infinite loops
 
-        while results:
+        while results and pagination_count < max_pages:
             for item in results["items"]:
                 if item["name"] not in ignore_playlists and item["owner"]["id"] == self.user_id:
                     playlist = Playlist(
@@ -98,6 +100,7 @@ class SpotifyLibrary(IMusicLibrary):
             # Handle pagination
             if results["next"] and self.sp:
                 results = self.sp.next(results)
+                pagination_count += 1
             else:
                 results = None
 
@@ -118,8 +121,10 @@ class SpotifyLibrary(IMusicLibrary):
 
         tracks = []
         results = self.sp.playlist_tracks(playlist_id)
+        pagination_count = 0
+        max_pages = 100  # Safety limit to prevent infinite loops
 
-        while results:
+        while results and pagination_count < max_pages:
             for item in results["items"]:
                 if item["track"] and item["track"]["type"] == "track":
                     track_data = item["track"]
@@ -137,6 +142,7 @@ class SpotifyLibrary(IMusicLibrary):
             # Handle pagination
             if results["next"] and self.sp:
                 results = self.sp.next(results)
+                pagination_count += 1
             else:
                 results = None
 

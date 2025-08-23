@@ -16,7 +16,7 @@ Provides the contract that all music platform libraries must implement.
 A Collection represents a complete snapshot of a music library's playlists and tracks at a point in time. Collections provide efficient access to all tracks across multiple playlists while avoiding duplicate database queries. The Collection automatically handles track deduplication when tracks appear in multiple playlists.
 
 Collections are returned by source music libraries (like Rekordbox) to enable efficient processing of large music libraries without repeated database access.
-
+ 
 **Music Library Interface:**
 - `get_collection()` - Returns a Collection containing all playlists and tracks
 - `save_changes(tracks, dry_run=False)` - Saves track modifications, returns count of changed tracks

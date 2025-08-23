@@ -31,39 +31,42 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
                 f"{type(config['rekordbox_library_path']).__name__}"
             )
 
-    # Validate replace_in_title - must be a dictionary
+    # Validate replace_in_title - must be a list of dictionaries
     if "replace_in_title" in config:
         replace_config = config["replace_in_title"]
 
-        if not isinstance(replace_config, dict):
+        if not isinstance(replace_config, list):
             raise ConfigValidationError(
-                f'replace_in_title must be a dictionary ({{"from": "to"}}), '
+                f'replace_in_title must be a list of dictionaries with "from"/"to" keys, '
                 f"got {type(replace_config).__name__}. "
-                f'Example: {{" (Original Mix)": "", " (Extended Mix)": " (ext)"}}'
+                f'Example: [{{"from": " (Original Mix)", "to": ""}}, '
+                f'{{"from": " (Extended Mix)", "to": " (ext)"}}]'
             )
 
-        # Validate dictionary contents
-        for key, value in replace_config.items():
-            if not isinstance(key, str):
+        # Validate list contents
+        for i, replacement in enumerate(replace_config):
+            if not isinstance(replacement, dict):
                 raise ConfigValidationError(
-                    f"replace_in_title keys must be strings, got {type(key).__name__}"
-                )
-            if value is not None and not isinstance(value, str):
-                raise ConfigValidationError(
-                    f"replace_in_title values must be strings or None, got {type(value).__name__}"
+                    f"replace_in_title[{i}] must be a dictionary with 'from'/'to' keys, "
+                    f"got {type(replacement).__name__}"
                 )
 
-    # Validate ignore_playlists
-    if "ignore_playlists" in config:
-        ignore_playlists = config["ignore_playlists"]
-        if not isinstance(ignore_playlists, list):
-            raise ConfigValidationError(
-                f"ignore_playlists must be a list, got {type(ignore_playlists).__name__}"
-            )
-        for item in ignore_playlists:
-            if not isinstance(item, str):
+            if "from" not in replacement:
+                raise ConfigValidationError(f"replace_in_title[{i}] missing required 'from' key")
+
+            if "to" not in replacement:
+                raise ConfigValidationError(f"replace_in_title[{i}] missing required 'to' key")
+
+            if not isinstance(replacement["from"], str):
                 raise ConfigValidationError(
-                    f"ignore_playlists items must be strings, got {type(item).__name__}"
+                    f"replace_in_title[{i}]['from'] must be a string, "
+                    f"got {type(replacement['from']).__name__}"
+                )
+
+            if not isinstance(replacement["to"], str):
+                raise ConfigValidationError(
+                    f"replace_in_title[{i}]['to'] must be a string, "
+                    f"got {type(replacement['to']).__name__}"
                 )
 
     return config
@@ -122,10 +125,22 @@ def create_default_config() -> None:
     default_path = str(Path(appdata) / "Pioneer" / "rekordbox" / "master.db") if appdata else ""
 
     default_config = {
-        "rekordbox_library_path": default_path,
-        "replace_in_title": {" (Original Mix)": "", " (Extended Mix)": " (ext)"},
-        "ignore_playlists": [],
-        "spotify_client_id": "",
-        "spotify_client_secret": "",
+        "rekordbox": {
+            "library_path": default_path,
+            "ignore_playlists": [],
+        },
+        "processor": {
+            "add_key_to_title": False,
+            "add_artist_to_title": False,
+            "remove_artists_in_title": False,
+            "replace_in_title": [
+                {"from": " (Original Mix)", "to": ""},
+                {"from": " (Extended Mix)", "to": " (ext)"},
+            ],
+        },
+        "spotify": {
+            "client_id": "",
+            "client_secret": "",
+        },
     }
     save_config(default_config)

@@ -12,9 +12,7 @@ The application is built using a modular architecture with clear separation of c
 
 **[Rekordbox.md](specs/Rekordbox.md)** - Direct database integration using pyrekordbox library for encrypted SQLite access
 
-**[RekordboxMetadata.md](specs/RekordboxMetadata.md)** - Track metadata processing and title enhancement with configurable features
-
-**[MusicLibraryInterface.md](specs/MusicLibraryInterface.md)** - Generic music library processor interface for track enhancement
+**[RekordboxMetadata.md](specs/RekordboxMetadata.md)** - Track metadata processing and title enhancement in format "Title - Artist [Key]"
 
 **[Spotify.md](specs/Spotify.md)** - Spotify integration via spotipy library with console-based OAuth authentication
 
@@ -208,18 +206,11 @@ The e2e testing approach ensures the complete application workflow is validated 
 ### Implementation Priority
 
 1. **Phase 1**: ✅ **COMPLETED** - Core infrastructure (config, CLI, data models, comprehensive testing with 100% coverage)
-2. **Phase 2**: ✅ **COMPLETED** - Rekordbox database integration, data extraction, and music library processing
-3. **Phase 3**: ✅ **COMPLETED** - Music library processor with configurable title enhancement features
-4. **Phase 4**: 🚧 **CURRENT** - Spotify authentication and API integration  
-5. **Phase 5**: Track matching engine with basic Levenshtein distance
-6. **Phase 6**: Playlist synchronization and artist following
+2. **Phase 2**: 🚧 **CURRENT** - Rekordbox database integration and data extraction  
+3. **Phase 3**: Spotify authentication and API integration
+4. **Phase 4**: Track matching engine with basic Levenshtein distance
+5. **Phase 5**: Playlist synchronization and artist following
 
-**Current Focus**: The core music library processing infrastructure is complete with:
-- ✅ Rekordbox database connectivity using pyrekordbox library
-- ✅ Generic music library interface with configurable processors  
-- ✅ Track metadata enhancement with in-place modification
-- ✅ Comprehensive unit and e2e test coverage (100% code coverage)
-- ✅ Database safety mechanisms for test environments
-- ✅ CLI integration with processor disabled/enabled detection
+**Current Focus**: Building Rekordbox database connectivity using pyrekordbox library to read encrypted SQLite databases, extract track metadata, and retrieve playlist structures. This phase will establish the foundation for all music library operations.
 
-**Next Steps**: Spotify authentication and API integration, followed by track matching algorithms and playlist synchronization.
+The approach emphasizes simplicity initially, with algorithm refinement based on real data analysis during development.

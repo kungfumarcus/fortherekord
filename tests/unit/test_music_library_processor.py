@@ -15,17 +15,23 @@ class TestMusicLibraryProcessor:
     def test_processor_initialization(self):
         """Test processor initializes with config."""
         config = {
-            "replace_in_title": {" (Original Mix)": "", " (Extended Mix)": " (ext)"},
+            "replace_in_title": [
+                {"from": " (Original Mix)", "to": ""},
+                {"from": " (Extended Mix)", "to": " (ext)"},
+            ],
             "ignore_playlists": ["test playlist"],
         }
         processor = MusicLibraryProcessor(config)
-        assert processor.replace_in_title == {" (Original Mix)": "", " (Extended Mix)": " (ext)"}
+        assert processor.replace_in_title == [
+            {"from": " (Original Mix)", "to": ""},
+            {"from": " (Extended Mix)", "to": " (ext)"},
+        ]
         assert processor.ignore_playlists == ["test playlist"]
 
     def test_processor_default_config(self, default_processor_config):
         """Test processor works with empty config."""
         processor = MusicLibraryProcessor(default_processor_config)
-        assert processor.replace_in_title == {}
+        assert processor.replace_in_title == []
         assert processor.ignore_playlists == []
 
     def test_process_track_basic(self, sample_track, default_processor_config, capsys):
@@ -58,13 +64,13 @@ class TestMusicLibraryProcessor:
         """Test title enhancement with various text replacement scenarios."""
         # Start with default config and add text replacements
         config = default_processor_config
-        config["replace_in_title"] = {
-            " (Original Mix)": "",  # Remove completely
-            " (Extended Mix)": " (ext)",  # Replace with shorter form
-            "feat.": "ft.",  # Replace feat. with ft.
-            "DJTester": "DJ Tester",  # Space out DJ names
-            "remove_me": None,  # None should remove text
-        }
+        config["replace_in_title"] = [
+            {"from": " (Original Mix)", "to": ""},  # Remove completely
+            {"from": " (Extended Mix)", "to": " (ext)"},  # Replace with shorter form
+            {"from": "feat.", "to": "ft."},  # Replace feat. with ft.
+            {"from": "DJTester", "to": "DJ Tester"},  # Space out DJ names
+            {"from": "remove_me", "to": ""},  # Empty string should remove text
+        ]
         processor = MusicLibraryProcessor(config)
 
         # Test removal of original mix
@@ -243,9 +249,9 @@ class TestMusicLibraryProcessor:
     def test_process_track_output_both_changes(self, default_processor_config, capsys):
         """Test output when both title and artist change."""
         config = default_processor_config
-        config["replace_in_title"] = {"Old Artist": "New Artist"}
+        config["replace_in_title"] = [{"from": "Old Artist", "to": "New Artist"}]
         processor = MusicLibraryProcessor(config)
-        track = Track(id="1", title="Song Title", artist="Old Artist", key="Cm")
+        track = create_sample_track(title="Song Title", artist="Old Artist", key="Cm")
 
         processor.process_track(track)
 
@@ -258,7 +264,10 @@ class TestMusicLibraryProcessor:
     def test_process_track_output_no_changes(self, default_processor_config, capsys):
         """Test no output when no changes are made."""
         processor = MusicLibraryProcessor(default_processor_config)
-        track = Track(id="1", title="Song Title - Test Artist [Cm]", artist="Test Artist", key="Cm")
+        track = create_sample_track(
+            title="Song Title - Test Artist [Cm]", artist="Test Artist", key="Cm"
+        )
+        # The helper already sets original values to match current values
 
         processor.process_track(track)
 
@@ -268,9 +277,11 @@ class TestMusicLibraryProcessor:
     def test_processor_early_abort_all_disabled(self, sample_track):
         """Test that when all enhancement features are False, tracks are returned unchanged."""
         config = {
-            "add_key_to_title": False,
-            "add_artist_to_title": False,
-            "remove_artists_in_title": False,
+            "processor": {
+                "add_key_to_title": False,
+                "add_artist_to_title": False,
+                "remove_artists_in_title": False,
+            }
         }
         processor = MusicLibraryProcessor(config)
         original_title = sample_track.title

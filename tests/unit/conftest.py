@@ -60,7 +60,7 @@ def default_processor_config():
         "add_key_to_title": True,
         "add_artist_to_title": True,
         "remove_artists_in_title": True,
-        "replace_in_title": {},
+        "replace_in_title": [],
         "ignore_playlists": [],
     }
 
@@ -84,7 +84,11 @@ def create_sample_track(
     key="Am",
 ):
     """Create a sample track with customizable parameters."""
-    return Track(id=track_id, title=title, artist=artist, key=key)
+    track = Track(id=track_id, title=title, artist=artist, key=key)
+    # Set original values for change tracking
+    track.original_title = title
+    track.original_artist = artist
+    return track
 
 
 @pytest.fixture
@@ -111,7 +115,7 @@ def sample_playlist(sample_tracks):
 @pytest.fixture
 def sample_collection(sample_playlist):
     """Create a sample collection with playlists for testing."""
-    return Collection(playlists=[sample_playlist])
+    return Collection(playlists=[sample_playlist], tracks={})
 
 
 # Mock Fixtures
@@ -159,6 +163,36 @@ def mock_metadata_processor():
 # Common Mock Patterns
 
 
+def create_mock_track(track_id, title, artist_name, key="Am"):
+    """
+    Create a mock track object for testing.
+
+    Args:
+        track_id: Track ID (int or str)
+        title: Track title
+        artist_name: Artist name (None for missing artist)
+        key: Musical key (default: "Am")
+
+    Returns:
+        Mock object representing a Rekordbox track
+    """
+    track = Mock()
+    track.ID = track_id
+    track.Title = title
+    track.Key = key
+    track.Length = 180.5
+
+    # Only create artist mock if artist_name is not None
+    if artist_name is not None:
+        artist = Mock()
+        artist.Name = artist_name
+        track.Artist = artist
+    else:
+        track.Artist = None
+
+    return track
+
+
 def create_mock_spotify_search_results(tracks_found=True):
     """
     Create mock Spotify search results.
@@ -179,40 +213,49 @@ def create_mock_rekordbox_db():
     """
     Create a mock Rekordbox database with common setup.
 
+    Creates 3 playlists:
+    - Playlist 1: 3 tracks (IDs: 123, 456, 789)
+    - Playlist 2: 2 tracks (IDs: 123, 999) - track 123 is shared with playlist 1
+    - Playlist 3: Empty playlist
     """
     mock_db = Mock()
 
-    # Mock playlist structure that matches the expected API
-    mock_playlist1 = Mock()
-    mock_playlist1.ID = 1
-    mock_playlist1.Name = "Test Playlist 1"
-    mock_playlist1.Songs = []  # Empty list for songs
-    mock_playlist1.Parent = None  # Top-level playlist
-    mock_playlist1.Seq = 1
+    # Create mock tracks using the helper function
+    track_123 = create_mock_track(123, "Shared Song", "Artist A", "Am")
+    track_456 = create_mock_track(456, "Song Two", "Artist B", "Dm")
+    track_789 = create_mock_track(789, "Song Three", "Artist C", "Gm")
+    track_999 = create_mock_track(999, "Song Four", "Artist D", "Em")
 
-    # Mock song content for playlist 2
-    mock_song = Mock()
-    mock_content = Mock()
-    mock_content.ID = 123
-    mock_content.Title = "Test Song"
-    mock_content.Key = "Am"
-    mock_content.Length = 180.5  # Duration in seconds (this field is actually used)
+    # Create mock playlists
+    playlist_1 = Mock()
+    playlist_1.ID = 1
+    playlist_1.Name = "Test Playlist 1"
+    playlist_1.Parent = None
+    playlist_1.Seq = 1
 
-    mock_artist = Mock()
-    mock_artist.Name = "Test Artist"
-    mock_content.Artist = mock_artist
+    playlist_2 = Mock()
+    playlist_2.ID = 2
+    playlist_2.Name = "Test Playlist 2"
+    playlist_2.Parent = None
+    playlist_2.Seq = 2
 
-    mock_song.Content = mock_content
+    playlist_3 = Mock()
+    playlist_3.ID = 3
+    playlist_3.Name = "Empty Playlist"
+    playlist_3.Parent = None
+    playlist_3.Seq = 3
 
-    mock_playlist2 = Mock()
-    mock_playlist2.ID = 2
-    mock_playlist2.Name = "Test Playlist 2"
-    mock_playlist2.Songs = [mock_song]  # List with one song
-    mock_playlist2.Parent = None  # Top-level playlist
-    mock_playlist2.Seq = 2
+    # Configure playlist contents
+    playlist_contents = {
+        1: [track_123, track_456, track_789],  # 3 tracks
+        2: [track_123, track_999],  # 2 tracks (one shared)
+        3: [],  # Empty
+    }
 
-    # Configure mock database
-    mock_db.get_playlist.return_value = [mock_playlist1, mock_playlist2]
+    mock_db.get_playlist.return_value = [playlist_1, playlist_2, playlist_3]
+    mock_db.get_playlist_contents = lambda playlist: Mock(
+        all=lambda: playlist_contents.get(playlist.ID, [])
+    )
 
     return mock_db
 

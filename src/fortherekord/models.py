@@ -6,7 +6,7 @@ playlists, and configuration management.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Protocol
+from typing import List, Optional, Protocol, Dict
 
 
 @dataclass
@@ -71,12 +71,12 @@ class IMusicLibrary(Protocol):
     must implement to enable generic playlist synchronization.
     """
 
-    def get_playlists(self) -> List[Playlist]:
-        """Retrieve all playlists from the music platform."""
+    def get_collection(self) -> "Collection":
+        """Get the complete collection including all playlists and tracks (raw, unfiltered)."""
         raise NotImplementedError
 
-    def get_playlist_tracks(self, playlist_id: str) -> List[Track]:
-        """Get all tracks from a specific playlist."""
+    def get_filtered_collection(self) -> "Collection":
+        """Get the complete collection with configuration-based filtering applied."""
         raise NotImplementedError
 
     def create_playlist(self, name: str, tracks: List[Track]) -> str:
@@ -95,10 +95,6 @@ class IMusicLibrary(Protocol):
         """Get list of currently followed artists."""
         raise NotImplementedError
 
-    def save_changes(self, tracks: List[Track], dry_run: bool = False) -> int:
-        """Save track changes to the music library."""
-        raise NotImplementedError
-
 
 @dataclass
 class Collection:
@@ -106,20 +102,16 @@ class Collection:
     Represents a music collection with playlists and tracks.
 
     Encapsulates all data loaded from a music library (like Rekordbox)
-    to avoid multiple database calls.
+    to avoid multiple database calls. Provides efficient track lookup via hash map.
     """
 
     playlists: List[Playlist]
+    tracks: Dict[str, Track]
 
     def get_all_tracks(self) -> List[Track]:
         """Get all unique tracks from all playlists."""
-        all_tracks = []
-        track_ids = set()
+        return list(self.tracks.values())
 
-        for playlist in self.playlists:
-            for track in playlist.tracks:
-                if track.id not in track_ids:
-                    track_ids.add(track.id)
-                    all_tracks.append(track)
-
-        return all_tracks
+    def get_track(self, track_id: str) -> Optional[Track]:
+        """Get a specific track by ID."""
+        return self.tracks.get(track_id)

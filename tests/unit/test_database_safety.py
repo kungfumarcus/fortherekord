@@ -40,7 +40,7 @@ class TestDatabaseSafetyFirst:
 
         # Test that save_changes never calls commit in test mode
         mock_db = Mock()
-        library = RekordboxLibrary("/test/db.edb")
+        library = RekordboxLibrary({"rekordbox": {"library_path": "/test/db.edb"}})
         library._db = mock_db
 
         try:

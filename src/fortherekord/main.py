@@ -4,7 +4,7 @@ Basic CLI shell for ForTheRekord.
 CLI application with Rekordbox metadata processing functionality.
 """
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 import click
 
@@ -17,12 +17,14 @@ from .music_library_processor import MusicLibraryProcessor
 from .spotify_library import SpotifyLibrary
 
 
-def load_config() -> Optional[Dict[str, str]]:
+def load_config() -> Optional[Dict[str, Any]]:
     """Load and validate configuration, creating default if needed."""
     config = config_load_config()
 
-    if not config.get("rekordbox_library_path"):
-        click.echo("Error: rekordbox_library_path not configured")
+    # Support both old flat structure and new hierarchical structure
+    # Check if rekordbox library path is configured
+    if "rekordbox" not in config or not config["rekordbox"].get("library_path"):
+        click.echo("Error: rekordbox library_path not configured")
         click.echo("Creating default config file...")
         create_default_config()
         click.echo(f"Config created at: {get_config_path()}")
@@ -32,22 +34,29 @@ def load_config() -> Optional[Dict[str, str]]:
     return config
 
 
-def load_library(library_path: str) -> RekordboxLibrary:
+def load_library(config: Dict[str, Any], dry_run: bool = False) -> RekordboxLibrary:
     """Create and validate RekordboxLibrary, including Rekordbox running check."""
+    library_path = config["rekordbox"]["library_path"]
     click.echo(f"Loading Rekordbox library from: {library_path}")
 
     # Create Rekordbox library
-    rekordbox = RekordboxLibrary(library_path)
+    rekordbox = RekordboxLibrary(config)
 
     # Connect to Rekordbox database (this triggers the Rekordbox running detection)
     rekordbox._get_database()  # pylint: disable=protected-access
 
     # Early validation: Check if Rekordbox is running and we need to save changes
-    if rekordbox.is_rekordbox_running:
+    # Skip this check in dry-run mode since we won't be making any changes
+    if rekordbox.is_rekordbox_running and not dry_run:
         click.echo("ERROR: Rekordbox is currently running.")
         click.echo("Please close Rekordbox completely before running ForTheRekord.")
         click.echo("This prevents database corruption during metadata updates.")
         raise RuntimeError("Rekordbox is currently running")
+
+    if rekordbox.is_rekordbox_running and dry_run:
+        click.echo(
+            "Note: Rekordbox is running, but continuing in dry-run mode (no changes will be made)"
+        )
 
     return rekordbox
 
@@ -63,7 +72,7 @@ def initialize_processor(config: dict, tracks: list) -> Optional[MusicLibraryPro
         or processor.remove_artists_in_title
     ):
         click.echo("Music library processor is disabled (all enhancement features are turned off)")
-        click.echo("Enable features in config.yaml under rekordbox section:")
+        click.echo("Enable features in config.yaml under processor section:")
         click.echo("  add_key_to_title: true")
         click.echo("  add_artist_to_title: true")
         click.echo("  remove_artists_in_title: true")
@@ -75,10 +84,10 @@ def initialize_processor(config: dict, tracks: list) -> Optional[MusicLibraryPro
     return processor
 
 
-def get_collection_to_process(rekordbox: RekordboxLibrary, config: dict) -> tuple:
+def get_collection_to_process(rekordbox: RekordboxLibrary) -> tuple:
     """Get collection to process and display playlist hierarchy."""
-    # Pass the full config to RekordboxLibrary, let it extract what it needs
-    collection = rekordbox.get_collection(config)
+    # The rekordbox library already has the config, no need to pass it again
+    collection = rekordbox.get_collection()
 
     # Get all tracks from the collection (automatically deduplicated)
     tracks = collection.get_all_tracks()
@@ -150,29 +159,32 @@ def cli(dry_run: bool) -> None:  # pylint: disable=too-many-return-statements
         return
 
     try:
-        rekordbox = load_library(config["rekordbox_library_path"])
+        rekordbox = load_library(config, dry_run)
 
-        collection, tracks = get_collection_to_process(rekordbox, config)
+        collection, tracks = get_collection_to_process(rekordbox)
         if not tracks:
             click.echo("No tracks found to process")
             return
 
-        processor = initialize_processor(config, tracks)
-        if processor is None:
-            click.echo("Skipping track processing - processor disabled")
-        else:
+        processor_config = config.get("processor", {})
+        processor = initialize_processor(processor_config, tracks)
+
+        # Only process tracks if processor is enabled
+        if processor is not None:
             process_tracks(tracks, rekordbox, processor, dry_run)
+        else:
+            click.echo("Skipping track processing (processor is disabled)")
+            click.echo("No changes needed")
 
         # Sync Spotify - Authenticate with Spotify using OAuth
         try:
-            if not config.get("spotify_client_id") or not config.get("spotify_client_secret"):
+            spotify_config = config.get("spotify", {})
+            if not spotify_config.get("client_id") or not spotify_config.get("client_secret"):
                 click.echo("Spotify credentials not configured")
-                click.echo(
-                    f"Please add spotify_client_id and spotify_client_secret to {get_config_path()}"
-                )
+                click.echo(f"Please add spotify client_id and client_secret to {get_config_path()}")
                 return
 
-            spotify = SpotifyLibrary(config["spotify_client_id"], config["spotify_client_secret"])
+            spotify = SpotifyLibrary(spotify_config["client_id"], spotify_config["client_secret"])
             click.echo(f"Authenticated with Spotify as user: {spotify.user_id}")
 
             # Sync playlists from Rekordbox to Spotify using the collection

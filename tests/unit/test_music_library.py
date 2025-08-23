@@ -5,7 +5,7 @@ Tests the common utility functions provided by the MusicLibrary base class.
 """
 
 from fortherekord.music_library import MusicLibrary
-from fortherekord.models import Track, Playlist
+from fortherekord.models import Track, Playlist, Collection
 
 
 class TestMusicLibrary:
@@ -16,10 +16,15 @@ class TestMusicLibrary:
 
         # Create a concrete subclass for testing
         class TestMusicLibraryImpl(MusicLibrary):
-            def _get_raw_playlists(self, ignore_playlists=None):
-                return []
+            def get_collection(self):
+                return Collection(playlists=getattr(self, "_test_playlists", []), tracks={})
+
+            def save_changes(self, tracks, dry_run=False):
+                """Mock implementation of save_changes."""
+                pass
 
         self.library = TestMusicLibraryImpl()
+        self.library._test_playlists = []  # Mock playlists for testing
 
     def test_deduplicate_tracks(self):
         """Test track deduplication."""
@@ -34,30 +39,35 @@ class TestMusicLibrary:
         assert result[0] == track1
         assert result[1] == track2
 
-    def test_filter_playlists_by_name(self):
-        """Test playlist filtering by name."""
+    def test_get_collection_filters_playlists(self):
+        """Test that get_filtered_collection filters playlists by ignore_playlists."""
         playlist1 = Playlist(id="1", name="Keep This", tracks=[])
         playlist2 = Playlist(id="2", name="Ignore This", tracks=[])
         playlist3 = Playlist(id="3", name="Also Keep", tracks=[])
 
-        playlists = [playlist1, playlist2, playlist3]
-        ignore_list = ["Ignore This"]
+        # Set up the test implementation to return these playlists
+        self.library._test_playlists = [playlist1, playlist2, playlist3]
+        self.library.config = {"rekordbox": {"ignore_playlists": ["Ignore This"]}}
 
-        result = self.library.filter_playlists_by_name(playlists, ignore_list)
+        collection = self.library.get_filtered_collection()
 
-        assert len(result) == 2
-        assert result[0] == playlist1
-        assert result[1] == playlist3
+        assert len(collection.playlists) == 2
+        assert collection.playlists[0] == playlist1
+        assert collection.playlists[1] == playlist3
 
-    def test_filter_playlists_by_name_no_ignore_list(self):
-        """Test playlist filtering with no ignore list."""
+    def test_get_collection_no_filtering(self):
+        """Test get_filtered_collection with no ignore list."""
         playlist1 = Playlist(id="1", name="Playlist 1", tracks=[])
         playlist2 = Playlist(id="2", name="Playlist 2", tracks=[])
 
-        playlists = [playlist1, playlist2]
-        result = self.library.filter_playlists_by_name(playlists, None)
+        # Set up the test implementation to return these playlists
+        self.library._test_playlists = [playlist1, playlist2]
+        self.library.config = {"rekordbox": {"ignore_playlists": []}}
 
-        assert result == playlists
+        collection = self.library.get_filtered_collection()
+
+        assert len(collection.playlists) == 2
+        assert collection.playlists == [playlist1, playlist2]
 
     def test_filter_empty_playlists(self):
         """Test filtering out empty playlists."""
@@ -88,38 +98,3 @@ class TestMusicLibrary:
         assert len(result) == 2
         assert track1 in result
         assert track2 in result
-
-    def test_get_collection_with_config(self):
-        """Test get_collection with ignore_playlists config."""
-        # Mock the _get_raw_playlists method
-        playlist1 = Playlist(id="1", name="Keep", tracks=[])
-        playlist2 = Playlist(id="2", name="Ignore", tracks=[])
-
-        class TestMusicLibraryWithPlaylists(MusicLibrary):
-            def _get_raw_playlists(self, ignore_playlists=None):
-                playlists = [playlist1, playlist2]
-                if ignore_playlists and "Ignore" in ignore_playlists:
-                    return [playlist1]
-                return playlists
-
-        library = TestMusicLibraryWithPlaylists()
-        config = {"ignore_playlists": ["Ignore"]}
-
-        collection = library.get_collection(config)
-
-        assert len(collection.playlists) == 1
-        assert collection.playlists[0].name == "Keep"
-
-    def test_get_collection_no_config(self):
-        """Test get_collection with no config."""
-        playlist1 = Playlist(id="1", name="Playlist 1", tracks=[])
-
-        class TestMusicLibraryWithPlaylists(MusicLibrary):
-            def _get_raw_playlists(self, ignore_playlists=None):
-                return [playlist1]
-
-        library = TestMusicLibraryWithPlaylists()
-        collection = library.get_collection(None)
-
-        assert len(collection.playlists) == 1
-        assert collection.playlists[0] == playlist1

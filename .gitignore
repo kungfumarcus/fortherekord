@@ -17,6 +17,7 @@ tests/e2e/test-credentials.yaml
 # IDE/Tools
 .mypy_cache/
 .vscode/
+*.code-workspace
 
 # Application data
 data/

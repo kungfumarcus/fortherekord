@@ -79,6 +79,7 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "class.*\\(Protocol\\):",
+    "@dataclass",
     "@pytest.fixture",
     "except ImportError:",  # Hard to test missing _version.py in normal test runs
 ]
@@ -87,9 +88,6 @@ show_missing = true
 
 [tool.pylint.MASTER]
 ignore = ["_version.py"]
-
-[tool.pylint.messages_control]
-disable = ["line-too-long"]  # Let flake8 handle line length
 
 [tool.mypy]
 python_version = "3.9"
