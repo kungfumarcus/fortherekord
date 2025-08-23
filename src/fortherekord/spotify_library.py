@@ -128,14 +128,17 @@ class SpotifyLibrary:
             for item in results["items"]:
                 if item["track"] and item["track"]["type"] == "track":
                     track_data = item["track"]
+                    artist_name = (
+                        track_data["artists"][0]["name"]
+                        if track_data["artists"]
+                        else "Unknown Artist"
+                    )
                     track = Track(
                         id=track_data["id"],
                         title=track_data["name"],
-                        artist=(
-                            track_data["artists"][0]["name"]
-                            if track_data["artists"]
-                            else "Unknown Artist"
-                        ),
+                        artist=artist_name,
+                        original_title=track_data["name"],
+                        original_artist=artist_name,
                     )
                     tracks.append(track)
 

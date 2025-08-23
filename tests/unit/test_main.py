@@ -16,7 +16,7 @@ from fortherekord.main import (
     get_collection_to_process,
     process_tracks,
 )
-from .conftest import create_sample_track, silence_click_echo
+from .conftest import create_track, create_collection, silence_click_echo
 
 
 # Helper functions to reduce repetition
@@ -37,32 +37,19 @@ def assert_failed_command(result, expected_exit_code: int = 1) -> None:
     assert result.exit_code == expected_exit_code
 
 
-def create_mock_playlist(name: str = "Test Playlist", tracks: list = None):
-    """Helper function to create a mock playlist with tracks."""
+def create_mock_playlist(name: str = "Test Playlist", tracks: list = None, children: list = None):
+    """Helper function to create a mock playlist for main.py testing with display_tree method."""
     if tracks is None:
         tracks = []
+    if children is None:
+        children = []
 
     mock_playlist = Mock()
     mock_playlist.name = name
     mock_playlist.tracks = tracks
+    mock_playlist.children = children
     mock_playlist.display_tree = Mock()
     return mock_playlist
-
-
-def create_mock_collection(playlists: list = None):
-    """Helper function to create a mock collection from playlists."""
-    from fortherekord.models import Collection
-
-    if playlists is None:
-        playlists = []
-
-    # Extract all tracks from playlists and create tracks dictionary for efficient lookup
-    tracks_dict = {}
-    for playlist in playlists:
-        for track in playlist.tracks:
-            tracks_dict[track.id] = track
-
-    return Collection(playlists=playlists, tracks=tracks_dict)
 
 
 class TestCLIBasics:
@@ -109,8 +96,8 @@ class TestCLIBasics:
             patch("fortherekord.main.process_tracks"),
         ):
             mock_collection = Mock()
-            mock_tracks = [Mock()]
-            mock_get_collection.return_value = (mock_collection, mock_tracks)
+            mock_collection.get_all_tracks = Mock(return_value=[Mock()])
+            mock_get_collection.return_value = mock_collection
             mock_init_processor.return_value = Mock()
 
             result = run_cli_command([])
@@ -205,13 +192,13 @@ class TestInitializeProcessor:
         mock_processor.add_key_to_title = True
         mock_processor.add_artist_to_title = True
         mock_processor.remove_artists_in_title = True
-        tracks = [Mock(title="Song - Artist [Am]"), Mock(title="Another Song")]
 
-        result = initialize_processor(config, tracks)
+        result = initialize_processor(config)
 
         assert result == mock_processor
         mock_processor_class.assert_called_once_with(config)
-        mock_processor.extract_original_metadata.assert_called_once_with(tracks)
+        # Note: extract_original_metadata was removed as original values are
+        # set during track loading
 
     @patch("fortherekord.main.MusicLibraryProcessor")
     @patch("fortherekord.main.click.echo")
@@ -223,9 +210,8 @@ class TestInitializeProcessor:
         mock_processor.add_key_to_title = False
         mock_processor.add_artist_to_title = False
         mock_processor.remove_artists_in_title = False
-        tracks = [Mock(title="Song - Artist [Am]")]
 
-        result = initialize_processor(config, tracks)
+        result = initialize_processor(config)
 
         assert result is None
         mock_processor_class.assert_called_once_with(config)
@@ -238,22 +224,31 @@ class TestGetCollectionToProcess:
     """Test get_collection_to_process function."""
 
     def test_get_collection_with_tracks(self):
-        """Test getting collection with tracks."""
+        """Test getting collection with tracks including nested playlists."""
         mock_rekordbox = MagicMock()
         mock_collection = MagicMock()
         mock_tracks = [MagicMock(), MagicMock()]
-        mock_playlists = [MagicMock(), MagicMock()]
+
+        # Create nested playlist structure to test recursive counting
+        child_playlist = create_mock_playlist("Child Playlist", tracks=[MagicMock()])
+
+        parent_playlist = create_mock_playlist(
+            "Parent Playlist", tracks=[], children=[child_playlist]
+        )
+
+        regular_playlist = create_mock_playlist("Regular Playlist", tracks=[MagicMock()])
+
+        mock_playlists = [parent_playlist, regular_playlist]
 
         mock_collection.playlists = mock_playlists
         mock_collection.get_all_tracks.return_value = mock_tracks
-        mock_rekordbox.get_collection.return_value = mock_collection
+        mock_rekordbox.get_filtered_collection.return_value = mock_collection
 
         with patch("fortherekord.main.click.echo"), patch("builtins.print"):
-            collection, tracks = get_collection_to_process(mock_rekordbox)
+            collection = get_collection_to_process(mock_rekordbox)
 
         assert collection == mock_collection
-        assert tracks == mock_tracks
-        mock_rekordbox.get_collection.assert_called_once_with()
+        mock_rekordbox.get_filtered_collection.assert_called_once_with()
         mock_collection.get_all_tracks.assert_called_once()
         # Verify display_tree was called on each playlist
         for playlist in mock_playlists:
@@ -266,7 +261,7 @@ class TestProcessTracks:
     def test_process_tracks_success(self):
         """Test successful track processing."""
         # Create test tracks using utility
-        original_track = create_sample_track()
+        original_track = create_track()
 
         # Setup mocks
         mock_rekordbox = MagicMock()
@@ -275,8 +270,11 @@ class TestProcessTracks:
         mock_rekordbox.update_track_metadata.return_value = True
         mock_rekordbox.save_changes.return_value = 1  # Return count of saved tracks
 
+        # Create a mock collection with the track
+        mock_collection = create_collection(tracks=[original_track])
+
         with silence_click_echo():
-            process_tracks([original_track], mock_rekordbox, mock_processor)
+            process_tracks(mock_collection, mock_rekordbox, mock_processor)
 
         # Verify calls
         mock_processor.process_track.assert_called()
@@ -286,8 +284,6 @@ class TestProcessTracks:
 
     def test_process_tracks_no_changes(self):
         """Test track processing when no changes are needed."""
-        # Track that doesn't need enhancement - both title and artist unchanged
-        track = create_sample_track(title="Test Song - Test Artist [Am]")
 
         # Setup mocks
         mock_rekordbox = MagicMock()
@@ -295,8 +291,10 @@ class TestProcessTracks:
 
         mock_rekordbox.save_changes.return_value = 0  # No tracks were modified
 
+        # Create a mock collection with no changed tracks
+        mock_collection = create_collection(tracks=[create_track()])
         with silence_click_echo():
-            process_tracks([track], mock_rekordbox, mock_processor)
+            process_tracks(mock_collection, mock_rekordbox, mock_processor)
 
         # Verify save_changes was called (but returned 0)
         mock_rekordbox.save_changes.assert_called_once()
@@ -304,7 +302,6 @@ class TestProcessTracks:
 
     def test_process_tracks_update_failure(self):
         """Test track processing when update fails."""
-        original_track = create_sample_track()
         # enhanced_track not used since we're testing in-place modification
 
         # Setup mocks
@@ -313,13 +310,14 @@ class TestProcessTracks:
 
         mock_rekordbox.save_changes.return_value = 0  # No tracks saved due to failure
 
+        # Create mock collection
+        mock_collection = create_collection(tracks=[create_track()])
+
         with silence_click_echo():
-            process_tracks([original_track], mock_rekordbox, mock_processor)
+            process_tracks(mock_collection, mock_rekordbox, mock_processor)
 
     def test_process_tracks_save_failure(self):
         """Test track processing when save fails."""
-        original_track = create_sample_track()
-        # enhanced_track not used since we're testing in-place modification
 
         # Setup mocks
         mock_rekordbox = MagicMock()
@@ -327,44 +325,47 @@ class TestProcessTracks:
 
         mock_rekordbox.save_changes.return_value = 0  # Save returns 0 (no tracks saved)
 
+        # Create mock collection
+        mock_collection = create_collection(tracks=[create_track()])
+
         with silence_click_echo():
-            process_tracks([original_track], mock_rekordbox, mock_processor)
+            process_tracks(mock_collection, mock_rekordbox, mock_processor)
 
     def test_process_tracks_dry_run_with_changes(self):
         """Test track processing in dry-run mode with changes."""
-        from fortherekord.models import Track
 
-        original_track = Track(id="1", title="Test Song", artist="Test Artist", key="Am")
-
-        # Setup mocks
+        # Setup mocks - in dry run mode, save_changes should NOT be called
         mock_rekordbox = Mock()
         mock_processor = Mock()
 
-        mock_rekordbox.save_changes.return_value = 1  # Would modify 1 track
+        # Create mock collection with tracks that have changes
+        track_with_changes = create_track()
+        mock_collection = create_collection(tracks=[track_with_changes])
+        # Ensure get_changed_tracks returns the track (indicating it has changes)
+        mock_collection.get_changed_tracks = Mock(return_value=[track_with_changes])
 
         with silence_click_echo():
-            process_tracks([original_track], mock_rekordbox, mock_processor, dry_run=True)
+            process_tracks(mock_collection, mock_rekordbox, mock_processor, dry_run=True)
 
-        # Verify save_changes called with dry_run=True
-        mock_rekordbox.save_changes.assert_called_once_with([original_track], dry_run=True)
+        # Verify save_changes was NOT called in dry-run mode
+        mock_rekordbox.save_changes.assert_not_called()
 
     def test_process_tracks_dry_run_no_changes(self):
-        """Test track processing in dry-run mode with no changes."""
-        from fortherekord.models import Track
-
-        track = Track(id="1", title="Test Song - Test Artist [Am]", artist="Test Artist", key="Am")
-
+        """Test track processing in dry-run mode when no changes are needed."""
         # Setup mocks
         mock_rekordbox = Mock()
         mock_processor = Mock()
 
-        mock_rekordbox.save_changes.return_value = 0  # No changes needed
+        # Create a mock collection with no changed tracks
+        mock_collection = create_collection(tracks=[create_track()])
+        # Override get_changed_tracks to return empty list (no changes)
+        mock_collection.get_changed_tracks = Mock(return_value=[])
 
         with silence_click_echo():
-            process_tracks([track], mock_rekordbox, mock_processor, dry_run=True)
+            process_tracks(mock_collection, mock_rekordbox, mock_processor, dry_run=True)
 
-        # Verify save_changes called with dry_run=True
-        mock_rekordbox.save_changes.assert_called_once_with([track], dry_run=True)
+        # Verify save_changes was NOT called in dry-run mode
+        mock_rekordbox.save_changes.assert_not_called()
 
 
 class TestCLIIntegration:
@@ -429,7 +430,9 @@ class TestCLIIntegration:
         mock_load_config.return_value = {"rekordbox": {"library_path": "/test/db.edb"}}
         mock_load_library.return_value = Mock()
         mock_init_processor.return_value = Mock()
-        mock_get_collection.return_value = (Mock(), [])  # No tracks found
+        mock_collection = Mock()
+        mock_collection.get_all_tracks = Mock(return_value=[])  # No tracks found
+        mock_get_collection.return_value = mock_collection
 
         result = run_cli_command([])
         assert result.exit_code == 0
@@ -455,15 +458,16 @@ class TestCLIIntegration:
         mock_processor = Mock()
         mock_tracks = [Mock(), Mock()]  # Some tracks to process
         mock_collection = Mock()
+        mock_collection.get_all_tracks = Mock(return_value=mock_tracks)
 
         mock_load_library.return_value = mock_rekordbox
         mock_init_processor.return_value = mock_processor
-        mock_get_collection.return_value = (mock_collection, mock_tracks)
+        mock_get_collection.return_value = mock_collection
 
         result = run_cli_command([])
         assert result.exit_code == 0
         mock_process_tracks.assert_called_once_with(
-            mock_tracks, mock_rekordbox, mock_processor, False
+            mock_collection, mock_rekordbox, mock_processor, False
         )
 
     @patch("fortherekord.main.load_config")
@@ -508,13 +512,13 @@ class TestCLIIntegration:
         mock_rekordbox = Mock()
 
         # Create mock playlists with proper attributes
-        sample_track = create_sample_track()
+        sample_track = create_track()
         mock_playlist1 = create_mock_playlist("Test Playlist 1", [])
         mock_playlist2 = create_mock_playlist("Test Playlist 2", [sample_track])
-        mock_collection = create_mock_collection([mock_playlist1, mock_playlist2])
+        mock_collection = create_collection(playlists=[mock_playlist1, mock_playlist2])
 
         # Need to provide tracks for the CLI to continue to Spotify sync
-        mock_get_collection.return_value = (mock_collection, [sample_track])
+        mock_get_collection.return_value = mock_collection
 
         mock_load_library.return_value = mock_rekordbox
 
@@ -538,7 +542,7 @@ class TestCLIIntegration:
 
         # Verify process_tracks was called with dry_run=False
         mock_process_tracks.assert_called_once_with(
-            [sample_track], mock_rekordbox, mock_initialize_processor.return_value, False
+            mock_collection, mock_rekordbox, mock_initialize_processor.return_value, False
         )
 
         # Check output messages
@@ -549,12 +553,14 @@ class TestCLIIntegration:
     @patch("fortherekord.main.load_config")
     @patch("fortherekord.main.load_library")
     @patch("fortherekord.main.SpotifyLibrary")
+    @patch("fortherekord.main.get_collection_to_process")
     @patch("fortherekord.main.initialize_processor")
     @patch("fortherekord.main.process_tracks")
     def test_cli_spotify_auth_failure(
         self,
         mock_process_tracks,
         mock_initialize_processor,
+        mock_get_collection,
         mock_spotify_class,
         mock_load_library,
         mock_load_config,
@@ -571,16 +577,15 @@ class TestCLIIntegration:
 
         # Mock successful library loading
         mock_rekordbox = Mock()
+        mock_load_library.return_value = mock_rekordbox
 
         # Create a sample track so Spotify sync is attempted
-        sample_track = create_sample_track()
+        sample_track = create_track()
         mock_playlist = create_mock_playlist("Test Playlist", [sample_track])
-        mock_collection = create_mock_collection([mock_playlist])
-        mock_rekordbox.get_collection.return_value = mock_collection
+        mock_collection = create_collection(playlists=[mock_playlist])
 
-        # Mock empty tracks so metadata processing is skipped
-        mock_rekordbox.get_all_tracks.return_value = []
-        mock_load_library.return_value = mock_rekordbox
+        # Mock get_collection_to_process to return collection
+        mock_get_collection.return_value = mock_collection
 
         # Mock Spotify authentication failure
         mock_spotify_class.side_effect = ValueError("Invalid credentials")
@@ -623,10 +628,10 @@ class TestCLIIntegration:
         mock_load_library.return_value = mock_rekordbox
 
         # Mock collection and tracks
-        sample_track = create_sample_track()
+        sample_track = create_track()
         mock_playlist = create_mock_playlist("Test Playlist", [sample_track])
-        mock_collection = create_mock_collection([mock_playlist])
-        mock_get_collection.return_value = (mock_collection, [sample_track])
+        mock_collection = create_collection(playlists=[mock_playlist])
+        mock_get_collection.return_value = mock_collection
 
         # Mock Spotify
         mock_spotify = Mock()
@@ -643,7 +648,7 @@ class TestCLIIntegration:
 
         # Verify dry_run=True was passed to the right functions
         mock_process_tracks.assert_called_once_with(
-            [sample_track], mock_rekordbox, mock_initialize_processor.return_value, True
+            mock_collection, mock_rekordbox, mock_initialize_processor.return_value, True
         )
         mock_sync_service.sync_collection.assert_called_once_with(mock_collection, dry_run=True)
 
@@ -681,10 +686,10 @@ class TestCLIIntegration:
         mock_load_library.return_value = mock_rekordbox
 
         # Mock collection with tracks
-        sample_track = create_sample_track()
+        sample_track = create_track()
         mock_playlist = create_mock_playlist("Test Playlist", [sample_track])
-        mock_collection = create_mock_collection([mock_playlist])
-        mock_get_collection.return_value = (mock_collection, [sample_track])
+        mock_collection = create_collection(playlists=[mock_playlist])
+        mock_get_collection.return_value = mock_collection
 
         # Mock processor as disabled (returns None)
         mock_initialize_processor.return_value = None

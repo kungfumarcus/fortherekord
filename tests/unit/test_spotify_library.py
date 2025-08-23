@@ -8,7 +8,7 @@ import pytest
 from unittest.mock import Mock, patch
 
 from fortherekord.spotify_library import SpotifyLibrary
-from fortherekord.models import Track
+from .conftest import create_track
 
 
 class TestSpotifyLibrary:
@@ -185,8 +185,8 @@ class TestSpotifyLibrary:
         ]
 
         tracks = [
-            Track(id="1", title="Song 1", artist="Artist 1"),
-            Track(id="2", title="Song 2", artist="Artist 2"),
+            create_track(track_id="1", title="Song 1", artist="Artist 1"),
+            create_track(track_id="2", title="Song 2", artist="Artist 2"),
         ]
 
         playlist_id = client.create_playlist("New Playlist", tracks)
@@ -394,9 +394,9 @@ class TestSpotifyLibraryErrorConditions:
         client.get_playlists = Mock(return_value=[mock_playlist])
 
         # Mock tracks from playlist
-        from fortherekord.models import Track
-
-        mock_track = Track(id="track1", title="Test Song", artist="Test Artist", key="Am")
+        mock_track = create_track(
+            track_id="track1", title="Test Song", artist="Test Artist", key="Am"
+        )
         client.get_playlist_tracks = Mock(return_value=[mock_track])
 
         tracks = client.get_tracks_from_playlists()

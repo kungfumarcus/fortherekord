@@ -5,7 +5,8 @@ Tests the common utility functions provided by the MusicLibrary base class.
 """
 
 from fortherekord.music_library import MusicLibrary
-from fortherekord.models import Track, Playlist, Collection
+from fortherekord.models import Playlist, Collection
+from .conftest import create_track
 
 
 class TestMusicLibrary:
@@ -28,9 +29,9 @@ class TestMusicLibrary:
 
     def test_deduplicate_tracks(self):
         """Test track deduplication."""
-        track1 = Track(id="1", title="Song 1", artist="Artist 1")
-        track2 = Track(id="2", title="Song 2", artist="Artist 2")
-        track3 = Track(id="1", title="Song 1", artist="Artist 1")  # Duplicate
+        track1 = create_track(track_id="1", title="Song 1", artist="Artist 1")
+        track2 = create_track(track_id="2", title="Song 2", artist="Artist 2")
+        track3 = create_track(track_id="1", title="Song 1", artist="Artist 1")  # Duplicate
 
         tracks = [track1, track2, track3]
         result = self.library.deduplicate_tracks(tracks)
@@ -71,7 +72,7 @@ class TestMusicLibrary:
 
     def test_filter_empty_playlists(self):
         """Test filtering out empty playlists."""
-        track = Track(id="1", title="Song", artist="Artist")
+        track = create_track(track_id="1", title="Song", artist="Artist")
 
         playlist_with_tracks = Playlist(id="1", name="Has Tracks", tracks=[track])
         empty_playlist = Playlist(id="2", name="Empty", tracks=[])
@@ -84,9 +85,9 @@ class TestMusicLibrary:
 
     def test_get_all_tracks_from_playlists(self):
         """Test extracting all tracks from playlists with deduplication."""
-        track1 = Track(id="1", title="Song 1", artist="Artist 1")
-        track2 = Track(id="2", title="Song 2", artist="Artist 2")
-        track3 = Track(id="1", title="Song 1", artist="Artist 1")  # Duplicate
+        track1 = create_track(track_id="1", title="Song 1", artist="Artist 1")
+        track2 = create_track(track_id="2", title="Song 2", artist="Artist 2")
+        track3 = create_track(track_id="1", title="Song 1", artist="Artist 1")  # Duplicate
 
         playlist1 = Playlist(id="1", name="Playlist 1", tracks=[track1, track2])
         playlist2 = Playlist(id="2", name="Playlist 2", tracks=[track3])

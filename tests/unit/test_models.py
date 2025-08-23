@@ -7,7 +7,8 @@ Tests the core data structures including playlist hierarchy display.
 import io
 from unittest.mock import patch
 
-from fortherekord.models import Collection, Playlist, Track
+from fortherekord.models import Collection, Playlist
+from .conftest import create_track
 
 
 class TestPlaylistDisplayTree:
@@ -56,9 +57,9 @@ class TestCollection:
         track2 = (
             sample_tracks[1]
             if len(sample_tracks) > 1
-            else Track(id="track2", title="Song 2", artist="Artist 2")
+            else create_track(track_id="track2", title="Song 2", artist="Artist 2")
         )
-        track3 = Track(id="track3", title="Song 3", artist="Artist 3")
+        track3 = create_track(track_id="track3", title="Song 3", artist="Artist 3")
 
         # Create playlists with overlapping tracks
         playlist1 = Playlist(id="playlist1", name="Playlist 1", tracks=[track1, track2])

@@ -10,6 +10,7 @@ import click
 
 from fortherekord import __version__
 from .config import load_config as config_load_config, create_default_config, get_config_path
+from .models import Collection
 from .music_library import MusicLibrary
 from .playlist_sync import PlaylistSyncService
 from .rekordbox_library import RekordboxLibrary
@@ -61,7 +62,7 @@ def load_library(config: Dict[str, Any], dry_run: bool = False) -> RekordboxLibr
     return rekordbox
 
 
-def initialize_processor(config: dict, tracks: list) -> Optional[MusicLibraryProcessor]:
+def initialize_processor(config: dict) -> Optional[MusicLibraryProcessor]:
     """Create music library processor and set original values on tracks."""
     processor = MusicLibraryProcessor(config)
 
@@ -78,30 +79,41 @@ def initialize_processor(config: dict, tracks: list) -> Optional[MusicLibraryPro
         click.echo("  remove_artists_in_title: true")
         return None
 
-    # Process tracks to extract original values from enhanced titles
-    processor.extract_original_metadata(tracks)
-
     return processor
 
 
-def get_collection_to_process(rekordbox: RekordboxLibrary) -> tuple:
+def get_collection_to_process(rekordbox: RekordboxLibrary) -> Collection:
     """Get collection to process and display playlist hierarchy."""
-    # The rekordbox library already has the config, no need to pass it again
-    collection = rekordbox.get_collection()
+    # Use get_filtered_collection to apply ignore_playlists filtering
+    collection = rekordbox.get_filtered_collection()
 
     # Get all tracks from the collection (automatically deduplicated)
     tracks = collection.get_all_tracks()
 
+    # Count all playlists recursively (excluding folders)
+    def count_non_folder_playlists(playlists: list) -> int:
+        count = 0
+        for playlist in playlists:
+            # Count this playlist if it has tracks (not a folder)
+            if len(playlist.tracks) > 0:
+                count += 1
+            # Recursively count children
+            if playlist.children:
+                count += count_non_folder_playlists(playlist.children)
+        return count
+
+    total_playlists = count_non_folder_playlists(collection.playlists)
+
     # Display summary with counts
-    print(f"Loaded {len(collection.playlists)} playlists with {len(tracks)} tracks:")
+    print(f"Loaded {total_playlists} playlists with {len(tracks)} tracks:")
     for playlist in collection.playlists:
         playlist.display_tree(1)
 
-    return collection, tracks
+    return collection
 
 
 def process_tracks(
-    tracks: list,
+    collection: Collection,
     music_library: MusicLibrary,
     processor: MusicLibraryProcessor,
     dry_run: bool = False,
@@ -116,6 +128,9 @@ def process_tracks(
         click.echo()
         click.echo("Updating track metadata...")
 
+    # Get all tracks from the collection
+    tracks = collection.get_all_tracks()
+
     # Process each track to enhance titles (modifies tracks in-place)
     click.echo()
     for track in tracks:
@@ -126,19 +141,23 @@ def process_tracks(
     click.echo("Checking for duplicates...")
     processor.check_for_duplicates(tracks)
 
+    # Get tracks that actually have changes
+    changed_tracks = collection.get_changed_tracks()
+
     # Save changes and get actual count of modified tracks
     click.echo()
     if dry_run:
         click.echo("Would save changes to database...")
-        # Count how many tracks would be modified using dry_run mode
-        modified_count = music_library.save_changes(tracks, dry_run=True)
+        # Count how many tracks would be modified without calling save_changes
+        modified_count = len(changed_tracks)
         if modified_count > 0:
             click.echo(f"Would update {modified_count} tracks")
         else:
             click.echo("No changes needed")
     else:
         click.echo("Saving changes to database...")
-        saved_count = music_library.save_changes(tracks, dry_run=False)
+        # Only save tracks that actually have changes
+        saved_count = music_library.save_changes(changed_tracks)
         if saved_count > 0:
             click.echo(f"Successfully updated {saved_count} tracks")
         else:
@@ -161,17 +180,19 @@ def cli(dry_run: bool) -> None:  # pylint: disable=too-many-return-statements
     try:
         rekordbox = load_library(config, dry_run)
 
-        collection, tracks = get_collection_to_process(rekordbox)
-        if not tracks:
+        collection = get_collection_to_process(rekordbox)
+
+        # Check if there are any tracks to process
+        if not collection.get_all_tracks():
             click.echo("No tracks found to process")
             return
 
         processor_config = config.get("processor", {})
-        processor = initialize_processor(processor_config, tracks)
+        processor = initialize_processor(processor_config)
 
         # Only process tracks if processor is enabled
         if processor is not None:
-            process_tracks(tracks, rekordbox, processor, dry_run)
+            process_tracks(collection, rekordbox, processor, dry_run)
         else:
             click.echo("Skipping track processing (processor is disabled)")
             click.echo("No changes needed")

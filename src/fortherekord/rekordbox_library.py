@@ -5,7 +5,6 @@ Handles loading and processing of Rekordbox database files usi        return Tra
             id=str(content.ID),
             title=current_title,
             artist=current_artist,
-            duration_ms=int(content.Length * 1000) if content.Length else None,
             key=content.Key,
             original_title=current_title,  # Will be set properly by processor
             original_artist=current_artist,  # Will be set properly by processor
@@ -112,22 +111,77 @@ class RekordboxLibrary(MusicLibrary):
         Returns:
             Track object
         """
-        current_title = content.Title or "Unknown Title"
-        current_artist = content.Artist.Name if content.Artist else "Unknown Artist"
+        current_title = content.Title or ""
+        current_artist = content.Artist.Name if content.Artist else ""
 
         return Track(
             id=str(content.ID),
             title=current_title,
             artist=current_artist,
-            duration_ms=int(content.Length * 1000) if content.Length else None,
+            original_title=current_title,  # Set to actual database value
+            original_artist=current_artist,  # Set to actual database value
             key=(
                 content.Key.ScaleName
                 if hasattr(content.Key, "ScaleName") and content.Key
                 else (content.Key if isinstance(content.Key, str) else None)
             ),
-            original_title=current_title,  # Will be set properly by processor
-            original_artist=current_artist,  # Will be set properly by processor
         )
+
+    def _get_playlist_tracks(
+        self, rb_playlist: Any, db: Any, track_map: dict[str, Track]
+    ) -> List[Track]:
+        """
+        Get tracks for a playlist, handling both regular and smart playlists.
+
+        Args:
+            rb_playlist: Rekordbox playlist object
+            db: Database connection
+            track_map: Dictionary to store and reuse track objects
+
+        Returns:
+            List of Track objects for the playlist
+        """
+        tracks = []
+
+        # Check if this is a playlist folder (Attribute: 0=playlist, 1=folder, 4=smart playlist)
+        if rb_playlist.Attribute != 1:
+            # Use get_playlist_contents which works for both regular and smart playlists
+            try:
+                playlist_contents = db.get_playlist_contents(rb_playlist).all()
+                for content in playlist_contents:
+                    track_id = str(content.ID)
+
+                    # Check if track is already in the hash
+                    if track_id in track_map:
+                        # Reuse existing track object
+                        track = track_map[track_id]
+                    else:
+                        # Create new track and add to hash
+                        track = self._create_track_from_content(content)
+                        track_map[track_id] = track
+
+                    tracks.append(track)
+            except AttributeError as e:
+                # Known pyrekordbox bug with smart playlists using month-based date filters
+                # See: https://github.com/dylanljones/pyrekordbox/issues/131
+                if "month" in str(e) and "StockDate" in str(e):
+                    print(
+                        f"WARNING: Smart playlist '{rb_playlist.Name}' uses "
+                        "month-based date filters which have a bug in pyrekordbox."
+                    )
+                    print(
+                        "Workaround: Change the smart playlist to use 'week' "
+                        "instead of 'month' in the date filter."
+                    )
+                    print(
+                        "This playlist will be skipped until the bug is fixed "
+                        "or the playlist is updated."
+                    )
+                else:
+                    # Re-raise if it's a different AttributeError
+                    raise
+
+        return tracks
 
     def get_collection(self) -> Collection:
         """
@@ -149,28 +203,7 @@ class RekordboxLibrary(MusicLibrary):
         # First pass: Create all playlist objects and store sequence numbers
         for rb_playlist in db.get_playlist():
             # Get track list for this playlist
-            tracks = []
-
-            # Use get_playlist_contents which works for both regular and smart playlists
-            try:
-                playlist_contents = db.get_playlist_contents(rb_playlist).all()
-                for content in playlist_contents:
-                    track_id = str(content.ID)
-
-                    # Check if track is already in the hash
-                    if track_id in track_map:
-                        # Reuse existing track object
-                        track = track_map[track_id]
-                    else:
-                        # Create new track and add to hash
-                        track = self._create_track_from_content(content)
-                        track_map[track_id] = track
-
-                    tracks.append(track)
-            except (AttributeError, KeyError, TypeError):
-                # If get_playlist_contents fails, fall back to empty list
-                # This handles edge cases where the playlist might be corrupted
-                pass
+            tracks = self._get_playlist_tracks(rb_playlist, db, track_map)
 
             # Create playlist object with parent_id
             playlist = Playlist(
@@ -263,50 +296,29 @@ class RekordboxLibrary(MusicLibrary):
 
         return True
 
-    def save_changes(
-        self, tracks: list[Track], dry_run: bool = False
-    ) -> int:  # pylint: disable=too-many-locals
+    def save_changes(self, tracks: list[Track]) -> int:
         """
-        Count how many tracks actually have different values and save only if there are changes.
+        Save changes for the provided tracks to the database.
 
         Args:
-            tracks: List of Track objects to check and save
-            dry_run: If True, only count changes without making them
+            tracks: List of Track objects to save (should only include changed tracks)
 
         Returns:
-            Number of tracks that actually had different values
+            Number of tracks that were successfully updated
         """
-        # Count tracks that actually have different values
+        # All provided tracks are assumed to have changes, so just update them
         modified_count = 0
 
-        # Compare current values with original values for provided tracks
         for track in tracks:
-            # Use the original values stored on the Track object
-            current_title = track.title or ""
-            current_artist = track.artist or ""
-
-            original_title = track.original_title or ""
-            original_artist = track.original_artist or ""
-
-            # Check if either title or artist has changed
-            if current_title != original_title or current_artist != original_artist:
-                if dry_run:
-                    # In dry-run mode, just count the change without making it
-                    modified_count += 1
-                else:
-                    # Update the track in the database
-                    success = self.update_track_metadata(track.id, current_title, current_artist)
-                    if success:
-                        modified_count += 1
-                    else:
-                        print(f"WARNING: Failed to update track {track.id}: {current_title}")
+            # Update the track in the database
+            success = self.update_track_metadata(track.id, track.title, track.artist)
+            if success:
+                modified_count += 1
+            else:
+                print(f"WARNING: Failed to update track {track.id}: {track.title}")
 
         # Check if we're in test mode
         test_mode = os.getenv("FORTHEREKORD_TEST_MODE", "").lower() in ("1", "true", "yes")
-
-        if dry_run:
-            # In dry-run mode, don't commit anything
-            return modified_count
 
         if test_mode:
             # In test mode, dump changes to a file instead of committing

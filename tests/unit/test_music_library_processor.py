@@ -5,8 +5,7 @@ Tests the MusicLibraryProcessor class for title enhancement and processing.
 """
 
 from fortherekord.music_library_processor import MusicLibraryProcessor
-from fortherekord.models import Track
-from .conftest import create_sample_track
+from .conftest import create_track
 
 
 class TestMusicLibraryProcessor:
@@ -55,7 +54,7 @@ class TestMusicLibraryProcessor:
     def test_process_track_extract_artist_from_title(self, default_processor_config):
         """Test extracting artist from title when artist field is empty."""
         processor = MusicLibraryProcessor(default_processor_config)
-        track = create_sample_track(title="Test Song - Test Artist", artist="")
+        track = create_track(title="Test Song - Test Artist", artist="")
         processor.process_track(track)
         assert track.title == "Test Song - Test Artist [Am]"
         assert track.artist == "Test Artist"
@@ -74,25 +73,23 @@ class TestMusicLibraryProcessor:
         processor = MusicLibraryProcessor(config)
 
         # Test removal of original mix
-        track1 = create_sample_track(title="Test Song (Original Mix)")
+        track1 = create_track(title="Test Song (Original Mix)")
         processor.process_track(track1)
         assert track1.title == "Test Song - Test Artist [Am]"
 
         # Test replacement mapping
-        track2 = create_sample_track(title="Test Song (Extended Mix)")
+        track2 = create_track(title="Test Song (Extended Mix)")
         processor.process_track(track2)
         assert track2.title == "Test Song (ext) - Test Artist [Am]"
 
         # Test replacement in both title and artist
-        track3 = create_sample_track(
-            title="Song feat. Someone", artist="Artist feat. Other", key="Dm"
-        )
+        track3 = create_track(title="Song feat. Someone", artist="Artist feat. Other", key="Dm")
         processor.process_track(track3)
         assert "ft." in track3.title and "ft." in track3.artist
         assert "feat." not in track3.title and "feat." not in track3.artist
 
         # Test null replacement (removal)
-        track4 = create_sample_track(title="Song remove_me Test")
+        track4 = create_track(title="Song remove_me Test")
         processor.process_track(track4)
         assert "remove_me" not in track4.title
         assert "Song  Test - Test Artist [Am]" == track4.title
@@ -105,7 +102,7 @@ class TestMusicLibraryProcessor:
     def test_process_track_remove_existing_key(self, default_processor_config):
         """Test removing existing key from title."""
         processor = MusicLibraryProcessor(default_processor_config)
-        track = create_sample_track(title="Test Song [Dm]")
+        track = create_track(title="Test Song [Dm]")
         processor.process_track(track)
         assert track.title == "Test Song - Test Artist [Am]"
 
@@ -113,7 +110,9 @@ class TestMusicLibraryProcessor:
         """Test whitespace cleanup in title and artist."""
         processor = MusicLibraryProcessor(default_processor_config)
 
-        track = Track(id="1", title="  Test   Song  ", artist="  Test   Artist  ", key="Am")
+        track = create_track(
+            track_id="1", title="  Test   Song  ", artist="  Test   Artist  ", key="Am"
+        )
 
         processor.process_track(track)
         assert track.title == "Test Song - Test Artist [Am]"
@@ -125,8 +124,8 @@ class TestMusicLibraryProcessor:
         processor = MusicLibraryProcessor(config)
 
         tracks = [
-            create_sample_track(track_id="1", title="Song 1", artist="Artist 1", key=None),
-            create_sample_track(track_id="2", title="Song 2", artist="Artist 2", key=None),
+            create_track(track_id="1", title="Song 1", artist="Artist 1", key=None),
+            create_track(track_id="2", title="Song 2", artist="Artist 2", key=None),
         ]
 
         # Should not raise any warnings
@@ -137,67 +136,13 @@ class TestMusicLibraryProcessor:
         processor = MusicLibraryProcessor(default_processor_config)
 
         tracks = [
-            create_sample_track(track_id="1", title="Same Song", artist="Artist 1", key=None),
-            create_sample_track(track_id="2", title="Same Song", artist="Artist 1", key=None),
+            create_track(track_id="1", title="Same Song", artist="Artist 1", key=None),
+            create_track(track_id="2", title="Same Song", artist="Artist 1", key=None),
         ]
 
         processor.check_for_duplicates(tracks)
         captured = capsys.readouterr()
         assert "WARNING: Duplicate track found: Same Song" in captured.out
-
-    def test_extract_original_metadata(self, default_processor_config):
-        """Test extracting original metadata from enhanced titles on track objects."""
-        processor = MusicLibraryProcessor(default_processor_config)
-
-        # Create test tracks with enhanced titles
-        track1 = Track(
-            id="1",
-            title="Test Song - Test Artist [Am]",
-            artist="Test Artist",
-            original_title=None,
-            original_artist=None,
-        )
-        track2 = Track(
-            id="2",
-            title="Another Song - Another Artist",
-            artist="Another Artist",
-            original_title=None,
-            original_artist=None,
-        )
-        track3 = Track(
-            id="3",
-            title="Simple Song",
-            artist="Simple Artist",
-            original_title=None,
-            original_artist=None,
-        )
-        track4 = Track(
-            id="4",
-            title="Original Title - Artist One [Am] - Artist Two [Cm] - Artist Three [Gm]",
-            artist="Artist Three",
-            original_title=None,
-            original_artist=None,
-        )
-
-        tracks = [track1, track2, track3, track4]
-
-        # Process tracks
-        processor.extract_original_metadata(tracks)
-
-        # Check results
-        assert track1.original_title == "Test Song"
-        assert track1.original_artist == "Test Artist"
-
-        assert track2.original_title == "Another Song"
-        assert track2.original_artist == "Another Artist"
-
-        # Track with no enhancement should use current values
-        assert track3.original_title == "Simple Song"
-        assert track3.original_artist == "Simple Artist"
-
-        # Track with multiple artist/key instances should remove all of them
-        assert track4.original_title == "Original Title"
-        assert track4.original_artist == "Artist Three"
 
     def test_remove_duplicate_artists_empty_artist(self, default_processor_config):
         """Test removing duplicates when artist is empty."""
@@ -239,7 +184,9 @@ class TestMusicLibraryProcessor:
         processor = MusicLibraryProcessor(default_processor_config)
 
         # Track with title that already ends with " - Artist"
-        track = Track(id="1", title="Song Title - Test Artist", artist="Test Artist", key="Cm")
+        track = create_track(
+            track_id="1", title="Song Title - Test Artist", artist="Test Artist", key="Cm"
+        )
 
         processor.process_track(track)
 
@@ -251,7 +198,7 @@ class TestMusicLibraryProcessor:
         config = default_processor_config
         config["replace_in_title"] = [{"from": "Old Artist", "to": "New Artist"}]
         processor = MusicLibraryProcessor(config)
-        track = create_sample_track(title="Song Title", artist="Old Artist", key="Cm")
+        track = create_track(title="Song Title", artist="Old Artist", key="Cm")
 
         processor.process_track(track)
 
@@ -264,9 +211,7 @@ class TestMusicLibraryProcessor:
     def test_process_track_output_no_changes(self, default_processor_config, capsys):
         """Test no output when no changes are made."""
         processor = MusicLibraryProcessor(default_processor_config)
-        track = create_sample_track(
-            title="Song Title - Test Artist [Cm]", artist="Test Artist", key="Cm"
-        )
+        track = create_track(title="Song Title - Test Artist [Cm]", artist="Test Artist", key="Cm")
         # The helper already sets original values to match current values
 
         processor.process_track(track)
@@ -312,7 +257,7 @@ class TestMusicLibraryProcessor:
             "remove_artists_in_title": True,
         }
         processor_disabled = MusicLibraryProcessor(config_disabled)
-        sample_track_disabled = create_sample_track()
+        sample_track_disabled = create_track()
         processor_disabled.process_track(sample_track_disabled)
         assert "[Am]" not in sample_track_disabled.title
 
@@ -325,7 +270,7 @@ class TestMusicLibraryProcessor:
             "remove_artists_in_title": True,
         }
         processor_enabled = MusicLibraryProcessor(config_enabled)
-        sample_track_enabled = create_sample_track()
+        sample_track_enabled = create_track()
         processor_enabled.process_track(sample_track_enabled)
         assert "- Test Artist" in sample_track_enabled.title
 
@@ -336,15 +281,15 @@ class TestMusicLibraryProcessor:
             "remove_artists_in_title": True,
         }
         processor_disabled = MusicLibraryProcessor(config_disabled)
-        sample_track_disabled = create_sample_track()
+        sample_track_disabled = create_track()
         processor_disabled.process_track(sample_track_disabled)
         assert "- Test Artist" not in sample_track_disabled.title
 
     def test_remove_artists_in_title_flag(self):
         """Test remove_artists_in_title flag controls whether duplicate artists are removed."""
         # Create a track where artist appears in title
-        track = Track(
-            id="test_id",
+        track = create_track(
+            track_id="test_id",
             title="Party (Subsonic mix) - Dazza, Subsonic",
             artist="Dazza, Subsonic",
             key="Am",
@@ -369,8 +314,8 @@ class TestMusicLibraryProcessor:
             "remove_artists_in_title": False,
         }
         processor_disabled = MusicLibraryProcessor(config_disabled)
-        track_disabled = Track(
-            id="test_id",
+        track_disabled = create_track(
+            track_id="test_id",
             title="Party (Subsonic mix) - Dazza, Subsonic",
             artist="Dazza, Subsonic",
             key="Am",

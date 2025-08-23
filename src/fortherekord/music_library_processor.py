@@ -37,48 +37,40 @@ class MusicLibraryProcessor:
             # No enhancements configured, return without changes
             return
 
-        # Start with original values
-        original_title = track.title.strip() if track.title else ""
-        original_artist = track.artist.strip() if track.artist else ""
+        # Start with original values (extracted from enhanced titles)
 
-        title = original_title
-        artist = original_artist
         key = track.key
 
         # Clean up whitespace
-        title = re.sub(r"\s+", " ", title)
-        if artist:
-            artist = re.sub(r"\s+", " ", artist)
+        track.title = re.sub(r"\s+", " ", track.title).strip()
+        if track.artist:
+            track.artist = re.sub(r"\s+", " ", track.artist).strip()
 
         # Remove existing key suffix if present
-        title = re.sub(r"\s\[..?.?\]$", "", title)
+        track.title = re.sub(r"\s\[..?.?\]$", "", track.title)
 
         # Extract artist from title if artist field is empty
-        if not artist and " - " in title:
-            title_parts = title.split(" - ")
+        if not track.artist and " - " in track.title:
+            title_parts = track.title.split(" - ")
             if len(title_parts) >= 2:
-                title = title_parts[0].strip()
-                artist = title_parts[1].strip()
+                track.title = title_parts[0].strip()
+                track.artist = title_parts[1].strip()
 
         # Apply configured text replacements
-        title, artist = self._apply_text_replacements(title, artist)
+        track.title, track.artist = self._apply_text_replacements(track.title, track.artist)
 
         # Remove artist suffix if already present in title (do this early)
-        if artist:
-            artist_suffix = f" - {artist}"
-            if title.endswith(artist_suffix):
-                title = title[: -len(artist_suffix)]
+        if track.artist:
+            artist_suffix = f" - {track.artist}"
+            if track.title.endswith(artist_suffix):
+                track.title = track.title[: -len(artist_suffix)]
 
         # Remove duplicate artists from title (only if enabled)
-        if artist and self.remove_artists_in_title:
-            artist = self._remove_duplicate_artists(title, artist)
+        if track.artist and self.remove_artists_in_title:
+            track.artist = self._remove_duplicate_artists(track.title, track.artist)
 
         # Build enhanced title based on configuration
-        enhanced_title = self._format_enhanced_title(title, artist, key)
-
-        # Modify track in-place with enhanced metadata
-        track.title = enhanced_title
-        track.artist = artist
+        track.title = self._format_enhanced_title(track.title, track.artist, key)
 
         # Print detailed change information
         self._print_track_changes(track)
@@ -100,27 +92,20 @@ class MusicLibraryProcessor:
 
     def _print_track_changes(self, track: Track) -> None:
         """Print detailed information about track changes."""
-        original_title = track.original_title
-        original_artist = track.original_artist
-        new_title = track.title
-        new_artist = track.artist
+        title_changed = track.original_title != track.title
+        artist_changed = track.original_artist != track.artist
 
-        title_changed = original_title != new_title
-        artist_changed = original_artist != new_artist
-
-        if not title_changed and not artist_changed:
-            return  # No changes, don't print anything
-
-        if title_changed and artist_changed:
-            print(
-                f"Updating title '{original_title}' to '{new_title}' "
-                f"and artist '{original_artist}' to '{new_artist}'"
-            )
-        elif title_changed:
-            print(f"Updating title '{original_title}' to '{new_title}'")
-        # Note: Artist-only changes are currently not possible due to title enhancement logic
-        # elif artist_changed:
-        #     print(f"Updating '{original_title}' artist '{original_artist}' to '{new_artist}'")
+        if title_changed or artist_changed:
+            if title_changed and artist_changed:
+                print(
+                    f"Updating title '{track.original_title}' to '{track.title}' "
+                    f"and artist '{track.original_artist}' to '{track.artist}'"
+                )
+            elif title_changed:
+                print(f"Updating title '{track.original_title}' to '{track.title}'")
+            # Note: Artist-only changes are currently not possible due to title enhancement logic
+            # elif artist_changed:
+            #     print(f"Updating '{original_title}' artist '{original_artist}' to '{new_artist}'")
 
     def _remove_duplicate_artists(self, title: str, artist: str) -> str:
         """Remove artist names that appear in title, keeping remaining artists."""
@@ -158,42 +143,6 @@ class MusicLibraryProcessor:
             enhanced_title = f"{enhanced_title} [{key}]"
 
         return enhanced_title
-
-    def extract_original_metadata(self, tracks: List[Track]) -> None:
-        """
-        Extract original title and artist from enhanced titles and update tracks directly.
-
-        Args:
-            tracks: List of Track objects to process
-        """
-        for track in tracks:
-            title = track.title
-            # Store artist for potential future use
-            _ = track.artist
-
-            # Extract key from brackets
-            key_match = re.search(r"\s\[([^\]]+)\]$", title)
-            if key_match:
-                # Remove key from title (key extraction not implemented yet)
-                title = title[: key_match.start()]
-
-            # Extract artist after last " - "
-            if " - " in title:
-                # Extract the last artist first
-                parts = title.rsplit(" - ", 1)
-                original_artist = parts[1].strip() if len(parts) == 2 else ""
-
-                # Remove all " - artist" patterns to get original title
-                # This handles cases like "Title - Artist1 - Artist2 - Artist3"
-                original_title = re.sub(r"( - [^-]+)+$", "", title)
-
-                # Update the track's original values
-                track.original_title = original_title
-                track.original_artist = original_artist
-            else:
-                # No enhancement detected, use current values as original
-                track.original_title = track.title
-                track.original_artist = track.artist
 
     def check_for_duplicates(self, tracks: List[Track]) -> None:
         """Check for duplicate track titles and print warnings."""

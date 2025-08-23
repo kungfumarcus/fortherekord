@@ -68,41 +68,156 @@ def default_processor_config():
 @pytest.fixture
 def sample_track():
     """Create a sample track for testing."""
-    return create_sample_track()
+    return create_track()
 
 
 @pytest.fixture
 def sample_track_no_key():
     """Create a sample track without key for testing."""
-    return create_sample_track(key=None)
+    return create_track(key=None)
 
 
-def create_sample_track(
+def create_track(
     track_id="1",
     title="Test Song",
     artist="Test Artist",
     key="Am",
+    as_mock=False,
+    original_title=None,
+    original_artist=None,
 ):
-    """Create a sample track with customizable parameters."""
-    track = Track(id=track_id, title=title, artist=artist, key=key)
-    # Set original values for change tracking
-    track.original_title = title
-    track.original_artist = artist
-    return track
+    """
+    Create a track for testing.
+
+    Args:
+        track_id: Track ID (str)
+        title: Track title
+        artist: Artist name (None for missing artist)
+        key: Musical key (default: "Am")
+        as_mock: If True, returns Mock object for pyrekordbox simulation.
+                If False, returns actual Track model object.
+        original_title: Original title (defaults to title if not specified)
+        original_artist: Original artist (defaults to artist if not specified)
+
+    Returns:
+        Track model object or Mock object representing a Rekordbox track
+    """
+    if as_mock:
+        # Create mock object for pyrekordbox database simulation
+        track = Mock()
+        track.ID = int(track_id) if track_id.isdigit() else track_id
+        track.Title = title
+        track.Key = key
+        track.Length = 180.5
+
+        # Only create artist mock if artist is not None
+        if artist is not None:
+            artist_mock = Mock()
+            artist_mock.Name = artist
+            track.Artist = artist_mock
+        else:
+            track.Artist = None
+
+        return track
+    else:
+        # Create actual Track model object
+        track = Track(
+            id=track_id,
+            title=title,
+            artist=artist,
+            original_title=original_title or title,
+            original_artist=original_artist or artist,
+            key=key,
+        )
+        return track
+
+
+def create_playlist(
+    playlist_id="1",
+    name="Test Playlist",
+    tracks=None,
+    parent_id=None,
+    seq=1,
+    as_mock=False,
+):
+    """
+    Create a playlist for testing.
+
+    Args:
+        playlist_id: Playlist ID (str)
+        name: Playlist name
+        tracks: List of tracks (will create empty list if None)
+        parent_id: Parent playlist ID (None for top-level)
+        seq: Sequence number for sorting
+        as_mock: If True, returns Mock object for pyrekordbox simulation.
+                If False, returns actual Playlist model object.
+
+    Returns:
+        Playlist model object or Mock object representing a Rekordbox playlist
+    """
+    if tracks is None:
+        tracks = []
+
+    if as_mock:
+        # Create mock object for pyrekordbox database simulation
+        playlist = Mock()
+        playlist.ID = int(playlist_id) if playlist_id.isdigit() else playlist_id
+        playlist.Name = name
+        playlist.Seq = seq
+
+        # Handle parent relationship
+        if parent_id is not None:
+            parent = Mock()
+            parent.ID = int(parent_id) if parent_id.isdigit() else parent_id
+            playlist.Parent = parent
+        else:
+            playlist.Parent = None
+
+        return playlist
+    else:
+        # Create actual Playlist model object
+        from fortherekord.models import Playlist
+
+        playlist = Playlist(
+            id=playlist_id,
+            name=name,
+            tracks=tracks,
+            parent_id=parent_id,
+        )
+        return playlist
+
+
+def create_collection(playlists: list = None, tracks: list = None):
+    """Helper function to create a mock collection from playlists."""
+    from fortherekord.models import Collection
+
+    if playlists is None:
+        if not (tracks is None):
+            playlists = [create_playlist(tracks=tracks)]
+        else:
+            playlists = []
+
+    # Extract all tracks from playlists and create tracks dictionary for efficient lookup
+    tracks_dict = {}
+    for playlist in playlists:
+        for track in playlist.tracks:
+            tracks_dict[track.id] = track
+
+    return Collection(playlists=playlists, tracks=tracks_dict)
 
 
 @pytest.fixture
 def sample_tracks():
     """Create a list of sample tracks for testing."""
     return [
-        Track(
-            id="1",
+        create_track(
+            track_id="1",
             title="Song 1",
             artist="Artist 1",
             key="Am",
         ),
-        Track(id="2", title="Song 2", artist="Artist 2", key="Dm"),
-        Track(id="3", title="Song 3", artist="Artist 3", key="Gm"),
+        create_track(track_id="2", title="Song 2", artist="Artist 2", key="Dm"),
+        create_track(track_id="3", title="Song 3", artist="Artist 3", key="Gm"),
     ]
 
 
@@ -163,36 +278,6 @@ def mock_metadata_processor():
 # Common Mock Patterns
 
 
-def create_mock_track(track_id, title, artist_name, key="Am"):
-    """
-    Create a mock track object for testing.
-
-    Args:
-        track_id: Track ID (int or str)
-        title: Track title
-        artist_name: Artist name (None for missing artist)
-        key: Musical key (default: "Am")
-
-    Returns:
-        Mock object representing a Rekordbox track
-    """
-    track = Mock()
-    track.ID = track_id
-    track.Title = title
-    track.Key = key
-    track.Length = 180.5
-
-    # Only create artist mock if artist_name is not None
-    if artist_name is not None:
-        artist = Mock()
-        artist.Name = artist_name
-        track.Artist = artist
-    else:
-        track.Artist = None
-
-    return track
-
-
 def create_mock_spotify_search_results(tracks_found=True):
     """
     Create mock Spotify search results.
@@ -207,57 +292,6 @@ def create_mock_spotify_search_results(tracks_found=True):
         return ["spotify_track_1", "spotify_track_2", "spotify_track_3"]
     else:
         return [None, None, None]
-
-
-def create_mock_rekordbox_db():
-    """
-    Create a mock Rekordbox database with common setup.
-
-    Creates 3 playlists:
-    - Playlist 1: 3 tracks (IDs: 123, 456, 789)
-    - Playlist 2: 2 tracks (IDs: 123, 999) - track 123 is shared with playlist 1
-    - Playlist 3: Empty playlist
-    """
-    mock_db = Mock()
-
-    # Create mock tracks using the helper function
-    track_123 = create_mock_track(123, "Shared Song", "Artist A", "Am")
-    track_456 = create_mock_track(456, "Song Two", "Artist B", "Dm")
-    track_789 = create_mock_track(789, "Song Three", "Artist C", "Gm")
-    track_999 = create_mock_track(999, "Song Four", "Artist D", "Em")
-
-    # Create mock playlists
-    playlist_1 = Mock()
-    playlist_1.ID = 1
-    playlist_1.Name = "Test Playlist 1"
-    playlist_1.Parent = None
-    playlist_1.Seq = 1
-
-    playlist_2 = Mock()
-    playlist_2.ID = 2
-    playlist_2.Name = "Test Playlist 2"
-    playlist_2.Parent = None
-    playlist_2.Seq = 2
-
-    playlist_3 = Mock()
-    playlist_3.ID = 3
-    playlist_3.Name = "Empty Playlist"
-    playlist_3.Parent = None
-    playlist_3.Seq = 3
-
-    # Configure playlist contents
-    playlist_contents = {
-        1: [track_123, track_456, track_789],  # 3 tracks
-        2: [track_123, track_999],  # 2 tracks (one shared)
-        3: [],  # Empty
-    }
-
-    mock_db.get_playlist.return_value = [playlist_1, playlist_2, playlist_3]
-    mock_db.get_playlist_contents = lambda playlist: Mock(
-        all=lambda: playlist_contents.get(playlist.ID, [])
-    )
-
-    return mock_db
 
 
 # Test Utilities

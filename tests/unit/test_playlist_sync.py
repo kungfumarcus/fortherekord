@@ -7,8 +7,8 @@ Tests the sync logic between Rekordbox and Spotify.
 from unittest.mock import Mock, patch
 
 from fortherekord.playlist_sync import PlaylistSyncService
-from fortherekord.models import Track, Playlist
-from .conftest import create_sample_track, silence_click_echo
+from fortherekord.models import Playlist
+from .conftest import create_track, silence_click_echo
 
 
 class TestPlaylistSyncService:
@@ -48,8 +48,8 @@ class TestPlaylistSyncService:
 
         # Setup tracks
         tracks = [
-            create_sample_track(track_id="1", title="Found Song", artist="Found Artist"),
-            create_sample_track(track_id="2", title="Lost Song", artist="Lost Artist"),
+            create_track(track_id="1", title="Found Song", artist="Found Artist"),
+            create_track(track_id="2", title="Lost Song", artist="Lost Artist"),
         ]
 
         # Mock search results
@@ -98,8 +98,8 @@ class TestPlaylistSyncService:
 
         # Mock current tracks in playlist
         current_tracks = [
-            Track(id="keep_track", title="Keep", artist="Artist"),
-            Track(id="remove_track", title="Remove", artist="Artist"),
+            create_track(track_id="keep_track", title="Keep", artist="Artist"),
+            create_track(track_id="remove_track", title="Remove", artist="Artist"),
         ]
         spotify.get_playlist_tracks.return_value = current_tracks
 
@@ -295,8 +295,8 @@ class TestPlaylistSyncServiceErrorConditions:
 
         # Setup tracks
         tracks = [
-            create_sample_track("Track 1", "Artist 1"),
-            create_sample_track("Track 2", "Artist 2"),
+            create_track("Track 1", "Artist 1"),
+            create_track("Track 2", "Artist 2"),
         ]
 
         # Mock search results

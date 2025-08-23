@@ -103,7 +103,7 @@ class MusicLibrary(IMusicLibrary, ABC):
         return self.deduplicate_tracks(all_tracks)
 
     @abstractmethod
-    def save_changes(self, tracks: List[Track], dry_run: bool = False) -> int:
+    def save_changes(self, tracks: List[Track]) -> int:
         """
         Save changes to tracks in the music library.
 
