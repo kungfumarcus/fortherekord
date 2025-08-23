@@ -142,30 +142,33 @@ class TestMusicLibraryProcessor:
         captured = capsys.readouterr()
         assert "WARNING: Duplicate track found: Same Song" in captured.out
 
-    def test_get_artists_not_in_title_empty_artist(self, default_processor_config):
-        """Test removing duplicates when artists is empty."""
+    def test_split_artists_by_title_empty_artist(self, default_processor_config):
+        """Test splitting artists when artists is empty."""
         processor = MusicLibraryProcessor(default_processor_config)
 
-        result = processor._get_artists_not_in_title("Test Song", "")
-        assert result == ""
+        not_in_title, in_title = processor._split_artists_by_title("Test Song", "")
+        assert not_in_title == ""
+        assert in_title == ""
 
-    def test_get_artists_not_in_title_no_removal_when_no_retained(self, default_processor_config):
+    def test_split_artists_by_title_no_removal_when_no_retained(self, default_processor_config):
         """Test no removal when all artists would be removed."""
         config = {}
         processor = MusicLibraryProcessor(config)
 
         # Artist appears in title, but no other artists to retain
-        result = processor._get_artists_not_in_title("Test Song by Artist", "Artist")
-        assert result == "Artist"  # Should keep original since no retained artists
+        not_in_title, in_title = processor._split_artists_by_title("Test Song by Artist", "Artist")
+        assert not_in_title == "Artist"  # Should keep original since no retained artists
+        assert in_title == "Artist"
 
-    def test_get_artists_not_in_title_partial_removal(self, default_processor_config):
+    def test_split_artists_by_title_partial_removal(self, default_processor_config):
         """Test partial removal when some artists are duplicated."""
         config = {}
         processor = MusicLibraryProcessor(config)
 
         # Mix of duplicated and unique artists
-        result = processor._get_artists_not_in_title("Test Song by Artist1", "Artist1, Artist2")
-        assert result == "Artist2"  # Should remove Artist1, keep Artist2
+        not_in_title, in_title = processor._split_artists_by_title("Test Song by Artist1", "Artist1, Artist2")
+        assert not_in_title == "Artist2"  # Should remove Artist1, keep Artist2
+        assert in_title == "Artist1"
 
     def test_process_track_remove_artist_suffix(self, default_processor_config):
         """Test removal of artists suffix when already present in title."""

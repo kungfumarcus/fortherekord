@@ -43,22 +43,13 @@ class MusicLibraryProcessor:
 
         # Remove artists suffix if already present in title
         if track.artists:
-            artists_for_title = track.artists
-            if self.remove_artists_in_title:
-                artists_for_title = self._get_artists_not_in_title(track.title, track.artists)
-            artists_suffix = f" - {artists_for_title}"
-            if track.title.endswith(artists_suffix):
-                track.title = track.title[: -len(artists_suffix)]
-            else:
-                artists_suffix = f"{artists_suffix} [{track.key}]"
-                if track.title.endswith(artists_suffix):
-                    track.title = track.title[: -len(artists_suffix)]
+            track.title = self._remove_artist_suffixes(track.title, track.artists)
 
         # Extract artists from title if artists field is empty
         # (do this early, before other processing)
-        if not track.artists and " - " in track.title:
+        if track.artists == "" and " - " in track.title:
             title_parts = track.title.split(" - ")
-            if len(title_parts) >= 2:
+            if len(title_parts) == 2:
                 extracted_artist = title_parts[1].strip()
                 track.title = title_parts[0].strip()
                 track.artists = extracted_artist
@@ -70,16 +61,11 @@ class MusicLibraryProcessor:
         # Apply configured text replacements
         track.title, track.artists = self._apply_text_replacements(track.title, track.artists)
 
-        # Determine artists to include in title
-        artists_for_title = track.artists
-        if track.artists and self.remove_artists_in_title:
-            artists_for_title = self._get_artists_not_in_title(track.title, track.artists)
-
         # Build enhanced title based on configuration
-        artists_for_title = track.artists
+        artists_not_in_title = track.artists
         if track.artists and self.remove_artists_in_title:
-            artists_for_title = self._get_artists_not_in_title(track.title, track.artists)
-        track.title = self._format_enhanced_title(track.title, artists_for_title, track.key)
+            artists_not_in_title, _ = self._split_artists_by_title(track.title, track.artists)
+        track.title = self._format_enhanced_title(track.title, artists_not_in_title, track.key)
 
         # Print detailed change information
         self._print_track_changes(track)
@@ -117,26 +103,26 @@ class MusicLibraryProcessor:
             #     print(f"Updating '{original_title}' artists '{original_artists}' "
             #           f"to '{new_artist}'")
 
-    def _get_artists_not_in_title(self, title: str, artists: str) -> str:
-        """Get artists that don't appear in title, for adding to enhanced title."""
+    def _split_artists_by_title(self, title: str, artists: str) -> Tuple[str, str]:
+        """Split artists into those not in title and those in title."""
         if not artists:
-            return artists
+            return "", ""
 
         # Split multiple artists
-        removed_artists = []
-        retained_artists = []
+        artists_not_in_title = []
+        artists_in_title = []
 
         for artist in [a.strip() for a in artists.split(",")]:
             if artist in title:
-                removed_artists.append(artist)
+                artists_in_title.append(artist)
             else:
-                retained_artists.append(artist)
+                artists_not_in_title.append(artist)
 
-        # Only remove if some artists remain
-        if retained_artists:
-            artists = ", ".join(retained_artists)
+        # Only return filtered artists if some remain
+        not_in_title_str = ", ".join(artists_not_in_title) if artists_not_in_title else artists
+        in_title_str = ", ".join(artists_in_title)
 
-        return artists
+        return not_in_title_str, in_title_str
 
     def _format_enhanced_title(self, title: str, artists: str, key: Optional[str]) -> str:
         """Format the final enhanced title based on configuration flags."""
@@ -152,6 +138,37 @@ class MusicLibraryProcessor:
             enhanced_title = f"{enhanced_title} [{key}]"
 
         return enhanced_title
+
+    def _remove_artist_suffixes(self, title: str, artists: str) -> str:
+        """
+        Remove artist suffixes from title, repeating until no more changes are made.
+        
+        Args:
+            title: The track title
+            artists: The artists string
+            
+        Returns:
+            Title with artist suffixes removed
+        """
+        if not artists or " - " not in title:
+            return title
+            
+        # Get the last part after the final " - "
+        title_parts = title.split(" - ")
+        last_part = title_parts[-1]
+        
+        # Remove key suffix from last part for comparison
+        last_part_no_key = re.sub(r"\s\[..?.?\]$", "", last_part)
+        
+        # Split last part by comma and check if any artist matches
+        last_part_artists = [a.strip() for a in last_part_no_key.split(",")]
+        track_artists = [a.strip() for a in artists.split(",")]
+        
+        # If any artist from the track appears in the last part, remove the suffix
+        if any(artist in track_artists for artist in last_part_artists):
+            return " - ".join(title_parts[:-1])
+                
+        return title
 
     def check_for_duplicates(self, tracks: List[Track]) -> None:
         """Check for duplicate track titles and print warnings."""
