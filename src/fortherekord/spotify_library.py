@@ -47,13 +47,13 @@ class SpotifyLibrary:
         user_info = self.sp.current_user()
         self.user_id = user_info["id"]
 
-    def search_track(self, title: str, artist: str) -> Optional[str]:
+    def search_track(self, title: str, artists: str) -> Optional[str]:
         """
         Search for a track and return the first result's Spotify ID.
 
         Args:
             title: Track title
-            artist: Artist name
+            artists: Artist name
 
         Returns:
             Spotify track ID if found, None otherwise
@@ -61,7 +61,7 @@ class SpotifyLibrary:
         if not self.sp:
             raise RuntimeError("Spotify client not authenticated")
 
-        query = f"track:{title} artist:{artist}"
+        query = f"track:{title} artists:{artists}"
         results = self.sp.search(q=query, type="track", limit=1)
 
         if results["tracks"]["items"]:
@@ -136,9 +136,9 @@ class SpotifyLibrary:
                     track = Track(
                         id=track_data["id"],
                         title=track_data["name"],
-                        artist=artist_name,
+                        artists=artist_name,
                         original_title=track_data["name"],
-                        original_artist=artist_name,
+                        original_artists=artist_name,
                     )
                     tracks.append(track)
 
@@ -174,7 +174,7 @@ class SpotifyLibrary:
         if tracks:
             track_ids = []
             for track in tracks:
-                spotify_id = self.search_track(track.title, track.artist)
+                spotify_id = self.search_track(track.title, track.artists)
                 if spotify_id:
                     track_ids.append(spotify_id)
 
@@ -199,14 +199,6 @@ class SpotifyLibrary:
 
         self.sp.current_user_unfollow_playlist(playlist_id)
 
-    def follow_artist(self, artist_name: str) -> bool:
-        """Follow an artist - not implemented for basic sync."""
-        raise NotImplementedError("Artist following not implemented in basic sync")
-
-    def get_followed_artists(self) -> List[str]:
-        """Get followed artists - not implemented for basic sync."""
-        raise NotImplementedError("Followed artists not implemented in basic sync")
-
     def get_all_tracks(self) -> List[Track]:
         """Get all tracks - not applicable for Spotify."""
         raise NotImplementedError("Get all tracks not applicable for Spotify")
@@ -228,10 +220,18 @@ class SpotifyLibrary:
 
         return all_tracks
 
-    def update_track_metadata(self, track_id: str, title: str, artist: str) -> bool:
+    def update_track_metadata(self, track_id: str, title: str, artists: str) -> bool:
         """Update track metadata - not supported by Spotify API."""
         raise NotImplementedError("Track metadata updates not supported by Spotify API")
 
     def save_changes(self, tracks: list[Track], dry_run: bool = False) -> int:
         """Save changes - not applicable for Spotify read operations."""
         raise NotImplementedError("Save changes not applicable for Spotify")
+
+    def follow_artist(self, artist_name: str) -> None:
+        """Follow an artist - not implemented yet."""
+        raise NotImplementedError("Artist following not implemented yet")
+
+    def get_followed_artists(self) -> List[str]:
+        """Get followed artists - not implemented yet."""
+        raise NotImplementedError("Get followed artists not implemented yet")

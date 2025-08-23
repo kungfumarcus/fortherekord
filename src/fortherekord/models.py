@@ -20,9 +20,9 @@ class Track:  # pylint: disable=too-many-instance-attributes
 
     id: str
     title: str
-    artist: str
+    artists: str
     original_title: str
-    original_artist: str
+    original_artists: str
     key: Optional[str] = None
 
 
@@ -86,14 +86,6 @@ class IMusicLibrary(Protocol):
         """Delete an existing playlist."""
         raise NotImplementedError
 
-    def follow_artist(self, artist_name: str) -> bool:
-        """Follow an artist, return True if successful."""
-        raise NotImplementedError
-
-    def get_followed_artists(self) -> List[str]:
-        """Get list of currently followed artists."""
-        raise NotImplementedError
-
 
 @dataclass
 class Collection:
@@ -120,10 +112,10 @@ class Collection:
         Get all tracks that have changes (different from their original values).
 
         Returns:
-            List of tracks where title or artist differs from original values
+            List of tracks where title or artists differs from original values
         """
         changed_tracks = []
         for track in self.tracks.values():
-            if track.title != track.original_title or track.artist != track.original_artist:
+            if track.title != track.original_title or track.artists != track.original_artists:
                 changed_tracks.append(track)
         return changed_tracks

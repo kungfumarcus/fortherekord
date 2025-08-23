@@ -77,7 +77,7 @@ class TestSpotifyLibrary:
 
         assert result == "spotify_track_id_123"
         mock_sp.search.assert_called_once_with(
-            q="track:Test Song artist:Test Artist", type="track", limit=1
+            q="track:Test Song artists:Test Artist", type="track", limit=1
         )
 
     def test_search_track_not_found(self, mock_spotify_client):
@@ -166,10 +166,10 @@ class TestSpotifyLibrary:
         assert len(tracks) == 2
         assert tracks[0].id == "track_1"
         assert tracks[0].title == "Song 1"
-        assert tracks[0].artist == "Artist 1"
+        assert tracks[0].artists == "Artist 1"
         assert tracks[1].id == "track_2"
         assert tracks[1].title == "Song 2"
-        assert tracks[1].artist == "Artist 2"
+        assert tracks[1].artists == "Artist 2"
 
     def test_create_playlist(self, mock_spotify_client):
         """Test creating a new playlist with tracks."""
@@ -185,8 +185,8 @@ class TestSpotifyLibrary:
         ]
 
         tracks = [
-            create_track(track_id="1", title="Song 1", artist="Artist 1"),
-            create_track(track_id="2", title="Song 2", artist="Artist 2"),
+            create_track(track_id="1", title="Song 1", artists="Artist 1"),
+            create_track(track_id="2", title="Song 2", artists="Artist 2"),
         ]
 
         playlist_id = client.create_playlist("New Playlist", tracks)
@@ -395,7 +395,7 @@ class TestSpotifyLibraryErrorConditions:
 
         # Mock tracks from playlist
         mock_track = create_track(
-            track_id="track1", title="Test Song", artist="Test Artist", key="Am"
+            track_id="track1", title="Test Song", artists="Test Artist", key="Am"
         )
         client.get_playlist_tracks = Mock(return_value=[mock_track])
 

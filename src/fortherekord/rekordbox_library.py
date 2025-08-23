@@ -4,10 +4,10 @@ Rekordbox library integration.
 Handles loading and processing of Rekordbox database files usi        return Track(
             id=str(content.ID),
             title=current_title,
-            artist=current_artist,
+            artists=current_artist,
             key=content.Key,
             original_title=current_title,  # Will be set properly by processor
-            original_artist=current_artist,  # Will be set properly by processor
+            original_artists=current_artist,  # Will be set properly by processor
         )dbox.
 Implements IMusicLibrary interface for playlist synchronization.
 """
@@ -48,7 +48,6 @@ class RekordboxLibrary(MusicLibrary):
             raise ValueError("rekordbox.library_path not configured")
 
         self.db_path = Path(library_path)
-        self.ignore_playlists = rekordbox_config.get("ignore_playlists", [])
         self._db = None
         self.is_rekordbox_running = False
 
@@ -117,9 +116,9 @@ class RekordboxLibrary(MusicLibrary):
         return Track(
             id=str(content.ID),
             title=current_title,
-            artist=current_artist,
+            artists=current_artist,
             original_title=current_title,  # Set to actual database value
-            original_artist=current_artist,  # Set to actual database value
+            original_artists=current_artist,  # Set to actual database value
             key=(
                 content.Key.ScaleName
                 if hasattr(content.Key, "ScaleName") and content.Key
@@ -244,8 +243,8 @@ class RekordboxLibrary(MusicLibrary):
         """Delete playlist - not supported (read-only)."""
         raise NotImplementedError("Playlist deletion not supported - Rekordbox is read-only")
 
-    def follow_artist(self, artist_name: str) -> bool:
-        """Follow artist - not supported (source library only)."""
+    def follow_artist(self, artist_name: str) -> None:
+        """Follow an artist - not supported (source library only)."""
         raise NotImplementedError("Artist following not supported - Rekordbox is source library")
 
     def get_followed_artists(self) -> List[str]:
@@ -268,14 +267,14 @@ class RekordboxLibrary(MusicLibrary):
 
         return tracks
 
-    def update_track_metadata(self, track_id: str, title: str, artist: str) -> bool:
+    def update_track_metadata(self, track_id: str, title: str, artists: str) -> bool:
         """
         Update track metadata in the database.
 
         Args:
             track_id: ID of the track to update
             title: New title
-            artist: New artist
+            artists: New artists
 
         Returns:
             True if update was successful
@@ -292,7 +291,7 @@ class RekordboxLibrary(MusicLibrary):
         # Update the fields
         content.Title = title
         if content.Artist:
-            content.Artist.Name = artist
+            content.Artist.Name = artists
 
         return True
 
@@ -311,7 +310,7 @@ class RekordboxLibrary(MusicLibrary):
 
         for track in tracks:
             # Update the track in the database
-            success = self.update_track_metadata(track.id, track.title, track.artist)
+            success = self.update_track_metadata(track.id, track.title, track.artists)
             if success:
                 modified_count += 1
             else:

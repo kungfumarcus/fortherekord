@@ -98,12 +98,12 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         spotify_track_ids = []
 
         for track in rekordbox_tracks:
-            # Simple search: title + artist, take first result
-            spotify_id = self.spotify.search_track(track.title, track.artist)
+            # Simple search: title + artists, take first result
+            spotify_id = self.spotify.search_track(track.title, track.artists)
             if spotify_id:
                 spotify_track_ids.append(spotify_id)
             elif not dry_run:  # Only show detailed failures when not in dry-run
-                click.echo(f"    ✗ No match: {track.title} - {track.artist}")
+                click.echo(f"    ✗ No match: {track.title} - {track.artists}")
 
         return spotify_track_ids
 

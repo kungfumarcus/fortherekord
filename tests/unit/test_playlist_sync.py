@@ -48,8 +48,8 @@ class TestPlaylistSyncService:
 
         # Setup tracks
         tracks = [
-            create_track(track_id="1", title="Found Song", artist="Found Artist"),
-            create_track(track_id="2", title="Lost Song", artist="Lost Artist"),
+            create_track(track_id="1", title="Found Song", artists="Found Artist"),
+            create_track(track_id="2", title="Lost Song", artists="Lost Artist"),
         ]
 
         # Mock search results
@@ -98,8 +98,8 @@ class TestPlaylistSyncService:
 
         # Mock current tracks in playlist
         current_tracks = [
-            create_track(track_id="keep_track", title="Keep", artist="Artist"),
-            create_track(track_id="remove_track", title="Remove", artist="Artist"),
+            create_track(track_id="keep_track", title="Keep", artists="Artist"),
+            create_track(track_id="remove_track", title="Remove", artists="Artist"),
         ]
         spotify.get_playlist_tracks.return_value = current_tracks
 

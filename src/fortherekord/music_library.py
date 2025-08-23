@@ -42,7 +42,7 @@ class MusicLibrary(IMusicLibrary, ABC):
         Get the complete collection with configuration-based filtering applied.
 
         This method calls get_collection() to get raw data, then applies ignore_playlists
-        filtering from the configuration.
+        filtering from the configuration recursively.
 
         Returns:
             Collection containing filtered playlists and providing track access
@@ -50,8 +50,21 @@ class MusicLibrary(IMusicLibrary, ABC):
         raw_collection = self.get_collection()
         # Get ignore_playlists from appropriate config section
         ignore_list = self.config.get("rekordbox", {}).get("ignore_playlists", [])
-        filtered_playlists = [p for p in raw_collection.playlists if p.name not in ignore_list]
+        filtered_playlists = self._filter_playlists(raw_collection.playlists, ignore_list)
         return Collection(playlists=filtered_playlists, tracks=raw_collection.tracks)
+
+    def _filter_playlists(
+        self, playlists: List[Playlist], ignore_list: List[str]
+    ) -> List[Playlist]:
+        """Recursively filter playlists, removing ignored playlists and all their children."""
+        filtered = []
+        for playlist in playlists:
+            if playlist.name not in ignore_list:
+                # Keep playlist but filter its children recursively
+                if playlist.children:
+                    playlist.children = self._filter_playlists(playlist.children, ignore_list)
+                filtered.append(playlist)
+        return filtered
 
     def deduplicate_tracks(self, tracks: List[Track]) -> List[Track]:
         """

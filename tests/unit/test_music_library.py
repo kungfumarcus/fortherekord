@@ -29,9 +29,9 @@ class TestMusicLibrary:
 
     def test_deduplicate_tracks(self):
         """Test track deduplication."""
-        track1 = create_track(track_id="1", title="Song 1", artist="Artist 1")
-        track2 = create_track(track_id="2", title="Song 2", artist="Artist 2")
-        track3 = create_track(track_id="1", title="Song 1", artist="Artist 1")  # Duplicate
+        track1 = create_track(track_id="1", title="Song 1", artists="Artist 1")
+        track2 = create_track(track_id="2", title="Song 2", artists="Artist 2")
+        track3 = create_track(track_id="1", title="Song 1", artists="Artist 1")  # Duplicate
 
         tracks = [track1, track2, track3]
         result = self.library.deduplicate_tracks(tracks)
@@ -41,20 +41,31 @@ class TestMusicLibrary:
         assert result[1] == track2
 
     def test_get_collection_filters_playlists(self):
-        """Test that get_filtered_collection filters playlists by ignore_playlists."""
-        playlist1 = Playlist(id="1", name="Keep This", tracks=[])
-        playlist2 = Playlist(id="2", name="Ignore This", tracks=[])
+        """Test that get_filtered_collection filters playlists recursively by ignore_playlists."""
+        # Create nested playlist structure to test recursive filtering
+        child_playlist = Playlist(id="child", name="Child Playlist", tracks=[])
+        ignored_child = Playlist(id="ignored_child", name="Ignored Child", tracks=[])
+
+        playlist1 = Playlist(
+            id="1", name="Keep This", tracks=[], children=[child_playlist, ignored_child]
+        )
+        playlist2 = Playlist(id="2", name="Ignore This", tracks=[], children=[child_playlist])
         playlist3 = Playlist(id="3", name="Also Keep", tracks=[])
 
         # Set up the test implementation to return these playlists
         self.library._test_playlists = [playlist1, playlist2, playlist3]
-        self.library.config = {"rekordbox": {"ignore_playlists": ["Ignore This"]}}
+        self.library.config = {"rekordbox": {"ignore_playlists": ["Ignore This", "Ignored Child"]}}
 
         collection = self.library.get_filtered_collection()
 
+        # Should filter out "Ignore This" entirely and "Ignored Child" from nested playlists
         assert len(collection.playlists) == 2
-        assert collection.playlists[0] == playlist1
-        assert collection.playlists[1] == playlist3
+        assert collection.playlists[0].name == "Keep This"
+        assert collection.playlists[1].name == "Also Keep"
+
+        # Check that "Ignored Child" was filtered out but "Child Playlist" remains
+        assert len(collection.playlists[0].children) == 1
+        assert collection.playlists[0].children[0].name == "Child Playlist"
 
     def test_get_collection_no_filtering(self):
         """Test get_filtered_collection with no ignore list."""
@@ -72,7 +83,7 @@ class TestMusicLibrary:
 
     def test_filter_empty_playlists(self):
         """Test filtering out empty playlists."""
-        track = create_track(track_id="1", title="Song", artist="Artist")
+        track = create_track(track_id="1", title="Song", artists="Artist")
 
         playlist_with_tracks = Playlist(id="1", name="Has Tracks", tracks=[track])
         empty_playlist = Playlist(id="2", name="Empty", tracks=[])
@@ -85,9 +96,9 @@ class TestMusicLibrary:
 
     def test_get_all_tracks_from_playlists(self):
         """Test extracting all tracks from playlists with deduplication."""
-        track1 = create_track(track_id="1", title="Song 1", artist="Artist 1")
-        track2 = create_track(track_id="2", title="Song 2", artist="Artist 2")
-        track3 = create_track(track_id="1", title="Song 1", artist="Artist 1")  # Duplicate
+        track1 = create_track(track_id="1", title="Song 1", artists="Artist 1")
+        track2 = create_track(track_id="2", title="Song 2", artists="Artist 2")
+        track3 = create_track(track_id="1", title="Song 1", artists="Artist 1")  # Duplicate
 
         playlist1 = Playlist(id="1", name="Playlist 1", tracks=[track1, track2])
         playlist2 = Playlist(id="2", name="Playlist 2", tracks=[track3])

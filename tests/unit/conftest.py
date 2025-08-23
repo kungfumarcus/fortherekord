@@ -80,11 +80,11 @@ def sample_track_no_key():
 def create_track(
     track_id="1",
     title="Test Song",
-    artist="Test Artist",
+    artists="Test Artist",
     key="Am",
     as_mock=False,
     original_title=None,
-    original_artist=None,
+    original_artists=None,
 ):
     """
     Create a track for testing.
@@ -92,12 +92,12 @@ def create_track(
     Args:
         track_id: Track ID (str)
         title: Track title
-        artist: Artist name (None for missing artist)
+        artists: Artist name (None for missing artists)
         key: Musical key (default: "Am")
         as_mock: If True, returns Mock object for pyrekordbox simulation.
                 If False, returns actual Track model object.
         original_title: Original title (defaults to title if not specified)
-        original_artist: Original artist (defaults to artist if not specified)
+        original_artists: Original artists (defaults to artists if not specified)
 
     Returns:
         Track model object or Mock object representing a Rekordbox track
@@ -110,10 +110,10 @@ def create_track(
         track.Key = key
         track.Length = 180.5
 
-        # Only create artist mock if artist is not None
-        if artist is not None:
+        # Only create artists mock if artists is not None
+        if artists is not None:
             artist_mock = Mock()
-            artist_mock.Name = artist
+            artist_mock.Name = artists
             track.Artist = artist_mock
         else:
             track.Artist = None
@@ -124,9 +124,9 @@ def create_track(
         track = Track(
             id=track_id,
             title=title,
-            artist=artist,
+            artists=artists,
             original_title=original_title or title,
-            original_artist=original_artist or artist,
+            original_artists=original_artists or artists,
             key=key,
         )
         return track
@@ -213,11 +213,11 @@ def sample_tracks():
         create_track(
             track_id="1",
             title="Song 1",
-            artist="Artist 1",
+            artists="Artist 1",
             key="Am",
         ),
-        create_track(track_id="2", title="Song 2", artist="Artist 2", key="Dm"),
-        create_track(track_id="3", title="Song 3", artist="Artist 3", key="Gm"),
+        create_track(track_id="2", title="Song 2", artists="Artist 2", key="Dm"),
+        create_track(track_id="3", title="Song 3", artists="Artist 3", key="Gm"),
     ]
 
 
@@ -271,7 +271,6 @@ def mock_metadata_processor():
     """Create a mock metadata processor for testing."""
     mock = Mock()
     mock.enhance_track_title = Mock(side_effect=lambda track: track)
-    mock.should_ignore_playlist = Mock(return_value=False)
     return mock
 
 

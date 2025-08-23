@@ -52,14 +52,14 @@ def create_mock_rekordbox_db():
 
 
 # Helper functions for rekordbox library testing
-def create_mock_track_content(track_id, title, artist, key="Am"):
+def create_mock_track_content(track_id, title, artists, key="Am"):
     """
     Create a mock track content object for pyrekordbox simulation.
 
     Args:
         track_id: Track ID (int or str)
         title: Track title
-        artist_name: Artist name (None for missing artist)
+        artist_name: Artist name (None for missing artists)
         key: Musical key (default: "Am")
 
     Returns:
@@ -71,10 +71,10 @@ def create_mock_track_content(track_id, title, artist, key="Am"):
     track.Key = key
     track.Length = 180.5
 
-    # Only create artist mock if artists is not None
-    if artist is not None:
+    # Only create artists mock if artists is not None
+    if artists is not None:
         artist_mock = Mock()
-        artist_mock.Name = artist
+        artist_mock.Name = artists
         track.Artist = artist_mock
     else:
         track.Artist = None
@@ -282,8 +282,8 @@ class TestPlaylistRetrieval:
         assert shared_track_playlist_2.id == "123"
         assert shared_track_playlist_1.title == "Shared Song"
         assert shared_track_playlist_2.title == "Shared Song"
-        assert shared_track_playlist_1.artist == "Artist A"
-        assert shared_track_playlist_2.artist == "Artist A"
+        assert shared_track_playlist_1.artists == "Artist A"
+        assert shared_track_playlist_2.artists == "Artist A"
         assert shared_track_playlist_1.key == "Am"
 
     @patch("fortherekord.rekordbox_library.RekordboxLibrary._get_database")
@@ -320,7 +320,7 @@ class TestPlaylistRetrieval:
 
         track = collection.playlists[0].tracks[0]
         assert track.title == ""
-        assert track.artist == ""
+        assert track.artists == ""
         assert track.key is None
 
     @patch("fortherekord.rekordbox_library.RekordboxLibrary._get_database")
@@ -439,7 +439,7 @@ def sample_rekordbox_data():
                 "id": 1,
                 "name": "Rock Collection",
                 "songs": [
-                    {"id": 101, "title": "Rock Song 1", "artist": "Rock Band", "length": 200.0}
+                    {"id": 101, "title": "Rock Song 1", "artists": "Rock Band", "length": 200.0}
                 ],
             },
             {
@@ -449,7 +449,7 @@ def sample_rekordbox_data():
                     {
                         "id": 102,
                         "title": "Electronic Track",
-                        "artist": "DJ Producer",
+                        "artists": "DJ Producer",
                         "length": 300.5,
                     }
                 ],
@@ -548,7 +548,7 @@ class TestRekordboxLibraryDatabaseWriting:
         mock_db.get_content.assert_called_once_with(ID="999")
 
     def test_update_track_metadata_no_artist(self):
-        """Test track metadata update when track has no artist."""
+        """Test track metadata update when track has no artists."""
         mock_db = Mock()
         mock_content = Mock()
         mock_content.Artist = None
@@ -583,41 +583,41 @@ class TestRekordboxLibraryDatabaseWriting:
 
         # Create track objects with current values
         tracks = [
-            # Track 1: Title changed, artist unchanged
+            # Track 1: Title changed, artists unchanged
             create_track(
                 track_id="1",
                 title="New Title",  # Changed from "Original Title"
-                artist="Same Artist",  # Unchanged
+                artists="Same Artist",  # Unchanged
             ),
-            # Track 2: Title unchanged, artist changed
+            # Track 2: Title unchanged, artists changed
             create_track(
                 track_id="2",
                 title="Same Title",  # Unchanged
-                artist="New Artist",  # Changed from "Original Artist"
+                artists="New Artist",  # Changed from "Original Artist"
             ),
-            # Track 3: Both title and artist unchanged
+            # Track 3: Both title and artists unchanged
             create_track(
                 track_id="3",
                 title="Unchanged Title",  # Unchanged
-                artist="Unchanged Artist",  # Unchanged
+                artists="Unchanged Artist",  # Unchanged
             ),
-            # Track 4: Both title and artist changed
+            # Track 4: Both title and artists changed
             create_track(
                 track_id="4",
                 title="Completely New Title",  # Changed from "Old Title"
-                artist="Completely New Artist",  # Changed from "Old Artist"
+                artists="Completely New Artist",  # Changed from "Old Artist"
             ),
         ]
 
         # Update original values to simulate what would have been set during loading
         tracks[0].original_title = "Original Title"
-        tracks[0].original_artist = "Same Artist"
+        tracks[0].original_artists = "Same Artist"
         tracks[1].original_title = "Same Title"
-        tracks[1].original_artist = "Original Artist"
+        tracks[1].original_artists = "Original Artist"
         tracks[2].original_title = "Unchanged Title"
-        tracks[2].original_artist = "Unchanged Artist"
+        tracks[2].original_artists = "Unchanged Artist"
         tracks[3].original_title = "Old Title"
-        tracks[3].original_artist = "Old Artist"
+        tracks[3].original_artists = "Old Artist"
 
         result = library.save_changes(tracks)
 
@@ -640,12 +640,12 @@ class TestRekordboxLibraryDatabaseWriting:
             create_mock_track_content(
                 track_id="1",
                 title="New Title",
-                artist="New Artist",
+                artists="New Artist",
             )
         ]
         # Set original values to be different from current
         tracks[0].original_title = "Old Title"
-        tracks[0].original_artist = "Old Artist"
+        tracks[0].original_artists = "Old Artist"
 
         # Should now raise the exception since modified_count > 0 triggers commit
         with pytest.raises(Exception, match="Database commit failed"):
@@ -666,9 +666,9 @@ class TestRekordboxLibraryDatabaseWriting:
             create_track(
                 track_id="1",
                 title="New Title",
-                artist="New Artist",
+                artists="New Artist",
                 original_title="Old Title",
-                original_artist="Old Artist",
+                original_artists="Old Artist",
             )
         ]
 
@@ -793,11 +793,11 @@ class TestGetAllTracks:
         # Check first track
         assert tracks[0].id == "123"
         assert tracks[0].title == "Song 1"
-        assert tracks[0].artist == "Artist 1"
+        assert tracks[0].artists == "Artist 1"
         assert tracks[0].key == "Am"
 
         # Check second track
         assert tracks[1].id == "456"
         assert tracks[1].title == "Song 2"
-        assert tracks[1].artist == "Artist 2"
+        assert tracks[1].artists == "Artist 2"
         assert tracks[1].key == "Dm"

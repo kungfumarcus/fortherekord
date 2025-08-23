@@ -57,9 +57,9 @@ class TestCollection:
         track2 = (
             sample_tracks[1]
             if len(sample_tracks) > 1
-            else create_track(track_id="track2", title="Song 2", artist="Artist 2")
+            else create_track(track_id="track2", title="Song 2", artists="Artist 2")
         )
-        track3 = create_track(track_id="track3", title="Song 3", artist="Artist 3")
+        track3 = create_track(track_id="track3", title="Song 3", artists="Artist 3")
 
         # Create playlists with overlapping tracks
         playlist1 = Playlist(id="playlist1", name="Playlist 1", tracks=[track1, track2])
