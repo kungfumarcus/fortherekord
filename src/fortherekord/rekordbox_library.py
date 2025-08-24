@@ -1,24 +1,13 @@
 """
 Rekordbox library integration.
 
-Handles loading and processing of Rekordbox database files usi        return Track(
-            id=str(content.ID),
-            title=current_title,
-            artists=current_artist,
-            key=content.Key,
-            original_title=current_title,  # Will be set properly by processor
-            original_artists=current_artist,  # Will be set properly by processor
-        )dbox.
-Implements IMusicLibrary interface for playlist synchronization.
+Handles loading and processing of Rekordbox database files
 """
 
-import json
 import logging
 import io
-import os
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import List, Any
 
@@ -309,34 +298,15 @@ class RekordboxLibrary(MusicLibrary):
         modified_count = 0
 
         for track in tracks:
+            # Use enhanced_title if available, otherwise use regular title
+            title_to_save = track.enhanced_title or track.title
+
             # Update the track in the database
-            success = self.update_track_metadata(track.id, track.title, track.artists)
+            success = self.update_track_metadata(track.id, title_to_save, track.artists)
             if success:
                 modified_count += 1
             else:
-                print(f"WARNING: Failed to update track {track.id}: {track.title}")
-
-        # Check if we're in test mode
-        test_mode = os.getenv("FORTHEREKORD_TEST_MODE", "").lower() in ("1", "true", "yes")
-
-        if test_mode:
-            # In test mode, dump changes to a file instead of committing
-            dump_file = os.getenv("FORTHEREKORD_TEST_DUMP_FILE", "test_changes_dump.json")
-
-            changes = {
-                "timestamp": datetime.now().isoformat(),
-                "mode": "test_dump",
-                "modified_count": modified_count,
-                "message": "Changes would have been committed to database",
-                "note": "Database commit prevented in test mode",
-            }
-
-            # Write to dump file
-            with open(dump_file, "w", encoding="utf-8") as f:
-                json.dump(changes, f, indent=2)
-
-            print(f"Test mode: Changes dumped to {dump_file} (database not modified)")
-            return modified_count
+                print(f"WARNING: Failed to update track {track.id}: {title_to_save}")
 
         # Normal mode: commit to database only if there are changes
         if modified_count > 0 and self._db:

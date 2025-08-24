@@ -4,7 +4,7 @@ Playlist synchronization between Rekordbox and Spotify.
 Handles one-way sync from Rekordbox to Spotify with simple track matching.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 import click
 
 from .models import Playlist, Track, Collection
@@ -15,10 +15,22 @@ from .spotify_library import SpotifyLibrary
 class PlaylistSyncService:  # pylint: disable=too-few-public-methods
     """Synchronizes playlists from Rekordbox to Spotify."""
 
-    def __init__(self, rekordbox: RekordboxLibrary, spotify: SpotifyLibrary):
+    def __init__(
+        self,
+        rekordbox: RekordboxLibrary,
+        spotify: SpotifyLibrary,
+        config: Optional[Dict] = None,
+    ):
         """Initialize with library adapters."""
         self.rekordbox = rekordbox
         self.spotify = spotify
+
+        # Check for mandatory playlist prefix from config
+        if config is None:
+            config = {}
+        self.playlist_prefix = config.get("spotify", {}).get("playlist_prefix")
+        if not self.playlist_prefix:
+            raise ValueError("spotify.playlist_prefix is required in configuration but not found")
 
     def sync_collection(self, collection: Collection, dry_run: bool = False) -> None:
         """
@@ -61,9 +73,12 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             spotify_playlist_map: Map of existing Spotify playlists by name
             dry_run: If True, preview changes without making them
         """
-        playlist_name = rekordbox_playlist.name
+        rekordbox_name = rekordbox_playlist.name
+        # Apply mandatory prefix to create Spotify playlist name
+        spotify_name = self.playlist_prefix + rekordbox_name
+
         action_verb = "Previewing" if dry_run else "Syncing"
-        click.echo(f"\\n{action_verb} playlist: {playlist_name}")
+        click.echo(f"\\n{action_verb} playlist: {rekordbox_name} -> {spotify_name}")
 
         # Get tracks from the playlist (already loaded in Collection)
         rekordbox_tracks = rekordbox_playlist.tracks
@@ -73,14 +88,14 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         matched_tracks = self._find_spotify_matches(rekordbox_tracks, dry_run)
         click.echo(f"  Matched {len(matched_tracks)} tracks on Spotify")
 
-        if playlist_name in spotify_playlist_map:
+        if spotify_name in spotify_playlist_map:
             # Update existing playlist
             self._update_spotify_playlist(
-                spotify_playlist_map[playlist_name], matched_tracks, dry_run
+                spotify_playlist_map[spotify_name], matched_tracks, dry_run
             )
         else:
-            # Create new playlist
-            self._create_spotify_playlist(playlist_name, matched_tracks, dry_run)
+            # Create new playlist with prefix
+            self._create_spotify_playlist(spotify_name, matched_tracks, dry_run)
 
     def _find_spotify_matches(
         self, rekordbox_tracks: List[Track], dry_run: bool = False

@@ -18,7 +18,7 @@ class TestMusicLibrary:
         # Create a concrete subclass for testing
         class TestMusicLibraryImpl(MusicLibrary):
             def get_collection(self):
-                return Collection(playlists=getattr(self, "_test_playlists", []), tracks={})
+                return Collection.from_playlists(getattr(self, "_test_playlists", []))
 
             def save_changes(self, tracks, dry_run=False):
                 """Mock implementation of save_changes."""
@@ -41,7 +41,8 @@ class TestMusicLibrary:
         assert result[1] == track2
 
     def test_get_collection_filters_playlists(self):
-        """Test that get_filtered_collection filters playlists recursively by ignore_playlists."""
+        """Test that get_filtered_collection filters playlists recursively by
+        ignore_playlists and include_playlists."""
         # Create nested playlist structure to test recursive filtering
         child_playlist = Playlist(id="child", name="Child Playlist", tracks=[])
         ignored_child = Playlist(id="ignored_child", name="Ignored Child", tracks=[])
@@ -52,7 +53,7 @@ class TestMusicLibrary:
         playlist2 = Playlist(id="2", name="Ignore This", tracks=[], children=[child_playlist])
         playlist3 = Playlist(id="3", name="Also Keep", tracks=[])
 
-        # Set up the test implementation to return these playlists
+        # Test ignore_playlists filtering
         self.library._test_playlists = [playlist1, playlist2, playlist3]
         self.library.config = {"rekordbox": {"ignore_playlists": ["Ignore This", "Ignored Child"]}}
 
@@ -64,6 +65,17 @@ class TestMusicLibrary:
         assert collection.playlists[1].name == "Also Keep"
 
         # Check that "Ignored Child" was filtered out but "Child Playlist" remains
+        assert len(collection.playlists[0].children) == 1
+        assert collection.playlists[0].children[0].name == "Child Playlist"
+
+        # Test include_playlists filtering
+        self.library.config = {"rekordbox": {"include_playlists": ["Keep This", "Child Playlist"]}}
+
+        collection = self.library.get_filtered_collection()
+
+        # Should only keep "Keep This" (and its "Child Playlist" child)
+        assert len(collection.playlists) == 1
+        assert collection.playlists[0].name == "Keep This"
         assert len(collection.playlists[0].children) == 1
         assert collection.playlists[0].children[0].name == "Child Playlist"
 

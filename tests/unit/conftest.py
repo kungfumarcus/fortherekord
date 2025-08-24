@@ -197,13 +197,8 @@ def create_collection(playlists: list = None, tracks: list = None):
         else:
             playlists = []
 
-    # Extract all tracks from playlists and create tracks dictionary for efficient lookup
-    tracks_dict = {}
-    for playlist in playlists:
-        for track in playlist.tracks:
-            tracks_dict[track.id] = track
-
-    return Collection(playlists=playlists, tracks=tracks_dict)
+    # Collection will automatically calculate tracks from playlists
+    return Collection.from_playlists(playlists)
 
 
 @pytest.fixture

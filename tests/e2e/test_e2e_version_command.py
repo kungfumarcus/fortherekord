@@ -14,6 +14,6 @@ from conftest import e2e_harness
 def test_version_command(e2e_harness):
     """Test version command e2e functionality."""
     result = e2e_harness.run(["--version"])
-    
+
     e2e_harness.assert_process_succeeded(True)
     assert "0.1" in result.stdout

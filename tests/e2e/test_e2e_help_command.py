@@ -14,6 +14,6 @@ from conftest import e2e_harness
 def test_help_command(e2e_harness):
     """Test help command e2e functionality."""
     result = e2e_harness.run(["--help"])
-    
+
     e2e_harness.assert_process_succeeded(True)
     assert "ForTheRekord" in result.stdout

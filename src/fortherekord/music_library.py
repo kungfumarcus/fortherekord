@@ -42,28 +42,36 @@ class MusicLibrary(IMusicLibrary, ABC):
         Get the complete collection with configuration-based filtering applied.
 
         This method calls get_collection() to get raw data, then applies ignore_playlists
-        filtering from the configuration recursively.
+        and include_playlists filtering from the configuration recursively.
 
         Returns:
             Collection containing filtered playlists and providing track access
         """
         raw_collection = self.get_collection()
-        # Get ignore_playlists from appropriate config section
-        ignore_list = self.config.get("rekordbox", {}).get("ignore_playlists", [])
-        filtered_playlists = self._filter_playlists(raw_collection.playlists, ignore_list)
-        return Collection(playlists=filtered_playlists, tracks=raw_collection.tracks)
+        filtered_playlists = self._filter_playlists(raw_collection.playlists)
+        return Collection.from_playlists(filtered_playlists)
 
-    def _filter_playlists(
-        self, playlists: List[Playlist], ignore_list: List[str]
-    ) -> List[Playlist]:
-        """Recursively filter playlists, removing ignored playlists and all their children."""
+    def _filter_playlists(self, playlists: List[Playlist]) -> List[Playlist]:
+        """Recursively filter playlists based on ignore and include lists from config."""
+        # Get filter lists from appropriate config section
+        rekordbox_config = self.config.get("rekordbox", {})
+        ignore_list = rekordbox_config.get("ignore_playlists", [])
+        include_list = rekordbox_config.get("include_playlists", [])
+
         filtered = []
         for playlist in playlists:
-            if playlist.name not in ignore_list:
-                # Keep playlist but filter its children recursively
-                if playlist.children:
-                    playlist.children = self._filter_playlists(playlist.children, ignore_list)
-                filtered.append(playlist)
+            # Skip if playlist is in ignore list
+            if ignore_list and playlist.name in ignore_list:
+                continue
+
+            # If include list is specified, only keep playlists in the include list
+            if include_list and playlist.name not in include_list:
+                continue
+
+            # Keep playlist but filter its children recursively
+            if playlist.children:
+                playlist.children = self._filter_playlists(playlist.children)
+            filtered.append(playlist)
         return filtered
 
     def deduplicate_tracks(self, tracks: List[Track]) -> List[Track]:

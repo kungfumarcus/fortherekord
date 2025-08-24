@@ -4,6 +4,8 @@ Basic CLI shell for ForTheRekord.
 CLI application with Rekordbox metadata processing functionality.
 """
 
+import os
+from pathlib import Path
 from typing import Dict, Optional, Any
 
 import click
@@ -16,6 +18,17 @@ from .playlist_sync import PlaylistSyncService
 from .rekordbox_library import RekordboxLibrary
 from .music_library_processor import MusicLibraryProcessor
 from .spotify_library import SpotifyLibrary
+
+
+def clear_spotify_cache() -> None:
+    """Clear Spotify authentication cache to prevent stale token issues."""
+    try:
+        cache_path = Path(".spotify_cache")
+        if cache_path.exists():
+            os.remove(cache_path)
+    except (OSError, PermissionError):
+        # Silently ignore if we can't remove the cache file
+        pass
 
 
 def load_config() -> Optional[Dict[str, Any]]:
@@ -61,22 +74,6 @@ def load_library(config: Dict[str, Any], dry_run: bool = False) -> RekordboxLibr
     return rekordbox
 
 
-def initialize_processor(config: dict) -> Optional[MusicLibraryProcessor]:
-    """Create music library processor and set original values on tracks."""
-    processor = MusicLibraryProcessor(config)
-
-    # Check if all enhancement features are disabled
-    if not (
-        processor.add_key_to_title
-        or processor.add_artist_to_title
-        or processor.remove_artists_in_title
-    ):
-        click.echo("Skipping track processing (processor is disabled)")
-        return None
-
-    return processor
-
-
 def get_collection_to_process(rekordbox: RekordboxLibrary) -> Collection:
     """Get collection to process and display playlist hierarchy."""
     # Use get_filtered_collection to apply ignore_playlists filtering
@@ -100,7 +97,7 @@ def get_collection_to_process(rekordbox: RekordboxLibrary) -> Collection:
     total_playlists = count_non_folder_playlists(collection.playlists)
 
     # Display summary with counts
-    print(f"Loaded {total_playlists} playlists with {len(tracks)} tracks:")
+    print(f"Loaded {total_playlists} playlist(s) with {len(tracks)} tracks:")
     for playlist in collection.playlists:
         playlist.display_tree(1)
 
@@ -131,7 +128,7 @@ def process_tracks(
     for track in tracks:
         processor.process_track(track)
 
-    # Check for duplicates
+    # Check for duplicates across all tracks (improved to check title AND artists)
     click.echo()
     click.echo("Checking for duplicates...")
     processor.check_for_duplicates(tracks)
@@ -168,65 +165,73 @@ def cli(dry_run: bool) -> None:  # pylint: disable=too-many-return-statements
 
     Enhances track titles to standardized format: "Title - Artist [Key]"
     """
-    config = load_config()
-    if not config:
-        return
-
     try:
-        rekordbox = load_library(config, dry_run)
-
-        collection = get_collection_to_process(rekordbox)
-
-        # Check if there are any tracks to process
-        if not collection.get_all_tracks():
-            click.echo("No tracks found to process")
+        config = load_config()
+        if not config:
             return
 
-        processor = None        
-        processor_config = config.get("processor")
-        if processor_config:
-            processor = initialize_processor(processor_config)
-
-        # Only process tracks if processor is enabled
-        if processor is not None:
-            process_tracks(collection, rekordbox, processor, dry_run)
-        else:
-            click.echo("Skipping track processing (processor is disabled)")
-            click.echo("No changes needed")
-
-        # Sync Spotify - Authenticate with Spotify using OAuth
         try:
-            spotify_config = config.get("spotify", {})
-            if not spotify_config.get("client_id") or not spotify_config.get("client_secret"):
-                click.echo("Spotify credentials not configured")
-                click.echo(f"Please add spotify client_id and client_secret to {get_config_path()}")
+            rekordbox = load_library(config, dry_run)
+
+            collection = get_collection_to_process(rekordbox)
+
+            # Check if there are any tracks to process
+            if not collection.get_all_tracks():
+                click.echo("No tracks found to process")
                 return
 
-            spotify = SpotifyLibrary(spotify_config["client_id"], spotify_config["client_secret"])
-            click.echo(f"Authenticated with Spotify as user: {spotify.user_id}")
+            processor = None
+            processor_config = config.get("processor")
+            if processor_config:
+                processor = MusicLibraryProcessor(processor_config)
 
-            # Sync playlists from Rekordbox to Spotify using the collection
-            click.echo(f"Found {len(collection.playlists)} Rekordbox playlists to sync")
+            if processor is not None:
+                process_tracks(collection, rekordbox, processor, dry_run)
+            else:
+                click.echo("Skipping track processing (processor is disabled)")
+                click.echo("No changes needed")
 
-            # Use PlaylistSyncService to sync the playlists
-            sync_service = PlaylistSyncService(rekordbox, spotify)
-            sync_service.sync_collection(collection, dry_run=dry_run)
+            # Sync Spotify - Authenticate with Spotify using OAuth
+            try:
+                spotify_config = config.get("spotify", {})
+                if not spotify_config.get("client_id") or not spotify_config.get("client_secret"):
+                    click.echo("Spotify credentials not configured")
+                    click.echo(
+                        f"Please add spotify client_id and client_secret to {get_config_path()}"
+                    )
+                    return
 
-            click.echo("Spotify playlist sync complete.")
-        except (ValueError, ConnectionError, OSError) as e:
-            click.echo(f"Failed to authenticate with Spotify: {e}")
+                spotify = SpotifyLibrary(
+                    spotify_config["client_id"], spotify_config["client_secret"], config
+                )
+                click.echo(f"Authenticated with Spotify as user: {spotify.user_id}")
+
+                # Sync playlists from Rekordbox to Spotify using the collection
+                click.echo(f"Found {len(collection.playlists)} Rekordbox playlists to sync")
+
+                # Use PlaylistSyncService to sync the playlists
+                sync_service = PlaylistSyncService(rekordbox, spotify, config)
+                sync_service.sync_collection(collection, dry_run=dry_run)
+
+                click.echo("Spotify playlist sync complete.")
+            except (ValueError, ConnectionError, OSError) as e:
+                click.echo(f"Failed to authenticate with Spotify: {e}")
+                return
+
+        except RuntimeError:
+            # Rekordbox running error already handled in load_library
+            return
+        except FileNotFoundError:
+            click.echo("Error: Rekordbox database not found at configured path")
+            click.echo(f"Please check the path in {get_config_path()}")
+            return
+        except (OSError, ValueError, ImportError) as e:
+            click.echo(f"Error loading Rekordbox library: {e}")
             return
 
-    except RuntimeError:
-        # Rekordbox running error already handled in load_library
-        return
-    except FileNotFoundError:
-        click.echo("Error: Rekordbox database not found at configured path")
-        click.echo(f"Please check the path in {get_config_path()}")
-        return
-    except (OSError, ValueError, ImportError) as e:
-        click.echo(f"Error loading Rekordbox library: {e}")
-        return
+    finally:
+        # Always clear Spotify cache at the end to prevent stale token issues
+        clear_spotify_cache()
 
 
 if __name__ == "__main__":

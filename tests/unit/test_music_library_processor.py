@@ -35,18 +35,19 @@ class TestMusicLibraryProcessor:
         """Test basic title enhancement with output capture."""
         processor = MusicLibraryProcessor(default_processor_config)
         processor.process_track(sample_track)
-        assert sample_track.title == "Test Song - Test Artist [Am]"
+        assert sample_track.enhanced_title == "Test Song - Test Artist [Am]"
         assert sample_track.artists == "Test Artist"
 
         # Capture printed output
         captured = capsys.readouterr()
+        # Expect output showing title enhancement
         assert "Updating title 'Test Song' to 'Test Song - Test Artist [Am]'" in captured.out
 
     def test_process_track_no_key(self, sample_track_no_key, default_processor_config):
         """Test title enhancement without key."""
         processor = MusicLibraryProcessor(default_processor_config)
         processor.process_track(sample_track_no_key)
-        assert sample_track_no_key.title == "Test Song - Test Artist"
+        assert sample_track_no_key.enhanced_title == "Test Song - Test Artist"
         assert sample_track_no_key.artists == "Test Artist"
 
     def test_process_track_extract_artist_from_title(self, default_processor_config):
@@ -54,7 +55,7 @@ class TestMusicLibraryProcessor:
         processor = MusicLibraryProcessor(default_processor_config)
         track = create_track(title="Test Song - Test Artist", artists="")
         processor.process_track(track)
-        assert track.title == "Test Song - Test Artist [Am]"
+        assert track.enhanced_title == "Test Song - Test Artist [Am]"
         assert track.artists == "Test Artist"
 
     def test_process_track_with_text_replacements(self, default_processor_config):
@@ -65,20 +66,23 @@ class TestMusicLibraryProcessor:
             {"from": " (Original Mix)", "to": ""},  # Remove completely
             {"from": " (Extended Mix)", "to": " (ext)"},  # Replace with shorter form
             {"from": "feat.", "to": "ft."},  # Replace feat. with ft.
-            {"from": "DJTester", "to": "DJ Tester"},  # Space out DJ names
             {"from": "remove_me", "to": ""},  # Empty string should remove text
+        ]
+        config["replace_in_artist"] = [
+            {"from": "DJTester", "to": "DJ Tester"},  # Space out DJ names
+            {"from": "feat.", "to": "ft."},  # Replace feat. with ft. in artists too
         ]
         processor = MusicLibraryProcessor(config)
 
         # Test removal of original mix
         track1 = create_track(title="Test Song (Original Mix)")
         processor.process_track(track1)
-        assert track1.title == "Test Song - Test Artist [Am]"
+        assert track1.enhanced_title == "Test Song - Test Artist [Am]"
 
         # Test replacement mapping
         track2 = create_track(title="Test Song (Extended Mix)")
         processor.process_track(track2)
-        assert track2.title == "Test Song (ext) - Test Artist [Am]"
+        assert track2.enhanced_title == "Test Song (ext) - Test Artist [Am]"
 
         # Test replacement in both title and artists
         track3 = create_track(title="Song feat. Someone", artists="Artist feat. Other", key="Dm")
@@ -90,7 +94,7 @@ class TestMusicLibraryProcessor:
         track4 = create_track(title="Song remove_me Test")
         processor.process_track(track4)
         assert "remove_me" not in track4.title
-        assert "Song  Test - Test Artist [Am]" == track4.title
+        assert "Song  Test - Test Artist [Am]" == track4.enhanced_title
 
         # Test direct _apply_text_replacements method for artists replacement
         title, artists = processor._apply_text_replacements("Test Song", "DJTester")
@@ -102,7 +106,7 @@ class TestMusicLibraryProcessor:
         processor = MusicLibraryProcessor(default_processor_config)
         track = create_track(title="Test Song [Dm]")
         processor.process_track(track)
-        assert track.title == "Test Song - Test Artist [Am]"
+        assert track.enhanced_title == "Test Song - Test Artist [Am]"
 
     def test_process_track_whitespace_cleanup(self, default_processor_config):
         """Test whitespace cleanup in title and artists."""
@@ -113,7 +117,7 @@ class TestMusicLibraryProcessor:
         )
 
         processor.process_track(track)
-        assert track.title == "Test Song - Test Artist [Am]"
+        assert track.enhanced_title == "Test Song - Test Artist [Am]"
         assert track.artists == "Test Artist"
 
     def test_check_for_duplicates_none(self):
@@ -140,7 +144,20 @@ class TestMusicLibraryProcessor:
 
         processor.check_for_duplicates(tracks)
         captured = capsys.readouterr()
-        assert "WARNING: Duplicate track found: Same Song" in captured.out
+        assert "WARNING: 2 duplicate tracks found: 'same song' by 'artist 1'" in captured.out
+
+    def test_check_for_duplicates_found_no_artist(self, default_processor_config, capsys):
+        """Test duplicate checking with duplicates found but no artist info."""
+        processor = MusicLibraryProcessor(default_processor_config)
+
+        tracks = [
+            create_track(track_id="1", title="Same Song", artists="", key=None),
+            create_track(track_id="2", title="Same Song", artists=None, key=None),
+        ]
+
+        processor.check_for_duplicates(tracks)
+        captured = capsys.readouterr()
+        assert "WARNING: 2 duplicate tracks found: 'same song' (no artist)" in captured.out
 
     def test_split_artists_by_title_empty_artist(self, default_processor_config):
         """Test splitting artists when artists is empty."""
@@ -184,12 +201,12 @@ class TestMusicLibraryProcessor:
         processor.process_track(track)
 
         # Should not duplicate the artists suffix
-        assert track.title == "Song Title - Test Artist [Cm]"
+        assert track.enhanced_title == "Song Title - Test Artist [Cm]"
 
     def test_process_track_output_both_changes(self, default_processor_config, capsys):
         """Test output when both title and artists change."""
         config = default_processor_config
-        config["replace_in_title"] = [{"from": "Old Artist", "to": "New Artist"}]
+        config["replace_in_artist"] = [{"from": "Old Artist", "to": "New Artist"}]
         processor = MusicLibraryProcessor(config)
         track = create_track(title="Song Title", artists="Old Artist", key="Cm")
 
@@ -241,7 +258,7 @@ class TestMusicLibraryProcessor:
         }
         processor_enabled = MusicLibraryProcessor(config_enabled)
         processor_enabled.process_track(sample_track)
-        assert "[Am]" in sample_track.title
+        assert "[Am]" in sample_track.enhanced_title
 
         # Test with key disabled
         config_disabled = {
@@ -252,7 +269,7 @@ class TestMusicLibraryProcessor:
         processor_disabled = MusicLibraryProcessor(config_disabled)
         sample_track_disabled = create_track()
         processor_disabled.process_track(sample_track_disabled)
-        assert "[Am]" not in sample_track_disabled.title
+        assert "[Am]" not in (sample_track_disabled.enhanced_title or "")
 
     def test_add_artist_to_title_flag(self):
         """Test add_artist_to_title flag controls whether artists are added."""
@@ -265,7 +282,7 @@ class TestMusicLibraryProcessor:
         processor_enabled = MusicLibraryProcessor(config_enabled)
         sample_track_enabled = create_track()
         processor_enabled.process_track(sample_track_enabled)
-        assert "- Test Artist" in sample_track_enabled.title
+        assert "- Test Artist" in sample_track_enabled.enhanced_title
 
         # Test with artists disabled
         config_disabled = {
@@ -276,7 +293,7 @@ class TestMusicLibraryProcessor:
         processor_disabled = MusicLibraryProcessor(config_disabled)
         sample_track_disabled = create_track()
         processor_disabled.process_track(sample_track_disabled)
-        assert "- Test Artist" not in sample_track_disabled.title
+        assert "- Test Artist" not in (sample_track_disabled.enhanced_title or "")
 
     def test_remove_artists_in_title_flag(self):
         """Test remove_artists_in_title flag controls whether duplicate artists are removed."""
@@ -299,7 +316,7 @@ class TestMusicLibraryProcessor:
         # Should keep original artists field unchanged
         assert track.artists == "Dazza, Subsonic"
         # But title should only include artists not already in title content ("Dazza")
-        assert track.title == "Party (Subsonic mix) - Dazza [Am]"
+        assert track.enhanced_title == "Party (Subsonic mix) - Dazza [Am]"
 
         # Test with remove_artists_in_title disabled
         config_disabled = {
@@ -315,6 +332,37 @@ class TestMusicLibraryProcessor:
             key="Am",
         )
         processor_disabled.process_track(track_disabled)
-        # Should keep all artists in both field and title
+        # Should keep all artists in both field and enhanced title
         assert track_disabled.artists == "Dazza, Subsonic"
-        assert track_disabled.title == "Party (Subsonic mix) - Dazza, Subsonic [Am]"
+        assert track_disabled.enhanced_title == "Party (Subsonic mix) - Dazza, Subsonic [Am]"
+
+    def test_print_artist_only_changes(self, capsys):
+        """Test print output when only artists change (not title)."""
+        config = {
+            "add_key_to_title": False,  # Enable to trigger processing
+            "add_artist_to_title": False,  # Don't add artist to title
+            "replace_in_artist": [{"from": "Old Artist", "to": "New Artist"}],
+        }
+        processor = MusicLibraryProcessor(config)
+
+        # Create track where only artist changes due to replacement
+        track = create_track(title="Test Song", artists="Old Artist", key=None)  # No key
+
+        processor.process_track(track)
+
+        captured = capsys.readouterr()
+        # Should print artist-only change (no title change since no key and
+        # add_artist_to_title=False)
+        assert "Updating 'Test Song' artists 'Old Artist' to 'New Artist'" in captured.out
+
+    def test_remove_artist_suffixes_no_removal(self):
+        """Test _remove_artist_suffixes when no removal is needed."""
+        processor = MusicLibraryProcessor({})
+
+        # Test case where artist doesn't match the suffix
+        result = processor._remove_artist_suffixes("Song Title - Different Artist", "Main Artist")
+        assert result == "Song Title - Different Artist"  # Should return unchanged
+
+        # Test case with no " - " in title
+        result = processor._remove_artist_suffixes("Song Title", "Artist")
+        assert result == "Song Title"  # Should return unchanged

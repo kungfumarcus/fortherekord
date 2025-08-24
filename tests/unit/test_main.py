@@ -12,7 +12,6 @@ from fortherekord.main import (
     cli,
     load_config,
     load_library,
-    initialize_processor,
     get_collection_to_process,
     process_tracks,
 )
@@ -92,13 +91,13 @@ class TestCLIBasics:
         # Mock the functions that would be called during processing
         with (
             patch("fortherekord.main.get_collection_to_process") as mock_get_collection,
-            patch("fortherekord.main.initialize_processor") as mock_init_processor,
+            patch("fortherekord.main.MusicLibraryProcessor") as mock_processor_class,
             patch("fortherekord.main.process_tracks"),
         ):
             mock_collection = Mock()
             mock_collection.get_all_tracks = Mock(return_value=[Mock()])
             mock_get_collection.return_value = mock_collection
-            mock_init_processor.return_value = Mock()
+            mock_processor_class.return_value = Mock()
 
             result = run_cli_command([])
             assert_successful_command(result)
@@ -178,46 +177,6 @@ class TestLoadLibrary:
         assert "Note: Rekordbox is running, but continuing in dry-run mode" in str(
             mock_echo.call_args_list
         )
-
-
-class TestInitializeProcessor:
-    """Test initialize_processor function."""
-
-    @patch("fortherekord.main.MusicLibraryProcessor")
-    def test_initialize_processor(self, mock_processor_class):
-        """Test processor initialization and original metadata extraction."""
-        config = {"test": "config"}
-        mock_processor = mock_processor_class.return_value
-        # Mock processor with features enabled
-        mock_processor.add_key_to_title = True
-        mock_processor.add_artist_to_title = True
-        mock_processor.remove_artists_in_title = True
-
-        result = initialize_processor(config)
-
-        assert result == mock_processor
-        mock_processor_class.assert_called_once_with(config)
-        # Note: extract_original_metadata was removed as original values are
-        # set during track loading
-
-    @patch("fortherekord.main.MusicLibraryProcessor")
-    @patch("fortherekord.main.click.echo")
-    def test_initialize_processor_disabled(self, mock_echo, mock_processor_class):
-        """Test processor initialization when all features are disabled."""
-        config = {"test": "config"}
-        mock_processor = mock_processor_class.return_value
-        # Mock processor with all features disabled
-        mock_processor.add_key_to_title = False
-        mock_processor.add_artist_to_title = False
-        mock_processor.remove_artists_in_title = False
-
-        result = initialize_processor(config)
-
-        assert result is None
-        mock_processor_class.assert_called_once_with(config)
-        # Verify the disabled message is shown
-        assert mock_echo.call_count == 1  # Should show single disabled message
-        mock_processor.extract_original_metadata.assert_not_called()
 
 
 class TestGetCollectionToProcess:
@@ -415,7 +374,7 @@ class TestCLIIntegration:
 
     @patch("fortherekord.main.process_tracks")
     @patch("fortherekord.main.get_collection_to_process")
-    @patch("fortherekord.main.initialize_processor")
+    @patch("fortherekord.main.MusicLibraryProcessor")
     @patch("fortherekord.main.load_library")
     @patch("fortherekord.main.load_config")
     def test_cli_no_tracks_found(
@@ -441,7 +400,7 @@ class TestCLIIntegration:
 
     @patch("fortherekord.main.process_tracks")
     @patch("fortherekord.main.get_collection_to_process")
-    @patch("fortherekord.main.initialize_processor")
+    @patch("fortherekord.main.MusicLibraryProcessor")
     @patch("fortherekord.main.load_library")
     @patch("fortherekord.main.load_config")
     def test_cli_successful_processing(
@@ -455,7 +414,7 @@ class TestCLIIntegration:
         """Test CLI when tracks are successfully processed."""
         mock_load_config.return_value = {
             "rekordbox": {"library_path": "/test/db.edb"},
-            "processor": {"add_key_to_title": True}  # Add processor config so it gets called
+            "processor": {"add_key_to_title": True},  # Add processor config so it gets called
         }
         mock_rekordbox = Mock()
         mock_processor = Mock()
@@ -489,12 +448,12 @@ class TestCLIIntegration:
     @patch("fortherekord.main.SpotifyLibrary")
     @patch("fortherekord.main.PlaylistSyncService")
     @patch("fortherekord.main.get_collection_to_process")
-    @patch("fortherekord.main.initialize_processor")
+    @patch("fortherekord.main.MusicLibraryProcessor")
     @patch("fortherekord.main.process_tracks")
     def test_cli_successful_spotify_sync(
         self,
         mock_process_tracks,
-        mock_initialize_processor,
+        mock_processor_class,
         mock_get_collection,
         mock_sync_service_class,
         mock_spotify_class,
@@ -540,13 +499,34 @@ class TestCLIIntegration:
         assert_successful_command(result)
 
         # Verify the workflow
-        mock_spotify_class.assert_called_once_with("test_client_id", "test_client_secret")
-        mock_sync_service_class.assert_called_once_with(mock_rekordbox, mock_spotify)
+        mock_spotify_class.assert_called_once_with(
+            "test_client_id",
+            "test_client_secret",
+            {
+                "rekordbox": {"library_path": "/test/db.edb"},
+                "processor": {"add_key_to_title": True},
+                "spotify": {
+                    "client_id": "test_client_id",
+                    "client_secret": "test_client_secret",
+                },
+            },
+        )
+        expected_config = {
+            "rekordbox": {"library_path": "/test/db.edb"},
+            "processor": {"add_key_to_title": True},
+            "spotify": {
+                "client_id": "test_client_id",
+                "client_secret": "test_client_secret",
+            },
+        }
+        mock_sync_service_class.assert_called_once_with(
+            mock_rekordbox, mock_spotify, expected_config
+        )
         mock_sync_service.sync_collection.assert_called_once_with(mock_collection, dry_run=False)
 
         # Verify process_tracks was called with dry_run=False
         mock_process_tracks.assert_called_once_with(
-            mock_collection, mock_rekordbox, mock_initialize_processor.return_value, False
+            mock_collection, mock_rekordbox, mock_processor_class.return_value, False
         )
 
         # Check output messages
@@ -558,12 +538,12 @@ class TestCLIIntegration:
     @patch("fortherekord.main.load_library")
     @patch("fortherekord.main.SpotifyLibrary")
     @patch("fortherekord.main.get_collection_to_process")
-    @patch("fortherekord.main.initialize_processor")
+    @patch("fortherekord.main.MusicLibraryProcessor")
     @patch("fortherekord.main.process_tracks")
     def test_cli_spotify_auth_failure(
         self,
         mock_process_tracks,
-        mock_initialize_processor,
+        mock_processor_class,
         mock_get_collection,
         mock_spotify_class,
         mock_load_library,
@@ -605,12 +585,12 @@ class TestCLIIntegration:
     @patch("fortherekord.main.SpotifyLibrary")
     @patch("fortherekord.main.PlaylistSyncService")
     @patch("fortherekord.main.get_collection_to_process")
-    @patch("fortherekord.main.initialize_processor")
+    @patch("fortherekord.main.MusicLibraryProcessor")
     @patch("fortherekord.main.process_tracks")
     def test_cli_dry_run_mode(
         self,
         mock_process_tracks,
-        mock_initialize_processor,
+        mock_processor_class,
         mock_get_collection,
         mock_sync_service_class,
         mock_spotify_class,
@@ -653,7 +633,7 @@ class TestCLIIntegration:
 
         # Verify dry_run=True was passed to the right functions
         mock_process_tracks.assert_called_once_with(
-            mock_collection, mock_rekordbox, mock_initialize_processor.return_value, True
+            mock_collection, mock_rekordbox, mock_processor_class.return_value, True
         )
         mock_sync_service.sync_collection.assert_called_once_with(mock_collection, dry_run=True)
 
@@ -664,7 +644,7 @@ class TestCLIIntegration:
     @patch("fortherekord.main.PlaylistSyncService")
     @patch("fortherekord.main.SpotifyLibrary")
     @patch("fortherekord.main.process_tracks")
-    @patch("fortherekord.main.initialize_processor")
+    @patch("fortherekord.main.MusicLibraryProcessor")
     @patch("fortherekord.main.get_collection_to_process")
     @patch("fortherekord.main.load_library")
     @patch("fortherekord.main.load_config")
@@ -673,7 +653,7 @@ class TestCLIIntegration:
         mock_load_config,
         mock_load_library,
         mock_get_collection,
-        mock_initialize_processor,
+        mock_processor_class,
         mock_process_tracks,
         mock_spotify_class,
         mock_sync_service_class,
@@ -697,7 +677,7 @@ class TestCLIIntegration:
         mock_get_collection.return_value = mock_collection
 
         # Mock processor as disabled (returns None)
-        mock_initialize_processor.return_value = None
+        mock_processor_class.return_value = None
 
         # Mock Spotify
         mock_spotify = Mock()
@@ -719,3 +699,47 @@ class TestCLIIntegration:
 
         assert "Skipping track processing (processor is disabled)" in result.output
         assert "Spotify playlist sync complete" in result.output
+
+
+class TestUtilityFunctions:
+    """Test utility functions in main module."""
+
+    @patch("fortherekord.main.os.remove")
+    @patch("fortherekord.main.Path")
+    def test_clear_spotify_cache_exception_handling(self, mock_path, mock_remove):
+        """Test that clear_spotify_cache handles exceptions gracefully."""
+        from fortherekord.main import clear_spotify_cache
+
+        # Setup mock to simulate cache file exists but removal fails
+        mock_cache_path = Mock()
+        mock_cache_path.exists.return_value = True
+        mock_path.return_value = mock_cache_path
+
+        # Make os.remove raise an exception
+        mock_remove.side_effect = OSError("Permission denied")
+
+        # Should not raise an exception
+        clear_spotify_cache()
+
+        # Verify removal was attempted
+        mock_remove.assert_called_once_with(mock_cache_path)
+
+    @patch("fortherekord.main.os.remove")
+    @patch("fortherekord.main.Path")
+    def test_clear_spotify_cache_permission_error(self, mock_path, mock_remove):
+        """Test that clear_spotify_cache handles PermissionError gracefully."""
+        from fortherekord.main import clear_spotify_cache
+
+        # Setup mock to simulate cache file exists but removal fails
+        mock_cache_path = Mock()
+        mock_cache_path.exists.return_value = True
+        mock_path.return_value = mock_cache_path
+
+        # Make os.remove raise a PermissionError
+        mock_remove.side_effect = PermissionError("Access denied")
+
+        # Should not raise an exception
+        clear_spotify_cache()
+
+        # Verify removal was attempted
+        mock_remove.assert_called_once_with(mock_cache_path)

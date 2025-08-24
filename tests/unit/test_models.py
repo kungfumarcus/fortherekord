@@ -67,9 +67,7 @@ class TestCollection:
             id="playlist2", name="Playlist 2", tracks=[track2, track3]  # track2 is duplicated
         )
 
-        collection = Collection(
-            playlists=[playlist1, playlist2], tracks={"1": track1, "2": track2, "3": track3}
-        )
+        collection = Collection.from_playlists([playlist1, playlist2])
         all_tracks = collection.get_all_tracks()
 
         # Should return unique tracks only
@@ -84,7 +82,7 @@ class TestCollection:
 
     def test_get_all_tracks_empty(self):
         """Test get_all_tracks with empty collection."""
-        collection = Collection(playlists=[], tracks={})
+        collection = Collection.from_playlists([])
         all_tracks = collection.get_all_tracks()
         assert all_tracks == []
 
@@ -93,6 +91,6 @@ class TestCollection:
         playlist1 = Playlist(id="playlist1", name="Empty 1", tracks=[])
         playlist2 = Playlist(id="playlist2", name="Empty 2", tracks=[])
 
-        collection = Collection(playlists=[playlist1, playlist2], tracks={})
+        collection = Collection.from_playlists([playlist1, playlist2])
         all_tracks = collection.get_all_tracks()
         assert all_tracks == []

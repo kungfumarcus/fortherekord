@@ -16,12 +16,10 @@ def test_e2e_spotify_sync(e2e_harness):
     """Test Spotify playlist sync when music library processor is disabled."""
 
     # Configure with processor disabled (by omitting processor config)
-    e2e_harness.update_config({
-        "processor": None  # Remove processor config to disable it
-    })
+    e2e_harness.update_config({"processor": None})  # Remove processor config to disable it
 
     # Run the command - should handle disabled processor gracefully
-    result = e2e_harness.run()
+    e2e_harness.run()
 
     # Should handle the scenario gracefully
     e2e_harness.assert_process_succeeded(True)

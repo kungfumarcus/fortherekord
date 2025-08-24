@@ -5,7 +5,7 @@ Defines the core data structures used throughout the application for tracks,
 playlists, and configuration management.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional, Protocol, Dict
 
 
@@ -24,6 +24,7 @@ class Track:  # pylint: disable=too-many-instance-attributes
     original_title: str
     original_artists: str
     key: Optional[str] = None
+    enhanced_title: Optional[str] = None
 
 
 @dataclass
@@ -97,7 +98,16 @@ class Collection:
     """
 
     playlists: List[Playlist]
-    tracks: Dict[str, Track] = field(default_factory=dict)
+    tracks: Dict[str, Track]
+
+    @classmethod
+    def from_playlists(cls, playlists: List[Playlist]) -> "Collection":
+        """Create a Collection from playlists, automatically calculating tracks dictionary."""
+        tracks = {}
+        for playlist in playlists:
+            for track in playlist.tracks:
+                tracks[track.id] = track
+        return cls(playlists=playlists, tracks=tracks)
 
     def get_all_tracks(self) -> List[Track]:
         """Get all unique tracks from all playlists."""
@@ -116,6 +126,8 @@ class Collection:
         """
         changed_tracks = []
         for track in self.tracks.values():
-            if track.title != track.original_title or track.artists != track.original_artists:
+            # Use enhanced_title if available, otherwise use regular title (same logic as save)
+            title = track.enhanced_title or track.title
+            if title != track.original_title or track.artists != track.original_artists:
                 changed_tracks.append(track)
         return changed_tracks

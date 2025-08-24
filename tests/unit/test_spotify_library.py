@@ -47,20 +47,22 @@ class TestSpotifyLibrary:
         # Create client
         client = SpotifyLibrary("test_client_id", "test_client_secret")
 
-        # Verify OAuth setup
-        mock_oauth.assert_called_once_with(
-            client_id="test_client_id",
-            client_secret="test_client_secret",
-            redirect_uri="http://127.0.0.1:8888/callback",
-            scope=(
-                "playlist-read-private playlist-modify-public "
-                "playlist-modify-private user-library-read"
-            ),
-            cache_path=".spotify_cache",
+        # Verify OAuth setup - Note: cache_handler is used instead of cache_path
+        mock_oauth.assert_called_once()
+        call_args = mock_oauth.call_args
+        assert call_args[1]["client_id"] == "test_client_id"
+        assert call_args[1]["client_secret"] == "test_client_secret"
+        assert call_args[1]["redirect_uri"] == "http://127.0.0.1:8888/callback"
+        assert call_args[1]["scope"] == (
+            "playlist-read-private playlist-modify-public "
+            "playlist-modify-private user-library-read"
         )
+        # Verify that cache_handler is used (not cache_path)
+        assert "cache_handler" in call_args[1]
+        assert "cache_path" not in call_args[1]
 
         # Verify Spotify client setup
-        mock_spotify.assert_called_once_with(auth_manager=mock_auth_manager)
+        mock_spotify.assert_called_once_with(auth_manager=mock_auth_manager, requests_timeout=2)
         mock_sp.current_user.assert_called_once()
 
         assert client.user_id == "test_user"
@@ -76,9 +78,7 @@ class TestSpotifyLibrary:
         result = client.search_track("Test Song", "Test Artist")
 
         assert result == "spotify_track_id_123"
-        mock_sp.search.assert_called_once_with(
-            q="track:Test Song artists:Test Artist", type="track", limit=1
-        )
+        mock_sp.search.assert_called_once_with(q="Test Song Test Artist", type="track", limit=1)
 
     def test_search_track_not_found(self, mock_spotify_client):
         """Test track search with no results."""
@@ -139,7 +139,7 @@ class TestSpotifyLibrary:
         client, mock_sp = mock_spotify_client
 
         # Mock playlist tracks response
-        mock_sp.playlist_tracks.return_value = {
+        mock_sp.playlist_items.return_value = {
             "items": [
                 {
                     "track": {
@@ -162,6 +162,9 @@ class TestSpotifyLibrary:
         }
 
         tracks = client.get_playlist_tracks("playlist_123")
+
+        # Verify the method was called correctly
+        mock_sp.playlist_items.assert_called_once_with("playlist_123", additional_types=("track",))
 
         assert len(tracks) == 2
         assert tracks[0].id == "track_1"
@@ -317,13 +320,13 @@ class TestSpotifyLibraryErrorConditions:
         }
 
         # Configure mock to return different results for each call
-        mock_sp.playlist_tracks.return_value = first_page_results
+        mock_sp.playlist_items.return_value = first_page_results
         mock_sp.next.return_value = second_page_results
 
         tracks = client.get_playlist_tracks("playlist_id")
 
         # Should have called pagination
-        mock_sp.playlist_tracks.assert_called_once_with("playlist_id")
+        mock_sp.playlist_items.assert_called_once_with("playlist_id", additional_types=("track",))
         mock_sp.next.assert_called_once_with(first_page_results)
 
         # Should return tracks from both pages

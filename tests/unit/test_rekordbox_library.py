@@ -732,40 +732,6 @@ class TestDatabaseSafety:
         assert result == 0
         mock_db.commit.assert_not_called()  # No tracks to commit
 
-    def test_save_changes_creates_dump_file_in_test_mode(self):
-        """Test that save_changes creates dump file instead of committing in test mode."""
-        import json
-        from pathlib import Path
-        from .conftest import cleanup_test_dump_file
-
-        try:
-            mock_db = Mock()
-
-            library = RekordboxLibrary({"rekordbox": {"library_path": "/test/db.edb"}})
-            library._db = mock_db
-
-            result = library.save_changes([])
-
-            # Should return 0 for no tracks
-            assert result == 0
-
-            # Should NOT call commit
-            mock_db.commit.assert_not_called()
-
-            # Should create dump file
-            dump_file = "test_changes_dump.json"
-            assert Path(dump_file).exists()
-
-            # Dump file should contain expected data
-            with open(dump_file) as f:
-                dump_data = json.load(f)
-
-            assert dump_data["mode"] == "test_dump"
-            assert "Database commit prevented" in dump_data["note"]
-
-        finally:
-            cleanup_test_dump_file()
-
 
 class TestGetAllTracks:
     """Test get_all_tracks functionality."""

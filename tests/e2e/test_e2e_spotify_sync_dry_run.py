@@ -16,14 +16,12 @@ def test_e2e_spotify_sync_dry_run(e2e_harness):
     import pytest
 
     # Disable processor for this test - focus on Spotify sync only
-    e2e_harness.update_config({
-        "processor": None  # Remove processor config to disable it
-    })
-    
-    # Run the main command with --dry-run flag
-    result = e2e_harness.run(["--dry-run"])
+    e2e_harness.update_config({"processor": None})  # Remove processor config to disable it
 
-    # Should complete successfully in dry-run mode  
+    # Run the main command with --dry-run flag
+    e2e_harness.run(["--dry-run"])
+
+    # Should complete successfully in dry-run mode
     e2e_harness.assert_process_succeeded(True)
     e2e_harness.assert_rekordbox_loaded(True)
     e2e_harness.assert_processor_ran(False)

@@ -4,10 +4,11 @@ Spotify API integration for playlist synchronization.
 Provides basic authentication and playlist operations.
 """
 
-from typing import List, Optional
+import threading
+from typing import Any, List, Optional
 
 import spotipy
-from spotipy.oauth2 import SpotifyOAuth
+from spotipy.oauth2 import SpotifyOAuth, CacheFileHandler
 
 from .models import Track, Playlist
 
@@ -19,10 +20,11 @@ class SpotifyLibrary:
     Provides playlist management and track operations using Spotify Web API.
     """
 
-    def __init__(self, client_id: str, client_secret: str) -> None:
+    def __init__(self, client_id: str, client_secret: str, config: Optional[dict] = None) -> None:
         """Initialize Spotify client with OAuth credentials."""
         self.client_id = client_id
         self.client_secret = client_secret
+        self.config = config or {}
         self.sp: Optional[spotipy.Spotify] = None
         self.user_id: Optional[str] = None
         self._authenticate()
@@ -33,19 +35,89 @@ class SpotifyLibrary:
             "playlist-read-private playlist-modify-public playlist-modify-private user-library-read"
         )
 
-        auth_manager = SpotifyOAuth(
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-            redirect_uri="http://127.0.0.1:8888/callback",
-            scope=scope,
-            cache_path=".spotify_cache",
-        )
+        try:
+            # Use the new CacheFileHandler approach to avoid deprecation warning
+            cache_handler = CacheFileHandler(cache_path=".spotify_cache")
 
-        self.sp = spotipy.Spotify(auth_manager=auth_manager)
+            # WORKAROUND: SpotifyOAuth hangs with invalid credentials (GitHub issue #957)
+            # Use requests_timeout on the Spotify client to prevent indefinite hanging
+            # See: https://github.com/spotipy-dev/spotipy/issues/957
+            # See: https://github.com/spotipy-dev/spotipy/pull/1203/files
+            auth_manager = SpotifyOAuth(
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                redirect_uri="http://127.0.0.1:8888/callback",
+                scope=scope,
+                cache_handler=cache_handler,
+            )
 
-        # Get user ID
-        user_info = self.sp.current_user()
-        self.user_id = user_info["id"]
+            # Apply timeout to the Spotify client to handle authentication timeouts
+            self.sp = spotipy.Spotify(
+                auth_manager=auth_manager,
+                requests_timeout=2,  # 2 second timeout to prevent hanging with invalid credentials
+            )
+
+            # Get user ID with manual timeout since spotipy timeout doesn't work reliably
+            # WORKAROUND: Manual timeout wrapper for current_user() call
+            # Get timeout from config, default to 2 seconds
+            timeout_seconds = self.config.get("spotify", {}).get("timeout", 2)
+
+            result: list[Any] = [None]
+            exception: list[Optional[Exception]] = [None]
+
+            def call_current_user() -> None:
+                try:
+                    if self.sp:
+                        result[0] = self.sp.current_user()
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    exception[0] = e
+
+            thread = threading.Thread(target=call_current_user)
+            thread.daemon = True
+            thread.start()
+            thread.join(timeout=timeout_seconds)
+
+            if thread.is_alive():
+                raise ValueError(
+                    f"Spotify authentication timed out after {timeout_seconds} seconds - "
+                    "likely invalid credentials"
+                )
+
+            # Check for exceptions during authentication
+            caught_exception = exception[0]
+            if caught_exception is not None:
+                raise caught_exception from None
+
+            if result[0]:
+                user_info = result[0]
+                self.user_id = user_info["id"]
+            else:
+                raise ValueError("Unknown error during Spotify authentication")
+
+        except ValueError:
+            # Re-raise ValueError directly
+            raise
+        except Exception as e:
+            # Handle authentication failures gracefully
+            error_str = str(e).lower()
+            if any(
+                keyword in error_str
+                for keyword in [
+                    "invalid client",
+                    "invalid_client",
+                    "client_id",
+                    "client_secret",
+                    "401",
+                    "403",
+                    "unauthorized",
+                    "forbidden",
+                    "timeout",
+                    "timed out",
+                ]
+            ):
+                raise ValueError(f"Invalid Spotify credentials: {e}") from e
+            # Re-raise other exceptions
+            raise
 
     def search_track(self, title: str, artists: str) -> Optional[str]:
         """
@@ -61,11 +133,15 @@ class SpotifyLibrary:
         if not self.sp:
             raise RuntimeError("Spotify client not authenticated")
 
-        query = f"track:{title} artists:{artists}"
+        # Simple free text search - just combine title and artist
+        query = f"{title} {artists}"
         results = self.sp.search(q=query, type="track", limit=1)
 
         if results["tracks"]["items"]:
-            return str(results["tracks"]["items"][0]["id"])
+            track_result = results["tracks"]["items"][0]
+            track_id = str(track_result["id"])
+            return track_id
+
         return None
 
     def get_playlists(self, ignore_playlists: Optional[List[str]] = None) -> List[Playlist]:
@@ -120,7 +196,7 @@ class SpotifyLibrary:
             raise RuntimeError("Spotify client not authenticated")
 
         tracks = []
-        results = self.sp.playlist_tracks(playlist_id)
+        results = self.sp.playlist_items(playlist_id, additional_types=("track",))
         pagination_count = 0
         max_pages = 100  # Safety limit to prevent infinite loops
 

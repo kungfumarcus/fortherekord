@@ -127,7 +127,6 @@ def create_default_config() -> None:
     default_config = {
         "rekordbox": {
             "library_path": default_path,
-            "ignore_playlists": [],
         },
         "processor": {
             "add_key_to_title": False,
@@ -141,6 +140,7 @@ def create_default_config() -> None:
         "spotify": {
             "client_id": "",
             "client_secret": "",
+            "timeout": 2,
         },
     }
     save_config(default_config)

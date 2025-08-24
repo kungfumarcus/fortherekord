@@ -14,12 +14,12 @@ from conftest import e2e_harness
 def test_e2e_process_library(e2e_harness):
     """Test the complete metadata processing workflow with database safety."""
 
-    # Configure the test to enable music library processing features
+    # Configure the test to disable Spotify sync and focus on processing only
     e2e_harness.update_config({"spotify": None})
 
     # Run the main command - database writes will be captured in JSON dump
-    result = e2e_harness.run()
-    
+    e2e_harness.run()
+
     e2e_harness.assert_process_succeeded(True)
     e2e_harness.assert_rekordbox_loaded(True)
     e2e_harness.assert_processor_ran(True)

@@ -15,8 +15,9 @@ class MusicLibraryProcessor:
 
     def __init__(self, config: Dict) -> None:
         """Initialize with configuration settings."""
-        # Use list format for replace_in_title: [{"from": "old", "to": "new"}, ...]
+        # Use list format for replacements: [{"from": "old", "to": "new"}, ...]
         self.replace_in_title = config.get("replace_in_title", [])
+        self.replace_in_artist = config.get("replace_in_artist", [])
 
         # Configuration for enhancement features - defaults to False for safety
         self.add_key_to_title = config.get("add_key_to_title", False)
@@ -31,10 +32,6 @@ class MusicLibraryProcessor:
         Args:
             track: Track object to process (modified in-place)
         """
-        # Check if any enhancement features are enabled
-        if not (self.add_key_to_title or self.add_artist_to_title):
-            # No enhancements configured, return without changes
-            return
 
         # Clean up whitespace
         track.title = re.sub(r"\s+", " ", track.title).strip()
@@ -65,20 +62,27 @@ class MusicLibraryProcessor:
         artists_not_in_title = track.artists
         if track.artists and self.remove_artists_in_title:
             artists_not_in_title, _ = self._split_artists_by_title(track.title, track.artists)
-        track.title = self._format_enhanced_title(track.title, artists_not_in_title, track.key)
+        track.enhanced_title = self._format_enhanced_title(
+            track.title, artists_not_in_title, track.key
+        )
 
         # Print detailed change information
         self._print_track_changes(track)
 
     def _apply_text_replacements(self, title: str, artists: str) -> Tuple[str, str]:
         """Apply configured text replacements to title and artists."""
-        # List format: [{"from": "old", "to": "new"}, ...]
+        # Apply title replacements
         for replacement in self.replace_in_title:
             text_from = replacement.get("from", "")
             text_to = replacement.get("to", "")
 
             if text_from in title:
                 title = title.replace(text_from, text_to).strip()
+
+        # Apply artist replacements
+        for replacement in self.replace_in_artist:
+            text_from = replacement.get("from", "")
+            text_to = replacement.get("to", "")
 
             if artists and text_from in artists:
                 artists = artists.replace(text_from, text_to).strip()
@@ -87,21 +91,23 @@ class MusicLibraryProcessor:
 
     def _print_track_changes(self, track: Track) -> None:
         """Print detailed information about track changes."""
-        title_changed = track.original_title != track.title
+        title = track.enhanced_title or track.title
+        title_changed = track.original_title != title
         artist_changed = track.original_artists != track.artists
 
         if title_changed or artist_changed:
             if title_changed and artist_changed:
                 print(
-                    f"Updating title '{track.original_title}' to '{track.title}' "
+                    f"Updating title '{track.original_title}' to '{title}' "
                     f"and artists '{track.original_artists}' to '{track.artists}'"
                 )
             elif title_changed:
-                print(f"Updating title '{track.original_title}' to '{track.title}'")
-            # Note: Artist-only changes are currently not possible due to title enhancement logic
-            # elif artist_changed:
-            #     print(f"Updating '{original_title}' artists '{original_artists}' "
-            #           f"to '{new_artist}'")
+                print(f"Updating title '{track.original_title}' to '{title}'")
+            elif artist_changed:
+                print(
+                    f"Updating '{track.original_title}' artists '{track.original_artists}'"
+                    f" to '{track.artists}'"
+                )
 
     def _split_artists_by_title(self, title: str, artists: str) -> Tuple[str, str]:
         """Split artists into those not in title and those in title."""
@@ -171,13 +177,34 @@ class MusicLibraryProcessor:
         return title
 
     def check_for_duplicates(self, tracks: List[Track]) -> None:
-        """Check for duplicate track titles and print warnings."""
-        title_counts: dict[str, int] = {}
+        """Check for duplicate tracks by title AND artists and print warnings."""
+        track_signatures: dict[str, List[Track]] = {}
 
         for track in tracks:
-            title = track.title
-            title_counts[title] = title_counts.get(title, 0) + 1
+            # Use enhanced_title if available, otherwise fall back to title
+            title = track.enhanced_title or track.title
+            artists = track.artists or ""
 
-        for title, count in title_counts.items():
-            if count > 1:
-                print(f"WARNING: Duplicate track found: {title}")
+            # Create a signature combining title and artists for better duplicate detection
+            signature = f"{title}|{artists}".lower().strip()
+
+            if signature not in track_signatures:
+                track_signatures[signature] = []
+            track_signatures[signature].append(track)
+
+        # Report duplicates
+        for signature, duplicate_tracks in track_signatures.items():
+            if len(duplicate_tracks) > 1:
+                title, artists = signature.split("|", 1)
+                if artists:
+                    print(
+                        f"WARNING: {len(duplicate_tracks)} duplicate tracks found: "
+                        f"'{title}' by '{artists}'"
+                    )
+                else:
+                    print(
+                        f"WARNING: {len(duplicate_tracks)} duplicate tracks found: "
+                        f"'{title}' (no artist)"
+                    )
+                for track in duplicate_tracks:
+                    print(f"  - Track ID: {track.id}")
