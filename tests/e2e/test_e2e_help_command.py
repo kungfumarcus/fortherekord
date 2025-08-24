@@ -8,11 +8,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tests" / "e2e"))
-from conftest import run_fortherekord_command
+from conftest import e2e_harness
 
 
-def test_help_command():
+def test_help_command(e2e_harness):
     """Test help command e2e functionality."""
-    help_result = run_fortherekord_command(["--help"])
-    assert help_result.returncode == 0
-    assert "ForTheRekord" in help_result.stdout
+    result = e2e_harness.run(["--help"])
+    
+    e2e_harness.assert_process_succeeded(True)
+    assert "ForTheRekord" in result.stdout

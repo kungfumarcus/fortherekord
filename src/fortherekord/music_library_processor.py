@@ -142,32 +142,32 @@ class MusicLibraryProcessor:
     def _remove_artist_suffixes(self, title: str, artists: str) -> str:
         """
         Remove artist suffixes from title, repeating until no more changes are made.
-        
+
         Args:
             title: The track title
             artists: The artists string
-            
+
         Returns:
             Title with artist suffixes removed
         """
         if not artists or " - " not in title:
             return title
-            
+
         # Get the last part after the final " - "
         title_parts = title.split(" - ")
         last_part = title_parts[-1]
-        
+
         # Remove key suffix from last part for comparison
         last_part_no_key = re.sub(r"\s\[..?.?\]$", "", last_part)
-        
+
         # Split last part by comma and check if any artist matches
         last_part_artists = [a.strip() for a in last_part_no_key.split(",")]
         track_artists = [a.strip() for a in artists.split(",")]
-        
+
         # If any artist from the track appears in the last part, remove the suffix
         if any(artist in track_artists for artist in last_part_artists):
             return " - ".join(title_parts[:-1])
-                
+
         return title
 
     def check_for_duplicates(self, tracks: List[Track]) -> None:

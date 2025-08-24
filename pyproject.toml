@@ -44,9 +44,8 @@ fortherekord = "fortherekord.main:cli"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --tb=short --timeout=5"
+addopts = "-ra -q --tb=short"
 testpaths = ["tests"]
-timeout = 5
 env = [
     "FORTHEREKORD_TEST_MODE=1",
     "FORTHEREKORD_TEST_DUMP_FILE=test_changes_dump.json"

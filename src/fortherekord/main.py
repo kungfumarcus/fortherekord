@@ -22,7 +22,6 @@ def load_config() -> Optional[Dict[str, Any]]:
     """Load and validate configuration, creating default if needed."""
     config = config_load_config()
 
-    # Support both old flat structure and new hierarchical structure
     # Check if rekordbox library path is configured
     if "rekordbox" not in config or not config["rekordbox"].get("library_path"):
         click.echo("Error: rekordbox library_path not configured")
@@ -72,11 +71,7 @@ def initialize_processor(config: dict) -> Optional[MusicLibraryProcessor]:
         or processor.add_artist_to_title
         or processor.remove_artists_in_title
     ):
-        click.echo("Music library processor is disabled (all enhancement features are turned off)")
-        click.echo("Enable features in config.yaml under processor section:")
-        click.echo("  add_key_to_title: true")
-        click.echo("  add_artist_to_title: true")
-        click.echo("  remove_artists_in_title: true")
+        click.echo("Skipping track processing (processor is disabled)")
         return None
 
     return processor
@@ -187,8 +182,10 @@ def cli(dry_run: bool) -> None:  # pylint: disable=too-many-return-statements
             click.echo("No tracks found to process")
             return
 
-        processor_config = config.get("processor", {})
-        processor = initialize_processor(processor_config)
+        processor = None        
+        processor_config = config.get("processor")
+        if processor_config:
+            processor = initialize_processor(processor_config)
 
         # Only process tracks if processor is enabled
         if processor is not None:

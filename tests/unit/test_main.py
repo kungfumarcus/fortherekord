@@ -215,8 +215,8 @@ class TestInitializeProcessor:
 
         assert result is None
         mock_processor_class.assert_called_once_with(config)
-        # Verify the disabled messages are shown
-        assert mock_echo.call_count >= 4  # Should show multiple echo messages
+        # Verify the disabled message is shown
+        assert mock_echo.call_count == 1  # Should show single disabled message
         mock_processor.extract_original_metadata.assert_not_called()
 
 
@@ -453,7 +453,10 @@ class TestCLIIntegration:
         mock_process_tracks,
     ):
         """Test CLI when tracks are successfully processed."""
-        mock_load_config.return_value = {"rekordbox": {"library_path": "/test/db.edb"}}
+        mock_load_config.return_value = {
+            "rekordbox": {"library_path": "/test/db.edb"},
+            "processor": {"add_key_to_title": True}  # Add processor config so it gets called
+        }
         mock_rekordbox = Mock()
         mock_processor = Mock()
         mock_tracks = [Mock(), Mock()]  # Some tracks to process
@@ -499,9 +502,10 @@ class TestCLIIntegration:
         mock_load_config,
     ):
         """Test CLI with successful Spotify sync workflow."""
-        # Mock config with Spotify credentials
+        # Mock config with Spotify credentials and processor config
         mock_load_config.return_value = {
             "rekordbox": {"library_path": "/test/db.edb"},
+            "processor": {"add_key_to_title": True},  # Add processor config so it gets called
             "spotify": {
                 "client_id": "test_client_id",
                 "client_secret": "test_client_secret",
@@ -614,9 +618,10 @@ class TestCLIIntegration:
         mock_load_config,
     ):
         """Test CLI with --dry-run flag passes dry_run=True to relevant functions."""
-        # Mock config with Spotify credentials
+        # Mock config with Spotify credentials and processor config
         mock_load_config.return_value = {
             "rekordbox": {"library_path": "/test/db.edb"},
+            "processor": {"add_key_to_title": True},  # Add processor config so it gets called
             "spotify": {
                 "client_id": "test_client_id",
                 "client_secret": "test_client_secret",

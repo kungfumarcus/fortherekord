@@ -166,7 +166,9 @@ class TestMusicLibraryProcessor:
         processor = MusicLibraryProcessor(config)
 
         # Mix of duplicated and unique artists
-        not_in_title, in_title = processor._split_artists_by_title("Test Song by Artist1", "Artist1, Artist2")
+        not_in_title, in_title = processor._split_artists_by_title(
+            "Test Song by Artist1", "Artist1, Artist2"
+        )
         assert not_in_title == "Artist2"  # Should remove Artist1, keep Artist2
         assert in_title == "Artist1"
 

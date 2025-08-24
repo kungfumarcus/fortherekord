@@ -29,7 +29,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             dry_run: If True, preview changes without making them
         """
         if dry_run:
-            click.echo("🔍 DRY RUN MODE - Previewing changes without making them")
+            click.echo("DRY RUN MODE - Previewing changes without making them")
             click.echo()
 
         click.echo("Loading Spotify playlists...")
@@ -44,7 +44,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
 
         if dry_run:
             click.echo()
-            click.echo("🔍 DRY RUN COMPLETE - No changes were made to Spotify")
+            click.echo("DRY RUN COMPLETE - No changes were made to Spotify")
             click.echo("   Run without --dry-run to apply these changes")
 
     def _sync_single_playlist(
@@ -103,7 +103,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             if spotify_id:
                 spotify_track_ids.append(spotify_id)
             elif not dry_run:  # Only show detailed failures when not in dry-run
-                click.echo(f"    ✗ No match: {track.title} - {track.artists}")
+                click.echo(f"    X No match: {track.title} - {track.artists}")
 
         return spotify_track_ids
 
@@ -119,7 +119,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             dry_run: If True, preview creation without making changes
         """
         if dry_run:
-            click.echo(f"  📝 Would create new playlist '{name}' with {len(track_ids)} tracks")
+            click.echo(f"  Would create new playlist '{name}' with {len(track_ids)} tracks")
             return
 
         click.echo("  Creating new Spotify playlist...")
@@ -138,7 +138,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         if track_ids:
             self._add_tracks_to_playlist(playlist_id, track_ids)
 
-        click.echo(f"  ✓ Created playlist with {len(track_ids)} tracks")
+        click.echo(f"  Created playlist with {len(track_ids)} tracks")
 
     def _update_spotify_playlist(
         self, spotify_playlist: Playlist, track_ids: List[str], dry_run: bool = False
@@ -152,7 +152,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             dry_run: If True, preview changes without making them
         """
         if dry_run:
-            click.echo(f"  📝 Would update existing playlist '{spotify_playlist.name}'")
+            click.echo(f"  Would update existing playlist '{spotify_playlist.name}'")
             # Get current tracks for comparison
             current_tracks = self.spotify.get_playlist_tracks(spotify_playlist.id)
             current_track_ids = {track.id for track in current_tracks}
@@ -186,7 +186,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             self._add_tracks_to_playlist(spotify_playlist.id, list(tracks_to_add))
 
         click.echo(
-            f"  ✓ Updated playlist: +{len(tracks_to_add)} tracks, -{len(tracks_to_remove)} tracks"
+            f"  Updated playlist: +{len(tracks_to_add)} tracks, -{len(tracks_to_remove)} tracks"
         )
 
     def _add_tracks_to_playlist(self, playlist_id: str, track_ids: List[str]) -> None:
