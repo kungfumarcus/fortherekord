@@ -40,7 +40,19 @@ class Playlist:
     name: str
     tracks: List[Track]
     parent_id: Optional[str] = None
+    parent: Optional["Playlist"] = None
     children: Optional[List["Playlist"]] = None
+
+    def full_name(self) -> str:
+        """
+        Get the full name of the playlist, including parent folders.
+
+        Returns:
+            str: Full hierarchical name of the playlist
+        """
+        if self.parent:
+            return f"{self.parent.full_name()} / {self.name}"
+        return self.name
 
     def display_tree(self, indent: int = 0) -> None:
         """

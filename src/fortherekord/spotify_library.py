@@ -4,13 +4,16 @@ Spotify API integration for playlist synchronization.
 Provides basic authentication and playlist operations.
 """
 
+import os
 import threading
+from pathlib import Path
 from typing import Any, List, Optional
 
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth, CacheFileHandler
 
 from .models import Track, Playlist
+from .config import get_config_path
 
 
 class SpotifyLibrary:
@@ -26,8 +29,26 @@ class SpotifyLibrary:
         self.client_secret = client_secret
         self.config = config or {}
         self.sp: Optional[spotipy.Spotify] = None
-        self.user_id: Optional[str] = None
+        self.user_id = None
+
         self._authenticate()
+
+    @staticmethod
+    def get_cache_path() -> Path:
+        """Get the path to the Spotify cache file in user config folder."""
+        config_folder = get_config_path().parent
+        return config_folder / ".spotify_cache"
+
+    @staticmethod
+    def clear_cache() -> None:
+        """Clear Spotify authentication cache to prevent stale token issues."""
+        try:
+            cache_path = SpotifyLibrary.get_cache_path()
+            if cache_path.exists():
+                os.remove(cache_path)
+        except (OSError, PermissionError):
+            # Silently ignore if we can't remove the cache file
+            pass
 
     def _authenticate(self) -> None:
         """Setup Spotify OAuth authentication."""
@@ -37,7 +58,9 @@ class SpotifyLibrary:
 
         try:
             # Use the new CacheFileHandler approach to avoid deprecation warning
-            cache_handler = CacheFileHandler(cache_path=".spotify_cache")
+            # Store cache in user config folder alongside config.yaml
+            cache_path = self.get_cache_path()
+            cache_handler = CacheFileHandler(cache_path=str(cache_path))
 
             # WORKAROUND: SpotifyOAuth hangs with invalid credentials (GitHub issue #957)
             # Use requests_timeout on the Spotify client to prevent indefinite hanging

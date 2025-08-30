@@ -62,10 +62,11 @@ The application is built using a modular architecture with clear separation of c
 
 ## File Organization
 
-All application data is stored in a `data/` subfolder with the executable:
-- **Configuration**: `data/config.yaml`
-- **Mapping Cache**: `data/RekordBoxSpotifyMapping.json`
-- **Log File**: `data/fortherekord.log`
+User configuration and data files are stored in the user's config directory:
+- **Configuration**: `config.yaml` (in user config folder)
+- **Mapping Cache**: `RekordBoxSpotifyMapping.json` (in user config folder)
+- **Spotify Cache**: `.spotify_cache` (in user config folder)
+- **Log File**: `fortherekord.log` (in user config folder)
 
 ## Specification Guidelines
 

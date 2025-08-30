@@ -316,7 +316,7 @@ class TestPlaylistRetrieval:
         collection = library.get_collection()
 
         assert len(collection.playlists) == 1
-        assert collection.playlists[0].name == "Unnamed Playlist"
+        assert collection.playlists[0].name == ""
 
         track = collection.playlists[0].tracks[0]
         assert track.title == ""

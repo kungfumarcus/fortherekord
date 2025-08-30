@@ -4,12 +4,27 @@ Playlist synchronization between Rekordbox and Spotify.
 Handles one-way sync from Rekordbox to Spotify with simple track matching.
 """
 
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 import click
 
 from .models import Playlist, Track, Collection
 from .rekordbox_library import RekordboxLibrary
 from .spotify_library import SpotifyLibrary
+from .mapping_cache import MappingCache
+from .cli_tools import cursor_up
+
+
+@dataclass
+class Progress:
+    """Progress tracking for playlist synchronization."""
+
+    current: int
+    total: int
+
+    def percentage(self) -> int:
+        """Calculate current progress percentage."""
+        return int((self.current - 1) / self.total * 100) if self.total > 0 else 0
 
 
 class PlaylistSyncService:  # pylint: disable=too-few-public-methods
@@ -32,6 +47,14 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         if not self.playlist_prefix:
             raise ValueError("spotify.playlist_prefix is required in configuration but not found")
 
+        # Get exclude patterns for playlist names
+        self.exclude_from_playlist_names = config.get("spotify", {}).get(
+            "exclude_from_playlist_names", []
+        )
+
+        # Initialize mapping cache
+        self.mapping_cache = MappingCache()
+
     def sync_collection(self, collection: Collection, dry_run: bool = False) -> None:
         """
         Sync playlists from a Collection to Spotify.
@@ -48,14 +71,23 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         spotify_playlists = self.spotify.get_playlists()
         spotify_playlist_map = {p.name: p for p in spotify_playlists}
 
-        action_verb = "Previewing" if dry_run else "Syncing"
-        click.echo(f"{action_verb} {len(collection.playlists)} playlists to Spotify")
+        # Process all playlists recursively (including children)
+        all_playlists = self._get_all_playlists_recursive(collection.playlists)
 
-        for rekordbox_playlist in collection.playlists:
-            self._sync_single_playlist(rekordbox_playlist, spotify_playlist_map, dry_run)
+        action_verb = "Previewing" if dry_run else "Syncing"
+        click.echo(f"{action_verb} {len(all_playlists)} playlists to Spotify\n")
+
+        # Use manual progress tracking with in-place updates
+        for i, rekordbox_playlist in enumerate(all_playlists):
+            progress = Progress(i + 1, len(all_playlists))
+            self._sync_single_playlist(rekordbox_playlist, spotify_playlist_map, progress, dry_run)
+
+        click.echo(" " * 40)
+        click.echo("Overall [100%]")
+
+        click.echo()  # Final newline
 
         if dry_run:
-            click.echo()
             click.echo("DRY RUN COMPLETE - No changes were made to Spotify")
             click.echo("   Run without --dry-run to apply these changes")
 
@@ -63,6 +95,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         self,
         rekordbox_playlist: Playlist,
         spotify_playlist_map: Dict[str, Playlist],
+        progress: Progress,
         dry_run: bool = False,
     ) -> None:
         """
@@ -72,59 +105,141 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             rekordbox_playlist: Source playlist from Rekordbox (with tracks already loaded)
             spotify_playlist_map: Map of existing Spotify playlists by name
             dry_run: If True, preview changes without making them
+            progress: Progress tracking object for display (required)
         """
-        rekordbox_name = rekordbox_playlist.name
         # Apply mandatory prefix to create Spotify playlist name
-        spotify_name = self.playlist_prefix + rekordbox_name
+        # First, clean the name by removing excluded terms
+        spotify_name = self.playlist_prefix + self._clean_playlist_name(
+            rekordbox_playlist.full_name()
+        )
 
-        action_verb = "Previewing" if dry_run else "Syncing"
-        click.echo(f"\\n{action_verb} playlist: {rekordbox_name} -> {spotify_name}")
+        # Initialize single-line display
+        base_line = (
+            f"({progress.current}/{progress.total}) "
+            f"{rekordbox_playlist.full_name()} -> {spotify_name}"
+        )
 
-        # Get tracks from the playlist (already loaded in Collection)
-        rekordbox_tracks = rekordbox_playlist.tracks
-        click.echo(f"  Found {len(rekordbox_tracks)} tracks in Rekordbox")
+        # Show overall progress
+        click.echo()
+        click.echo(" " * 20)
+        click.echo(f"Overall [{progress.percentage()}%]")
+        click.echo(f"{cursor_up(4)}")
 
-        # Find matching tracks on Spotify
-        matched_tracks = self._find_spotify_matches(rekordbox_tracks, dry_run)
-        click.echo(f"  Matched {len(matched_tracks)} tracks on Spotify")
+        # Find matching tracks with progress updates
+        matched_tracks = self._find_spotify_matches(rekordbox_playlist.tracks, dry_run, base_line)
+
+        # If no tracks matched on Spotify, delete the playlist if it exists, or skip creating it
+        if len(matched_tracks) == 0:
+            if spotify_name in spotify_playlist_map:
+                playlist_obj = spotify_playlist_map[spotify_name]
+                if dry_run:
+                    result_text = f"{base_line} (0 matching tracks) - would delete"
+                else:
+                    result_text = f"{base_line} (0 matching tracks) - deleted"
+                    if not self.spotify.sp or not self.spotify.user_id:
+                        raise RuntimeError("Spotify client not authenticated")
+                    self.spotify.sp.current_user_unfollow_playlist(playlist_obj.id)
+            else:
+                if dry_run:
+                    result_text = f"{base_line} (0 matching tracks) - would skip"
+                else:
+                    result_text = f"{base_line} (0 matching tracks) - skipped"
+
+            # Update the line with final result
+            click.echo(f"\r{result_text}" + " " * 20)
+            return
 
         if spotify_name in spotify_playlist_map:
             # Update existing playlist
-            self._update_spotify_playlist(
+            _tracks_added, _tracks_removed = self._update_spotify_playlist(
                 spotify_playlist_map[spotify_name], matched_tracks, dry_run
             )
         else:
             # Create new playlist with prefix
-            self._create_spotify_playlist(spotify_name, matched_tracks, dry_run)
+            _tracks_added, _tracks_removed = self._create_spotify_playlist(
+                spotify_name, matched_tracks, dry_run
+            )
+
+        click.echo(
+            f"\r{base_line} ({len(matched_tracks)}/{len(rekordbox_playlist.tracks)}){" " * 5}"
+        )
 
     def _find_spotify_matches(
-        self, rekordbox_tracks: List[Track], dry_run: bool = False
+        self,
+        rekordbox_tracks: List[Track],
+        dry_run: bool = False,
+        base_line: str = "",
     ) -> List[str]:
         """
-        Find Spotify track IDs for Rekordbox tracks using simple search.
+        Find Spotify track IDs for Rekordbox tracks using cached mappings and search.
 
         Args:
             rekordbox_tracks: List of tracks from Rekordbox
             dry_run: If True, preview matches without detailed search output
+            base_line: Base line text for progress updates
 
         Returns:
             List of Spotify track IDs that were found
         """
         spotify_track_ids = []
+        tracks_to_search = []
+        cached_hits = 0
 
+        # First pass: check cache for existing mappings
         for track in rekordbox_tracks:
-            # Simple search: title + artists, take first result
-            spotify_id = self.spotify.search_track(track.title, track.artists)
-            if spotify_id:
-                spotify_track_ids.append(spotify_id)
-            elif not dry_run:  # Only show detailed failures when not in dry-run
-                click.echo(f"    X No match: {track.title} - {track.artists}")
+            if not self.mapping_cache.should_remap(
+                track.id, False
+            ):  # Never force remap in this context
+                cached_entry = self.mapping_cache.get_mapping(track.id)
+                if cached_entry and cached_entry.target_track_id:
+                    spotify_track_ids.append(cached_entry.target_track_id)
+                    cached_hits += 1
+                else:
+                    # Cached as "not found" - skip API call but don't add to results
+                    pass
+            else:
+                tracks_to_search.append(track)
+
+        # Second pass: search for tracks not in cache
+        if tracks_to_search:
+            for i, track in enumerate(tracks_to_search):
+                # Update progress in place
+                total_processed = cached_hits + i + 1  # +1 because we're processing track i
+                progress_percent = int((total_processed / len(rekordbox_tracks)) * 100)
+                click.echo(f"\r{base_line} [{progress_percent}%]{cursor_up()}")
+
+                spotify_id = self._search_and_cache_track(track, dry_run)
+                if spotify_id:
+                    spotify_track_ids.append(spotify_id)
 
         return spotify_track_ids
 
+    def _search_and_cache_track(self, track: Track, dry_run: bool = False) -> Optional[str]:
+        """
+        Search for a single track and cache the result.
+
+        Args:
+            track: Rekordbox track to search for
+            dry_run: If True, preview matches without detailed search output
+
+        Returns:
+            Spotify track ID if found, None otherwise
+        """
+        # Simple search: title + artists, take first result
+        spotify_id = self.spotify.search_track(track.title, track.artists)
+
+        # Cache the result (whether successful or not)
+        confidence_score = 1.0 if spotify_id else 0.0
+        self.mapping_cache.set_mapping(track.id, spotify_id, confidence_score)
+
+        if not spotify_id and not dry_run:  # Only show detailed failures when not in dry-run
+            click.echo(f"      X No match: {track.title} - {track.artists}")
+
+        return spotify_id
+
     def _create_spotify_playlist(
         self, name: str, track_ids: List[str], dry_run: bool = False
-    ) -> None:
+    ) -> tuple[int, int]:
         """
         Create a new Spotify playlist with tracks.
 
@@ -132,12 +247,12 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             name: Playlist name
             track_ids: List of Spotify track IDs to add
             dry_run: If True, preview creation without making changes
+
+        Returns:
+            Tuple of (tracks_added, tracks_removed)
         """
         if dry_run:
-            click.echo(f"  Would create new playlist '{name}' with {len(track_ids)} tracks")
-            return
-
-        click.echo("  Creating new Spotify playlist...")
+            return len(track_ids), 0
 
         if not self.spotify.sp or not self.spotify.user_id:
             raise RuntimeError("Spotify client not authenticated")
@@ -153,11 +268,11 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         if track_ids:
             self._add_tracks_to_playlist(playlist_id, track_ids)
 
-        click.echo(f"  Created playlist with {len(track_ids)} tracks")
+        return len(track_ids), 0
 
     def _update_spotify_playlist(
         self, spotify_playlist: Playlist, track_ids: List[str], dry_run: bool = False
-    ) -> None:
+    ) -> tuple[int, int]:
         """
         Update existing Spotify playlist to match Rekordbox tracks.
 
@@ -165,9 +280,11 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             spotify_playlist: Existing Spotify playlist
             track_ids: List of Spotify track IDs that should be in playlist
             dry_run: If True, preview changes without making them
+
+        Returns:
+            Tuple of (tracks_added, tracks_removed)
         """
         if dry_run:
-            click.echo(f"  Would update existing playlist '{spotify_playlist.name}'")
             # Get current tracks for comparison
             current_tracks = self.spotify.get_playlist_tracks(spotify_playlist.id)
             current_track_ids = {track.id for track in current_tracks}
@@ -177,11 +294,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             tracks_to_add = new_track_ids - current_track_ids
             tracks_to_remove = current_track_ids - new_track_ids
 
-            click.echo(f"      Would add {len(tracks_to_add)} tracks")
-            click.echo(f"      Would remove {len(tracks_to_remove)} tracks")
-            return
-
-        click.echo("  Updating existing Spotify playlist...")
+            return len(tracks_to_add), len(tracks_to_remove)
 
         # Get current tracks
         current_tracks = self.spotify.get_playlist_tracks(spotify_playlist.id)
@@ -200,9 +313,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         if tracks_to_add:
             self._add_tracks_to_playlist(spotify_playlist.id, list(tracks_to_add))
 
-        click.echo(
-            f"  Updated playlist: +{len(tracks_to_add)} tracks, -{len(tracks_to_remove)} tracks"
-        )
+        return len(tracks_to_add), len(tracks_to_remove)
 
     def _add_tracks_to_playlist(self, playlist_id: str, track_ids: List[str]) -> None:
         """Add tracks to playlist in batches."""
@@ -221,3 +332,53 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         for i in range(0, len(track_ids), 100):  # Spotify API limit
             batch = track_ids[i : i + 100]
             self.spotify.sp.playlist_remove_all_occurrences_of_items(playlist_id, batch)
+
+    def _clean_playlist_name(self, name: str) -> str:
+        """
+        Clean playlist name by removing excluded terms.
+
+        Args:
+            name: Original playlist name
+
+        Returns:
+            Cleaned playlist name with excluded terms removed
+        """
+        cleaned_name = name
+        for exclude_term in self.exclude_from_playlist_names:
+            # Remove the term and any extra spaces that might result
+            cleaned_name = cleaned_name.replace(exclude_term, "").strip()
+            # Clean up multiple spaces
+            while "  " in cleaned_name:
+                cleaned_name = cleaned_name.replace("  ", " ")
+
+        return cleaned_name
+
+    def _get_all_playlists_recursive(self, playlists: List[Playlist]) -> List[Playlist]:
+        """
+        Get all playlists including children recursively.
+
+        Args:
+            playlists: Top-level playlists
+
+        Returns:
+            Flattened list of all playlists including children (excluding those with excluded terms)
+        """
+        all_playlists = []
+        for playlist in playlists:
+            # Skip playlists that contain excluded terms
+            should_skip = False
+            for exclude_term in self.exclude_from_playlist_names:
+                if exclude_term.lower() in playlist.name.lower():
+                    should_skip = True
+                    break
+
+            if not should_skip:
+                # Only include playlists that have tracks (not empty folders)
+                if len(playlist.tracks) > 0:
+                    all_playlists.append(playlist)
+
+            # Recursively add children (regardless of whether parent was skipped)
+            if playlist.children:
+                all_playlists.extend(self._get_all_playlists_recursive(playlist.children))
+
+        return all_playlists

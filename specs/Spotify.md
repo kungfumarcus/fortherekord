@@ -28,6 +28,8 @@ Implements IMusicLibraryAdapter interface defined in [MusicLibraryInterface.md](
 ### Authentication
 - **Authenticate User**: Execute OAuth 2.0 flow and maintain access tokens for Spotify API access
 - **Get User Profile**: Retrieve authenticated user's Spotify ID and profile information
+- **Cache Authentication**: Store OAuth tokens in `.spotify_cache` file (in user config folder) to avoid repeated authentication
+- **Cache Authentication**: Store OAuth tokens in `.spotify_cache` file (in user config folder) to avoid repeated authentication
 
 ### Playlists
 - **Create Playlist**: Create new playlist with specified name

@@ -59,7 +59,7 @@ Prepares clean strings for Spotify search API
 
 #### Cache Storage
 - Store mapping for each source track ID (e.g., Rekordbox track ID)
-- Save to **data/RekordBoxSpotifyMapping.json** file (in data subfolder with executable)
+- Save to **RekordBoxSpotifyMapping.json** file (in user config folder alongside config.yaml)
 - Make data available to other components
 - mapping data is:
   - **target_track_id**: Target platform track ID or null if unmapped
@@ -69,9 +69,9 @@ Prepares clean strings for Spotify search API
   - **manual_override**: Boolean if user manually selected this match
 
 #### Cache Operations
-- Load existing mappings from data/RekordBoxSpotifyMapping.json on startup
+- Load existing mappings from RekordBoxSpotifyMapping.json on startup
 - Skip remapping if cached entry exists (unless --remap flag used)
-- Save new mappings to data/RekordBoxSpotifyMapping.json after each successful/failed match attempt
+- Save new mappings to RekordBoxSpotifyMapping.json after each successful/failed match attempt
 - Allow filtering by algorithm_version for selective remapping
 
 ### Interactive Matching Algorithm

@@ -68,6 +68,75 @@ class TestSpotifyLibrary:
         assert client.user_id == "test_user"
         assert client.sp == mock_sp
 
+    @patch("fortherekord.spotify_library.spotipy.Spotify")
+    @patch("fortherekord.spotify_library.SpotifyOAuth")
+    @patch("fortherekord.spotify_library.threading.Thread")
+    def test_authentication_timeout(self, mock_thread_class, mock_oauth, mock_spotify):
+        """Test authentication timeout scenario."""
+        # Setup mocks
+        mock_auth_manager = Mock()
+        mock_oauth.return_value = mock_auth_manager
+
+        mock_sp = Mock()
+        mock_spotify.return_value = mock_sp
+
+        # Mock thread that never finishes (simulates timeout)
+        mock_thread = Mock()
+        mock_thread.is_alive.return_value = True  # Thread still running after timeout
+        mock_thread_class.return_value = mock_thread
+
+        # Should raise ValueError for timeout
+        with pytest.raises(ValueError, match="Spotify authentication timed out"):
+            SpotifyLibrary("test_client_id", "test_client_secret")
+
+    @patch("fortherekord.spotify_library.spotipy.Spotify")
+    @patch("fortherekord.spotify_library.SpotifyOAuth")
+    def test_authentication_invalid_client_error(self, mock_oauth, mock_spotify):
+        """Test authentication with invalid client credentials."""
+        # Setup mocks
+        mock_auth_manager = Mock()
+        mock_oauth.return_value = mock_auth_manager
+
+        mock_sp = Mock()
+        mock_spotify.return_value = mock_sp
+        mock_sp.current_user.side_effect = Exception("invalid client")
+
+        # Should raise ValueError for invalid credentials
+        with pytest.raises(ValueError, match="Invalid Spotify credentials"):
+            SpotifyLibrary("invalid_id", "invalid_secret")
+
+    @patch("fortherekord.spotify_library.spotipy.Spotify")
+    @patch("fortherekord.spotify_library.SpotifyOAuth")
+    def test_authentication_unknown_error(self, mock_oauth, mock_spotify):
+        """Test authentication with unknown error (should re-raise)."""
+        # Setup mocks
+        mock_auth_manager = Mock()
+        mock_oauth.return_value = mock_auth_manager
+
+        mock_sp = Mock()
+        mock_spotify.return_value = mock_sp
+        mock_sp.current_user.side_effect = RuntimeError("Some unexpected error")
+
+        # Should re-raise the original exception
+        with pytest.raises(RuntimeError, match="Some unexpected error"):
+            SpotifyLibrary("test_id", "test_secret")
+
+    @patch("fortherekord.spotify_library.spotipy.Spotify")
+    @patch("fortherekord.spotify_library.SpotifyOAuth")
+    def test_authentication_no_user_result(self, mock_oauth, mock_spotify):
+        """Test authentication when current_user returns None."""
+        # Setup mocks
+        mock_auth_manager = Mock()
+        mock_oauth.return_value = mock_auth_manager
+
+        mock_sp = Mock()
+        mock_spotify.return_value = mock_sp
+        mock_sp.current_user.return_value = None
+
+        # Should raise ValueError for unknown error
+        with pytest.raises(ValueError, match="Unknown error during Spotify authentication"):
+            SpotifyLibrary("test_id", "test_secret")
+
     def test_search_track_found(self, mock_spotify_client):
         """Test track search with results."""
         client, mock_sp = mock_spotify_client

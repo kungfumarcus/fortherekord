@@ -196,7 +196,7 @@ class RekordboxLibrary(MusicLibrary):
             # Create playlist object with parent_id
             playlist = Playlist(
                 id=str(rb_playlist.ID),
-                name=rb_playlist.Name or "Unnamed Playlist",
+                name=rb_playlist.Name or "",
                 tracks=tracks,
                 parent_id=str(rb_playlist.Parent.ID) if rb_playlist.Parent else None,
             )
@@ -214,15 +214,15 @@ class RekordboxLibrary(MusicLibrary):
                 if parent.children is None:
                     parent.children = []
                 parent.children.append(playlist)
+                playlist.parent = parent
 
-        # Sort children for each parent by sequence order
+        # Set full name and sort children for each parent by sequence order
         for playlist in all_playlists:
             if playlist.children:
                 playlist.children.sort(key=lambda p: seq_map[p.id])
 
-        # Return only top-level playlists (no parent) - filtering is done in base class
-        top_level_playlists = [p for p in all_playlists if p.parent_id is None]
-        return Collection(playlists=top_level_playlists, tracks=track_map)
+        root_playlists = [p for p in all_playlists if p.parent_id is None]
+        return Collection(playlists=root_playlists, tracks=track_map)
 
     def create_playlist(self, name: str, tracks: List[Track]) -> str:
         """Create playlist - not supported (read-only)."""

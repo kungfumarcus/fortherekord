@@ -4,8 +4,6 @@ Basic CLI shell for ForTheRekord.
 CLI application with Rekordbox metadata processing functionality.
 """
 
-import os
-from pathlib import Path
 from typing import Dict, Optional, Any
 
 import click
@@ -18,17 +16,6 @@ from .playlist_sync import PlaylistSyncService
 from .rekordbox_library import RekordboxLibrary
 from .music_library_processor import MusicLibraryProcessor
 from .spotify_library import SpotifyLibrary
-
-
-def clear_spotify_cache() -> None:
-    """Clear Spotify authentication cache to prevent stale token issues."""
-    try:
-        cache_path = Path(".spotify_cache")
-        if cache_path.exists():
-            os.remove(cache_path)
-    except (OSError, PermissionError):
-        # Silently ignore if we can't remove the cache file
-        pass
 
 
 def load_config() -> Optional[Dict[str, Any]]:
@@ -112,6 +99,7 @@ def process_tracks(
 ) -> None:
     """Process track library, check for duplicates, and save changes."""
     print("Processing playlist metadata...")
+    click.echo()
 
     if dry_run:
         click.echo()
@@ -124,12 +112,10 @@ def process_tracks(
     tracks = collection.get_all_tracks()
 
     # Process each track to enhance titles (modifies tracks in-place)
-    click.echo()
     for track in tracks:
         processor.process_track(track)
 
     # Check for duplicates across all tracks (improved to check title AND artists)
-    click.echo()
     click.echo("Checking for duplicates...")
     processor.check_for_duplicates(tracks)
 
@@ -146,6 +132,7 @@ def process_tracks(
             click.echo(f"Would update {modified_count} tracks")
         else:
             click.echo("No changes needed")
+            click.echo()
     else:
         click.echo("Saving changes to database...")
         # Only save tracks that actually have changes
@@ -154,6 +141,7 @@ def process_tracks(
             click.echo(f"Successfully updated {saved_count} tracks")
         else:
             click.echo("No changes needed")
+            click.echo()
 
 
 @click.command()
@@ -205,6 +193,7 @@ def cli(dry_run: bool) -> None:  # pylint: disable=too-many-return-statements
                     spotify_config["client_id"], spotify_config["client_secret"], config
                 )
                 click.echo(f"Authenticated with Spotify as user: {spotify.user_id}")
+                click.echo()
 
                 # Sync playlists from Rekordbox to Spotify using the collection
                 click.echo(f"Found {len(collection.playlists)} Rekordbox playlists to sync")
@@ -231,7 +220,7 @@ def cli(dry_run: bool) -> None:  # pylint: disable=too-many-return-statements
 
     finally:
         # Always clear Spotify cache at the end to prevent stale token issues
-        clear_spotify_cache()
+        SpotifyLibrary.clear_cache()
 
 
 if __name__ == "__main__":

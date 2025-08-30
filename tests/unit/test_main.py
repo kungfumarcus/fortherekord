@@ -704,42 +704,44 @@ class TestCLIIntegration:
 class TestUtilityFunctions:
     """Test utility functions in main module."""
 
-    @patch("fortherekord.main.os.remove")
-    @patch("fortherekord.main.Path")
-    def test_clear_spotify_cache_exception_handling(self, mock_path, mock_remove):
-        """Test that clear_spotify_cache handles exceptions gracefully."""
-        from fortherekord.main import clear_spotify_cache
+    @patch("fortherekord.spotify_library.SpotifyLibrary.get_cache_path")
+    @patch("os.remove")
+    def test_clear_spotify_cache_exception_handling(self, mock_remove, mock_get_cache_path):
+        """Test that SpotifyLibrary.clear_cache handles exceptions gracefully."""
+        from fortherekord.spotify_library import SpotifyLibrary
+        from pathlib import Path
 
-        # Setup mock to simulate cache file exists but removal fails
-        mock_cache_path = Mock()
+        # Mock the cache path
+        mock_cache_path = Mock(spec=Path)
         mock_cache_path.exists.return_value = True
-        mock_path.return_value = mock_cache_path
+        mock_get_cache_path.return_value = mock_cache_path
 
         # Make os.remove raise an exception
         mock_remove.side_effect = OSError("Permission denied")
 
         # Should not raise an exception
-        clear_spotify_cache()
+        SpotifyLibrary.clear_cache()
 
         # Verify removal was attempted
         mock_remove.assert_called_once_with(mock_cache_path)
 
-    @patch("fortherekord.main.os.remove")
-    @patch("fortherekord.main.Path")
-    def test_clear_spotify_cache_permission_error(self, mock_path, mock_remove):
-        """Test that clear_spotify_cache handles PermissionError gracefully."""
-        from fortherekord.main import clear_spotify_cache
+    @patch("fortherekord.spotify_library.SpotifyLibrary.get_cache_path")
+    @patch("os.remove")
+    def test_clear_spotify_cache_permission_error(self, mock_remove, mock_get_cache_path):
+        """Test that SpotifyLibrary.clear_cache handles PermissionError gracefully."""
+        from fortherekord.spotify_library import SpotifyLibrary
+        from pathlib import Path
 
-        # Setup mock to simulate cache file exists but removal fails
-        mock_cache_path = Mock()
+        # Mock the cache path
+        mock_cache_path = Mock(spec=Path)
         mock_cache_path.exists.return_value = True
-        mock_path.return_value = mock_cache_path
+        mock_get_cache_path.return_value = mock_cache_path
 
         # Make os.remove raise a PermissionError
         mock_remove.side_effect = PermissionError("Access denied")
 
         # Should not raise an exception
-        clear_spotify_cache()
+        SpotifyLibrary.clear_cache()
 
         # Verify removal was attempted
         mock_remove.assert_called_once_with(mock_cache_path)
