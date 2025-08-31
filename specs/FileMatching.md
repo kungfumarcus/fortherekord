@@ -60,11 +60,14 @@ Prepares clean strings for Spotify search API
 #### Cache Storage
 - Store mapping for each source track ID (e.g., Rekordbox track ID)
 - Save to **RekordBoxSpotifyMapping.json** file (in user config folder alongside config.yaml)
-- Make data available to other components
-- mapping data is:
+- Use compact JSON format for smaller file size:
+  - **Successful mappings**: `{"rekordbox_id": {"spid": "spotify_id", "algo": "algorithm_version"}}`
+  - **Manual overrides**: `{"rekordbox_id": {"spid": "spotify_id", "algo": "manual"}}`
+  - **Failed mappings**: `{"rekordbox_id": null}`
+- Internal mapping data includes:
   - **target_track_id**: Target platform track ID or null if unmapped
-  - **algorithm_version**: String identifier for mapping algorithm used (e.g., "v1.0-basic")
-  - **confidence_score**: Final confidence score of the match
+  - **algorithm_version**: String identifier for mapping algorithm used (e.g., "basic")  
+  - **confidence_score**: Final confidence score of the match (default 1.0, not stored in compact format)
   - **timestamp**: When mapping was created
   - **manual_override**: Boolean if user manually selected this match
 

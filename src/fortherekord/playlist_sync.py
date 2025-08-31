@@ -87,6 +87,10 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
 
         click.echo()  # Final newline
 
+        # Clean up orphaned Spotify playlists
+        # (that have our prefix but no longer exist in Rekordbox)
+        self._cleanup_orphaned_playlists(all_playlists, spotify_playlists, dry_run)
+
         if dry_run:
             click.echo("DRY RUN COMPLETE - No changes were made to Spotify")
             click.echo("   Run without --dry-run to apply these changes")
@@ -212,6 +216,9 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
                 if spotify_id:
                     spotify_track_ids.append(spotify_id)
 
+            # Save all new mappings at once
+            self.mapping_cache.save_cache()
+
         return spotify_track_ids
 
     def _search_and_cache_track(self, track: Track, dry_run: bool = False) -> Optional[str]:
@@ -221,6 +228,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         Args:
             track: Rekordbox track to search for
             dry_run: If True, preview matches without detailed search output
+            auto_save: Whether to automatically save cache to file
 
         Returns:
             Spotify track ID if found, None otherwise
@@ -382,3 +390,46 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
                 all_playlists.extend(self._get_all_playlists_recursive(playlist.children))
 
         return all_playlists
+
+    def _cleanup_orphaned_playlists(
+        self,
+        rekordbox_playlists: List[Playlist],
+        spotify_playlists: List[Playlist],
+        dry_run: bool = False,
+    ) -> None:
+        """
+        Delete Spotify playlists with our prefix that no longer exist in Rekordbox.
+
+        Args:
+            rekordbox_playlists: All Rekordbox playlists (after filtering)
+            spotify_playlists: All Spotify playlists
+            dry_run: If True, preview deletions without making them
+        """
+        # Create set of expected Spotify playlist names (with prefix)
+        expected_names = set()
+        for rb_playlist in rekordbox_playlists:
+            rekordbox_name = rb_playlist.full_name().replace(" / ", " ")
+            cleaned_name = self._clean_playlist_name(rekordbox_name)
+            spotify_name = self.playlist_prefix + cleaned_name
+            expected_names.add(spotify_name)
+
+        # Find Spotify playlists with our prefix that are not in expected set
+        orphaned_playlists = []
+        for sp_playlist in spotify_playlists:
+            if (
+                sp_playlist.name.startswith(self.playlist_prefix)
+                and sp_playlist.name not in expected_names
+            ):
+                orphaned_playlists.append(sp_playlist)
+
+        if orphaned_playlists:
+            click.echo(f"Found {len(orphaned_playlists)} orphaned Spotify playlists to clean up:")
+            for playlist in orphaned_playlists:
+                if dry_run:
+                    click.echo(f"    Would delete orphaned playlist: '{playlist.name}'")
+                else:
+                    click.echo(f"    Deleting orphaned playlist: '{playlist.name}'")
+                    if not self.spotify.sp or not self.spotify.user_id:
+                        raise RuntimeError("Spotify client not authenticated")
+                    self.spotify.sp.current_user_unfollow_playlist(playlist.id)
+            click.echo()

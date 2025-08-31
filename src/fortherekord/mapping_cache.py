@@ -8,7 +8,7 @@ import json
 import time
 from pathlib import Path
 from typing import Dict, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
 from .config import get_config_path
 
@@ -27,7 +27,7 @@ class MappingEntry:
 class MappingCache:
     """Manages the track mapping cache."""
 
-    ALGORITHM_VERSION = "v1.0-basic"
+    ALGORITHM_VERSION = "basic"
 
     def __init__(self) -> None:
         """Initialize the mapping cache."""
@@ -51,21 +51,69 @@ class MappingCache:
 
             # Convert loaded data back to MappingEntry objects
             for track_id, entry_data in data.items():
-                self.mappings[track_id] = MappingEntry(**entry_data)
+                if entry_data is None:
+                    # Failed mapping stored as null
+                    self.mappings[track_id] = MappingEntry(
+                        target_track_id=None,
+                        algorithm_version=self.ALGORITHM_VERSION,
+                        confidence_score=0.0,
+                        timestamp=time.time(),
+                        manual_override=False,
+                    )
+                elif isinstance(entry_data, dict):
+                    # Check if it's the new compact format
+                    if "spid" in entry_data and "algo" in entry_data:
+                        # New format: {"spid": "...", "algo": "v1" or "manual"}
+                        spotify_id = entry_data["spid"]
+                        algo = entry_data["algo"]
 
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
+                        if algo == "manual":
+                            # Manual override
+                            self.mappings[track_id] = MappingEntry(
+                                target_track_id=spotify_id,
+                                algorithm_version=self.ALGORITHM_VERSION,
+                                confidence_score=1.0,
+                                timestamp=time.time(),
+                                manual_override=True,
+                            )
+                        else:
+                            # Algorithm version only
+                            self.mappings[track_id] = MappingEntry(
+                                target_track_id=spotify_id,
+                                algorithm_version=algo,
+                                confidence_score=1.0,  # Default confidence for new format
+                                timestamp=time.time(),
+                                manual_override=False,
+                            )
+                    else:
+                        # Old verbose format - convert it
+                        self.mappings[track_id] = MappingEntry(**entry_data)
+
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             # If cache file is corrupted, start fresh
             print(f"Warning: Corrupted mapping cache file, starting fresh: {e}")
             self.mappings = {}
 
     def save_cache(self) -> None:
-        """Save current mappings to cache file."""
+        """Save current mappings to cache file using compact format."""
         try:
-            # Convert MappingEntry objects to dictionaries
-            data = {track_id: asdict(entry) for track_id, entry in self.mappings.items()}
+            # Convert MappingEntry objects to compact format
+            data: Dict[str, Optional[Dict[str, str]]] = {}
+            for track_id, entry in self.mappings.items():
+                if entry.target_track_id is None:
+                    # Failed mapping: just store track_id: null
+                    data[track_id] = None
+                else:
+                    # Successful mapping
+                    if entry.manual_override:
+                        algo = "manual"
+                    else:
+                        algo = entry.algorithm_version
+
+                    data[track_id] = {"spid": entry.target_track_id, "algo": algo}
 
             with open(self.cache_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+                json.dump(data, f, separators=(",", ":"))  # Compact JSON with no spaces
 
         except (OSError, TypeError) as e:
             print(f"Warning: Failed to save mapping cache: {e}")
@@ -107,7 +155,6 @@ class MappingCache:
         )
 
         self.mappings[rekordbox_track_id] = entry
-        self.save_cache()
 
     def should_remap(self, rekordbox_track_id: str, force_remap: bool = False) -> bool:
         """

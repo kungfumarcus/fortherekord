@@ -515,3 +515,51 @@ class TestPlaylistSyncServiceErrorConditions:
 
         # Verify search was called only for track2
         service.spotify.search_track.assert_called_once_with("Not Found Song", "Not Found Artist")
+
+
+def test_sync_collection_orphaned_playlist_cleanup(mock_rekordbox):
+    """Test orphaned playlist cleanup functionality."""
+    service, sp_mock = create_service_with_config(mock_rekordbox)
+
+    # Create a collection with one playlist
+    playlist = Playlist(id="1", name="Existing Playlist", tracks=[])
+    collection = Mock()
+    collection.playlists = [playlist]
+
+    # Mock Spotify playlists - include one orphaned playlist with our prefix
+    existing_playlist = Playlist(id="sp1", name="test_Existing Playlist", tracks=[])
+    orphaned_playlist = Playlist(id="orphaned_id", name="test_Orphaned Playlist", tracks=[])
+    non_prefix_playlist = Playlist(id="sp3", name="Other Playlist", tracks=[])
+
+    service.spotify.get_playlists.return_value = [
+        existing_playlist,
+        orphaned_playlist,
+        non_prefix_playlist,
+    ]
+
+    # Test dry run - no actual deletion
+    with silence_click_echo():
+        service.sync_collection(collection, dry_run=True)
+    sp_mock.current_user_unfollow_playlist.assert_not_called()
+
+    # Test real run - should delete orphaned playlist
+    service.spotify.sp = sp_mock
+    service.spotify.user_id = "test_user"
+
+    with silence_click_echo():
+        service.sync_collection(collection, dry_run=False)
+
+    # Verify both orphaned playlists were deleted
+    # (existing_playlist doesn't match any rekordbox playlist)
+    assert sp_mock.current_user_unfollow_playlist.call_count == 2
+    sp_mock.current_user_unfollow_playlist.assert_any_call("sp1")
+    sp_mock.current_user_unfollow_playlist.assert_any_call("orphaned_id")
+
+    # Test authentication error case - reset mock and remove auth
+    sp_mock.reset_mock()
+    service.spotify.sp = None
+    service.spotify.user_id = None
+
+    with silence_click_echo():
+        with pytest.raises(RuntimeError, match="Spotify client not authenticated"):
+            service.sync_collection(collection, dry_run=False)
