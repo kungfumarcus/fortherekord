@@ -14,25 +14,24 @@ class TestMappingEntry:
 
     def test_mapping_entry_creation_and_defaults(self):
         """Test creating MappingEntry with all fields, defaults, and None target."""
-        # Test with all fields
+        # Test with all fields including manual algorithm
         entry1 = MappingEntry(
             target_track_id="spotify:track:123",
-            algorithm_version=MappingCache.ALGORITHM_VERSION,
+            algorithm_version="manual",
             confidence_score=0.95,
             timestamp=1234567890.0,
-            manual_override=True,
         )
         assert entry1.target_track_id == "spotify:track:123"
-        assert entry1.manual_override is True
+        assert entry1.algorithm_version == "manual"
 
-        # Test defaults
+        # Test with basic algorithm
         entry2 = MappingEntry(
             target_track_id="spotify:track:456",
             algorithm_version=MappingCache.ALGORITHM_VERSION,
             confidence_score=0.85,
             timestamp=1234567890.0,
         )
-        assert entry2.manual_override is False  # Default value
+        assert entry2.algorithm_version == MappingCache.ALGORITHM_VERSION
 
         # Test None target (failed match)
         entry3 = MappingEntry(
@@ -91,7 +90,6 @@ class TestMappingCache:
         assert entry.target_track_id == "spotify:track:123"
         assert entry.algorithm_version == "v1.0-basic"
         assert entry.confidence_score == 1.0  # Default for new format
-        assert entry.manual_override is False
 
         # Test 2b: Failed mapping (None entry)
         mock_json_load.return_value = {"track_failed": None}
@@ -109,7 +107,7 @@ class TestMappingCache:
         assert len(cache2c.mappings) == 1
         entry_manual = cache2c.mappings["track_manual"]
         assert entry_manual.target_track_id == "spotify:track:456"
-        assert entry_manual.manual_override is True
+        assert entry_manual.algorithm_version == "manual"
 
         # Test 3: JSON decode error
         mock_json_load.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
@@ -142,21 +140,18 @@ class TestMappingCache:
                     algorithm_version=MappingCache.ALGORITHM_VERSION,
                     confidence_score=0.95,
                     timestamp=1234567890.0,
-                    manual_override=False,
                 ),
                 "track_failed": MappingEntry(
                     target_track_id=None,  # Failed mapping
                     algorithm_version=MappingCache.ALGORITHM_VERSION,
                     confidence_score=0.0,
                     timestamp=1234567890.0,
-                    manual_override=False,
                 ),
                 "track_manual": MappingEntry(
                     target_track_id="spotify:track:456",
-                    algorithm_version=MappingCache.ALGORITHM_VERSION,
+                    algorithm_version="manual",  # Manual algorithm
                     confidence_score=1.0,
                     timestamp=1234567890.0,
-                    manual_override=True,  # Manual override
                 ),
             }
 
@@ -233,15 +228,14 @@ class TestMappingCache:
             assert entry1.target_track_id == "spotify:track:123"
             assert entry1.algorithm_version == MappingCache.ALGORITHM_VERSION
             assert entry1.confidence_score == 1.0
-            assert entry1.manual_override is False
 
-            # Test with custom values
+            # Test with custom values (manual algorithm)
             cache.set_mapping(
-                "track2", "spotify:track:456", confidence_score=0.85, manual_override=True
+                "track2", "spotify:track:456", confidence_score=0.85, algorithm_version="manual"
             )
             entry2 = cache.mappings["track2"]
             assert entry2.confidence_score == 0.85
-            assert entry2.manual_override is True
+            assert entry2.algorithm_version == "manual"
 
             # Test with None target (failed match)
             cache.set_mapping("track3", None, confidence_score=0.0)
@@ -284,3 +278,73 @@ class TestMappingCache:
         with patch.object(MappingCache, "load_cache"):
             cache = MappingCache()
             assert cache.ALGORITHM_VERSION == MappingCache.ALGORITHM_VERSION
+
+    @patch("fortherekord.mapping_cache.get_config_path")
+    def test_clear_all_mappings(self, mock_get_config_path):
+        """Test clearing all cached mappings."""
+        mock_get_config_path.return_value = Path("/mock/config.yaml")
+
+        with patch.object(MappingCache, "load_cache"), patch.object(MappingCache, "save_cache"):
+            cache = MappingCache()
+
+            # Add some mappings
+            cache.mappings = {
+                "track1": MappingEntry("spotify1", "basic", 0.9, 123.0),
+                "track2": MappingEntry("spotify2", "manual", 1.0, 124.0),
+                "track3": MappingEntry(None, "basic", 0.0, 125.0),
+            }
+
+            # Clear all mappings
+            cleared_count = cache.clear_all_mappings()
+
+            assert cleared_count == 3
+            assert len(cache.mappings) == 0
+            cache.save_cache.assert_called_once()
+
+    @patch("fortherekord.mapping_cache.get_config_path")
+    def test_clear_mappings_by_algorithm(self, mock_get_config_path):
+        """Test clearing mappings for specific algorithm."""
+        mock_get_config_path.return_value = Path("/mock/config.yaml")
+
+        with patch.object(MappingCache, "load_cache"), patch.object(MappingCache, "save_cache"):
+            cache = MappingCache()
+
+            # Add mappings with different algorithms
+            cache.mappings = {
+                "track1": MappingEntry("spotify1", "basic", 0.9, 123.0),
+                "track2": MappingEntry("spotify2", "manual", 1.0, 124.0),
+                "track3": MappingEntry(None, "basic", 0.0, 125.0),
+                "track4": MappingEntry("spotify4", "manual", 0.8, 126.0),
+            }
+
+            # Clear only basic algorithm mappings
+            cleared_count = cache.clear_mappings_by_algorithm("basic")
+
+            assert cleared_count == 2
+            assert len(cache.mappings) == 2
+            assert "track2" in cache.mappings  # manual should remain
+            assert "track4" in cache.mappings  # manual should remain
+            assert "track1" not in cache.mappings  # basic should be removed
+            assert "track3" not in cache.mappings  # basic should be removed
+            cache.save_cache.assert_called_once()
+
+    @patch("fortherekord.mapping_cache.get_config_path")
+    def test_clear_mappings_by_algorithm_no_matches(self, mock_get_config_path):
+        """Test clearing mappings when no algorithm matches exist."""
+        mock_get_config_path.return_value = Path("/mock/config.yaml")
+
+        with patch.object(MappingCache, "load_cache"), patch.object(MappingCache, "save_cache"):
+            cache = MappingCache()
+
+            # Add mappings with different algorithms
+            cache.mappings = {
+                "track1": MappingEntry("spotify1", "basic", 0.9, 123.0),
+                "track2": MappingEntry("spotify2", "manual", 1.0, 124.0),
+            }
+
+            # Try to clear algorithm that doesn't exist
+            cleared_count = cache.clear_mappings_by_algorithm("nonexistent")
+
+            assert cleared_count == 0
+            assert len(cache.mappings) == 2  # Nothing should be removed
+            cache.save_cache.assert_not_called()  # Should not save if nothing cleared

@@ -11,6 +11,24 @@ from fortherekord.spotify_library import SpotifyLibrary
 from .conftest import create_track
 
 
+def setup_spotify_mocks(mock_oauth, mock_spotify, user_response=None, user_side_effect=None):
+    """Helper function to set up standard Spotify mocks."""
+    mock_auth_manager = Mock()
+    mock_oauth.return_value = mock_auth_manager
+
+    mock_sp = Mock()
+    mock_spotify.return_value = mock_sp
+
+    if user_side_effect:
+        mock_sp.current_user.side_effect = user_side_effect
+    else:
+        mock_sp.current_user.return_value = (
+            user_response if user_response is not None else {"id": "test_user"}
+        )
+
+    return mock_auth_manager, mock_sp
+
+
 class TestSpotifyLibrary:
     """Test Spotify library functionality."""
 
@@ -36,13 +54,7 @@ class TestSpotifyLibrary:
     @patch("fortherekord.spotify_library.SpotifyOAuth")
     def test_init_and_auth(self, mock_oauth, mock_spotify):
         """Test Spotify client initialization and authentication."""
-        # Setup mocks
-        mock_auth_manager = Mock()
-        mock_oauth.return_value = mock_auth_manager
-
-        mock_sp = Mock()
-        mock_spotify.return_value = mock_sp
-        mock_sp.current_user.return_value = {"id": "test_user"}
+        mock_auth_manager, mock_sp = setup_spotify_mocks(mock_oauth, mock_spotify)
 
         # Create client
         client = SpotifyLibrary("test_client_id", "test_client_secret")
@@ -73,12 +85,7 @@ class TestSpotifyLibrary:
     @patch("fortherekord.spotify_library.threading.Thread")
     def test_authentication_timeout(self, mock_thread_class, mock_oauth, mock_spotify):
         """Test authentication timeout scenario."""
-        # Setup mocks
-        mock_auth_manager = Mock()
-        mock_oauth.return_value = mock_auth_manager
-
-        mock_sp = Mock()
-        mock_spotify.return_value = mock_sp
+        setup_spotify_mocks(mock_oauth, mock_spotify)
 
         # Mock thread that never finishes (simulates timeout)
         mock_thread = Mock()
@@ -93,13 +100,7 @@ class TestSpotifyLibrary:
     @patch("fortherekord.spotify_library.SpotifyOAuth")
     def test_authentication_invalid_client_error(self, mock_oauth, mock_spotify):
         """Test authentication with invalid client credentials."""
-        # Setup mocks
-        mock_auth_manager = Mock()
-        mock_oauth.return_value = mock_auth_manager
-
-        mock_sp = Mock()
-        mock_spotify.return_value = mock_sp
-        mock_sp.current_user.side_effect = Exception("invalid client")
+        setup_spotify_mocks(mock_oauth, mock_spotify, user_side_effect=Exception("invalid client"))
 
         # Should raise ValueError for invalid credentials
         with pytest.raises(ValueError, match="Invalid Spotify credentials"):
@@ -109,13 +110,9 @@ class TestSpotifyLibrary:
     @patch("fortherekord.spotify_library.SpotifyOAuth")
     def test_authentication_unknown_error(self, mock_oauth, mock_spotify):
         """Test authentication with unknown error (should re-raise)."""
-        # Setup mocks
-        mock_auth_manager = Mock()
-        mock_oauth.return_value = mock_auth_manager
-
-        mock_sp = Mock()
-        mock_spotify.return_value = mock_sp
-        mock_sp.current_user.side_effect = RuntimeError("Some unexpected error")
+        setup_spotify_mocks(
+            mock_oauth, mock_spotify, user_side_effect=RuntimeError("Some unexpected error")
+        )
 
         # Should re-raise the original exception
         with pytest.raises(RuntimeError, match="Some unexpected error"):
@@ -123,15 +120,15 @@ class TestSpotifyLibrary:
 
     @patch("fortherekord.spotify_library.spotipy.Spotify")
     @patch("fortherekord.spotify_library.SpotifyOAuth")
-    def test_authentication_no_user_result(self, mock_oauth, mock_spotify):
+    @patch("fortherekord.spotify_library.threading.Thread")
+    def test_authentication_no_user_result(self, mock_thread_class, mock_oauth, mock_spotify):
         """Test authentication when current_user returns None."""
-        # Setup mocks
-        mock_auth_manager = Mock()
-        mock_oauth.return_value = mock_auth_manager
+        setup_spotify_mocks(mock_oauth, mock_spotify, user_response=None)
 
-        mock_sp = Mock()
-        mock_spotify.return_value = mock_sp
-        mock_sp.current_user.return_value = None
+        # Mock thread to execute immediately (synchronous)
+        mock_thread = Mock()
+        mock_thread.is_alive.return_value = False  # Thread finished immediately
+        mock_thread_class.return_value = mock_thread
 
         # Should raise ValueError for unknown error
         with pytest.raises(ValueError, match="Unknown error during Spotify authentication"):
@@ -483,3 +480,204 @@ class TestSpotifyLibraryErrorConditions:
 
         with pytest.raises(NotImplementedError, match="Track metadata updates not supported"):
             client.update_track_metadata("track_id", "new_title", "new_artist")
+
+    @patch("builtins.input")
+    @patch("builtins.print")
+    def test_interactive_track_selection_enter_selects_top(
+        self, mock_print, mock_input, mock_spotify_client
+    ):
+        """Test interactive mode - pressing Enter selects top match."""
+        client, mock_sp = mock_spotify_client
+
+        # Mock search results
+        mock_sp.search.return_value = {
+            "tracks": {
+                "items": [
+                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
+                    {"id": "track2", "name": "Test Song 2", "artists": [{"name": "Test Artist 2"}]},
+                ]
+            }
+        }
+
+        # Mock user pressing Enter (empty input)
+        mock_input.return_value = ""
+
+        result = client.search_track("Test Song", "Test Artist", interactive=True)
+
+        assert result == "track1"
+        mock_input.assert_called_once()
+
+    @patch("builtins.input")
+    @patch("builtins.print")
+    def test_interactive_track_selection_save_command(
+        self, mock_print, mock_input, mock_spotify_client
+    ):
+        """Test interactive mode - 'save' command returns special marker."""
+        client, mock_sp = mock_spotify_client
+
+        # Mock search results
+        mock_sp.search.return_value = {
+            "tracks": {
+                "items": [
+                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
+                ]
+            }
+        }
+
+        # Mock user typing 'save'
+        mock_input.return_value = "save"
+
+        result = client.search_track("Test Song", "Test Artist", interactive=True)
+
+        assert result == "__SAVE_CACHE__"
+
+    @patch("builtins.input")
+    @patch("builtins.print")
+    def test_interactive_track_selection_number_choice(
+        self, mock_print, mock_input, mock_spotify_client
+    ):
+        """Test interactive mode - selecting by number."""
+        client, mock_sp = mock_spotify_client
+
+        # Mock search results
+        mock_sp.search.return_value = {
+            "tracks": {
+                "items": [
+                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
+                    {"id": "track2", "name": "Test Song 2", "artists": [{"name": "Test Artist 2"}]},
+                ]
+            }
+        }
+
+        # Mock user selecting option 2
+        mock_input.return_value = "2"
+
+        result = client.search_track("Test Song", "Test Artist", interactive=True)
+
+        assert result == "track2"
+
+    @patch("builtins.input")
+    @patch("builtins.print")
+    def test_interactive_track_selection_zero_skips(
+        self, mock_print, mock_input, mock_spotify_client
+    ):
+        """Test interactive mode - selecting 0 skips track."""
+        client, mock_sp = mock_spotify_client
+
+        # Mock search results
+        mock_sp.search.return_value = {
+            "tracks": {
+                "items": [
+                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
+                ]
+            }
+        }
+
+        # Mock user selecting 0
+        mock_input.return_value = "0"
+
+        result = client.search_track("Test Song", "Test Artist", interactive=True)
+
+        assert result is None
+
+    @patch("builtins.input")
+    @patch("builtins.print")
+    def test_interactive_track_selection_invalid_input_retry(
+        self, mock_print, mock_input, mock_spotify_client
+    ):
+        """Test interactive mode - invalid input causes retry."""
+        client, mock_sp = mock_spotify_client
+
+        # Mock search results
+        mock_sp.search.return_value = {
+            "tracks": {
+                "items": [
+                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
+                ]
+            }
+        }
+
+        # Mock user typing invalid input then valid choice
+        mock_input.side_effect = ["invalid", "1"]
+
+        result = client.search_track("Test Song", "Test Artist", interactive=True)
+
+        assert result == "track1"
+        assert mock_input.call_count == 2
+
+    @patch("builtins.input")
+    @patch("builtins.print")
+    def test_interactive_track_selection_keyboard_interrupt(
+        self, mock_print, mock_input, mock_spotify_client
+    ):
+        """Test interactive mode - KeyboardInterrupt is re-raised."""
+        client, mock_sp = mock_spotify_client
+
+        # Mock search results
+        mock_sp.search.return_value = {
+            "tracks": {
+                "items": [
+                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
+                ]
+            }
+        }
+
+        # Mock KeyboardInterrupt
+        mock_input.side_effect = KeyboardInterrupt()
+
+        with pytest.raises(KeyboardInterrupt):
+            client.search_track("Test Song", "Test Artist", interactive=True)
+
+    @patch("fortherekord.spotify_library.input")
+    def test_search_track_interactive_no_matches(self, mock_input, mock_spotify_client):
+        """Test interactive search when no matches are found."""
+        client, mock_sp = mock_spotify_client
+
+        # Mock Spotify API to return no results
+        mock_sp.search.return_value = {"tracks": {"items": []}}
+
+        result = client.search_track("Unknown Song", "Unknown Artist", interactive=True)
+
+        assert result is None
+
+    @patch("fortherekord.spotify_library.input")
+    def test_search_track_interactive_invalid_choice(self, mock_input, mock_spotify_client):
+        """Test interactive search with invalid choice input followed by valid choice."""
+        client, mock_sp = mock_spotify_client
+
+        # Mock Spotify API to return results
+        mock_sp.search.return_value = {
+            "tracks": {
+                "items": [
+                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
+                ]
+            }
+        }
+
+        # First invalid input (non-numeric), then valid choice
+        mock_input.side_effect = ["invalid", "1"]
+
+        result = client.search_track("Test Song", "Test Artist", interactive=True)
+
+        assert result == "track1"
+
+    @patch("fortherekord.spotify_library.input")
+    def test_search_track_interactive_invalid_numeric_choice(self, mock_input, mock_spotify_client):
+        """Test interactive search with invalid numeric choice (out of range)."""
+        client, mock_sp = mock_spotify_client
+
+        # Mock Spotify API to return results
+        mock_sp.search.return_value = {
+            "tracks": {
+                "items": [
+                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
+                ]
+            }
+        }
+
+        # First out-of-range choice, then valid choice
+        mock_input.side_effect = ["5", "1"]  # 5 is > len(candidates)
+
+        result = client.search_track("Test Song", "Test Artist", interactive=True)
+
+        assert result == "track1"

@@ -48,9 +48,6 @@ def load_library(config: Dict[str, Any], dry_run: bool = False) -> RekordboxLibr
     # Early validation: Check if Rekordbox is running and we need to save changes
     # Skip this check in dry-run mode since we won't be making any changes
     if rekordbox.is_rekordbox_running and not dry_run:
-        click.echo("ERROR: Rekordbox is currently running.")
-        click.echo("Please close Rekordbox completely before running ForTheRekord.")
-        click.echo("This prevents database corruption during metadata updates.")
         raise RuntimeError("Rekordbox is currently running")
 
     if rekordbox.is_rekordbox_running and dry_run:
@@ -147,7 +144,15 @@ def process_tracks(
 @click.command()
 @click.version_option(version=__version__)
 @click.option("--dry-run", is_flag=True, help="Preview changes without making them")
-def cli(dry_run: bool) -> None:  # pylint: disable=too-many-return-statements
+@click.option("--interactive", is_flag=True, help="Interactively choose track matches")
+@click.option(
+    "--remap",
+    default=None,
+    help="Clear existing track mappings (optionally specify algorithm: 'basic', 'manual', etc.)",
+)
+def cli(
+    dry_run: bool, interactive: bool, remap: Optional[str]
+) -> None:  # pylint: disable=too-many-return-statements
     """
     ForTheRekord - Process Rekordbox track metadata.
 
@@ -168,13 +173,11 @@ def cli(dry_run: bool) -> None:  # pylint: disable=too-many-return-statements
                 click.echo("No tracks found to process")
                 return
 
-            processor = None
             processor_config = config.get("processor")
             if processor_config:
-                processor = MusicLibraryProcessor(processor_config)
-
-            if processor is not None:
-                process_tracks(collection, rekordbox, processor, dry_run)
+                process_tracks(
+                    collection, rekordbox, MusicLibraryProcessor(processor_config), dry_run=dry_run
+                )
             else:
                 click.echo("Skipping track processing (processor is disabled)")
                 click.echo("No changes needed")
@@ -200,7 +203,9 @@ def cli(dry_run: bool) -> None:  # pylint: disable=too-many-return-statements
 
                 # Use PlaylistSyncService to sync the playlists
                 sync_service = PlaylistSyncService(rekordbox, spotify, config)
-                sync_service.sync_collection(collection, dry_run=dry_run)
+                if remap is not None:
+                    sync_service.clear_cache()
+                sync_service.sync_collection(collection, dry_run=dry_run, interactive=interactive)
 
                 click.echo("Spotify playlist sync complete.")
             except (ValueError, ConnectionError, OSError) as e:
@@ -208,15 +213,15 @@ def cli(dry_run: bool) -> None:  # pylint: disable=too-many-return-statements
                 return
 
         except RuntimeError:
-            # Rekordbox running error already handled in load_library
-            return
+            # Handle Rekordbox running error
+            click.echo("ERROR: Rekordbox is currently running.")
+            click.echo("Please close Rekordbox completely before running ForTheRekord.")
+            click.echo("This prevents database corruption during metadata updates.")
         except FileNotFoundError:
             click.echo("Error: Rekordbox database not found at configured path")
             click.echo(f"Please check the path in {get_config_path()}")
-            return
         except (OSError, ValueError, ImportError) as e:
             click.echo(f"Error loading Rekordbox library: {e}")
-            return
 
     finally:
         # Always clear Spotify cache at the end to prevent stale token issues

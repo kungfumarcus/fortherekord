@@ -84,7 +84,7 @@ class TestPlaylistSyncService:
         collection.playlists = [playlist_to_delete, playlist_normal, playlist_to_skip]
 
         # Mock search results - no match for no_match and skip_this, matches for others
-        def search_side_effect(title, artist):
+        def search_side_effect(title, artist, interactive=False):
             if title == "no_match" or title == "skip_this":
                 return None
             return f"spotify_{title}"
@@ -195,7 +195,7 @@ class TestPlaylistSyncService:
             # Test individual methods in dry-run
             service._create_spotify_playlist("Test Playlist", ["track1"], dry_run=True)
             service._update_spotify_playlist(existing_playlist, ["track1"], dry_run=True)
-            result = service._find_spotify_matches([create_track("track1")], dry_run=True)
+            result = service._find_spotify_matches([create_track("track1")], "", dry_run=True)
 
         # Verify search still works but no API calls are made
         assert result == ["spotify_track_id"]
@@ -268,7 +268,7 @@ class TestPlaylistSyncService:
             large_tracks.append(track)
 
         # Mock search - some match, some don't
-        def search_side_effect(title, artist):
+        def search_side_effect(title, artist, interactive=False):
             if "Song 0" in title or "Song 1" in title:
                 return f"spotify_{title.replace(' ', '_')}"
             return None
@@ -276,7 +276,7 @@ class TestPlaylistSyncService:
         service.spotify.search_track.side_effect = search_side_effect
 
         with silence_click_echo():
-            result = service._find_spotify_matches(large_tracks, dry_run=False)
+            result = service._find_spotify_matches(large_tracks, "", dry_run=False)
 
         # Should return only matching tracks
         assert len(result) == 2
@@ -294,7 +294,7 @@ class TestPlaylistSyncService:
         # Reset mock and make only first track match
         service.spotify.search_track.reset_mock()
 
-        def small_search_side_effect(title, artist):
+        def small_search_side_effect(title, artist, interactive=False):
             if "Small Song 0" in title:
                 return "spotify_small_song_0"
             return None  # No matches for others
@@ -303,7 +303,7 @@ class TestPlaylistSyncService:
 
         # Test with detailed error output (not dry-run) for small playlist
         with silence_click_echo():
-            result = service._find_spotify_matches(small_tracks, dry_run=False)
+            result = service._find_spotify_matches(small_tracks, "", dry_run=False)
 
         # Should return only the matching track
         assert result == ["spotify_small_song_0"]
@@ -313,7 +313,7 @@ class TestPlaylistSyncService:
         service.spotify.search_track.side_effect = small_search_side_effect
 
         with silence_click_echo():
-            result = service._find_spotify_matches(small_tracks, dry_run=True)
+            result = service._find_spotify_matches(small_tracks, "", dry_run=True)
 
         # Should still return only matching tracks
         assert result == ["spotify_small_song_0"]
@@ -330,7 +330,7 @@ class TestPlaylistSyncService:
         service.spotify.search_track.side_effect = ["spotify_id_1", None]
 
         with silence_click_echo():
-            result = service._find_spotify_matches(tracks)
+            result = service._find_spotify_matches(tracks, base_line="")
 
         assert result == ["spotify_id_1"]
         assert service.spotify.search_track.call_count == 2
@@ -463,7 +463,7 @@ class TestPlaylistSyncServiceErrorConditions:
             service._sync_single_playlist(playlist, spotify_playlists, progress, dry_run=True)
 
         # Verify the search was called
-        service.spotify.search_track.assert_called_once_with("Test Song", "Test Artist")
+        service.spotify.search_track.assert_called_once_with("Test Song", "Test Artist", False)
 
     def test_find_spotify_matches_cached_not_found(self, mock_rekordbox):
         """Test _find_spotify_matches with cached 'not found' entries to cover cache miss."""
@@ -514,7 +514,9 @@ class TestPlaylistSyncServiceErrorConditions:
         assert result == ["spotify_track1"]
 
         # Verify search was called only for track2
-        service.spotify.search_track.assert_called_once_with("Not Found Song", "Not Found Artist")
+        service.spotify.search_track.assert_called_once_with(
+            "Not Found Song", "Not Found Artist", False
+        )
 
 
 def test_sync_collection_orphaned_playlist_cleanup(mock_rekordbox):
@@ -563,3 +565,85 @@ def test_sync_collection_orphaned_playlist_cleanup(mock_rekordbox):
     with silence_click_echo():
         with pytest.raises(RuntimeError, match="Spotify client not authenticated"):
             service.sync_collection(collection, dry_run=False)
+
+
+def test_interactive_save_command_handling(mock_rekordbox):
+    """Test that save command in interactive mode is handled correctly."""
+    service, _ = create_service_with_config(mock_rekordbox)
+
+    # Create a track to search
+    track = create_track("test_track")
+    track.title = "Test Song"
+    track.artists = "Test Artist"
+
+    # Mock search_track to return save command first, then normal result
+    service.spotify.search_track.side_effect = ["__SAVE_CACHE__", "spotify_id_123"]
+
+    # Ensure the track will be searched (force should_remap to return True)
+    service.mapping_cache.should_remap.return_value = True
+
+    result = service._find_spotify_matches(
+        [track], dry_run=False, base_line="Testing", interactive=True
+    )
+
+    # Should have processed the save command and then returned the track ID
+    assert result == ["spotify_id_123"]
+
+    # Should have called search_track twice (once for save, once for actual selection)
+    assert service.spotify.search_track.call_count == 2
+
+    # Should have called save_cache twice (once for save command, once at end)
+    assert service.mapping_cache.save_cache.call_count == 2
+
+
+class TestCacheClearance:
+    """Test cache clearing functionality."""
+
+    def test_clear_cache_all_mappings(self, mock_rekordbox):
+        """Test clearing all mappings from cache."""
+        service, _ = create_service_with_config(mock_rekordbox)
+        service.mapping_cache.clear_all_mappings.return_value = 5
+
+        with silence_click_echo():
+            service.clear_cache()
+
+        service.mapping_cache.clear_all_mappings.assert_called_once()
+
+    def test_clear_cache_by_algorithm(self, mock_rekordbox):
+        """Test clearing mappings by specific algorithm."""
+        service, _ = create_service_with_config(mock_rekordbox)
+        service.mapping_cache.clear_mappings_by_algorithm.return_value = 3
+
+        with silence_click_echo():
+            service.clear_cache("fuzzy")
+
+        service.mapping_cache.clear_mappings_by_algorithm.assert_called_once_with("fuzzy")
+
+
+class TestInteractiveMode:
+    """Test interactive mode functionality."""
+
+    def test_sync_collection_interactive_display(self, mock_rekordbox):
+        """Test interactive mode display in sync_collection."""
+        service, sp_mock = create_service_with_config(mock_rekordbox)
+
+        # Create a simple collection with one playlist
+        from fortherekord.models import Collection, Playlist
+
+        track = create_track("test_track")
+        playlist = Playlist("Test Playlist", "PL1", [track])
+        collection = Collection.from_playlists([playlist])
+
+        # Mock Spotify responses
+        service.spotify.get_playlists.return_value = []
+        sp_mock.user_playlist_create.return_value = {"id": "new_playlist_id"}
+
+        # Mock search to return a result immediately
+        service.spotify.search_track.return_value = "spotify_track_id"
+
+        # Call sync_collection in interactive mode
+        with silence_click_echo():
+            service.sync_collection(collection, dry_run=False, interactive=True)
+
+        # Verify that the sync completed (this covers the interactive display code)
+        sp_mock.user_playlist_create.assert_called_once()

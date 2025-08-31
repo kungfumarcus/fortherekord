@@ -15,7 +15,7 @@ from fortherekord.main import (
     get_collection_to_process,
     process_tracks,
 )
-from .conftest import create_track, create_collection, silence_click_echo
+from .conftest import create_track, create_collection, create_playlist, silence_click_echo
 
 
 # Helper functions to reduce repetition
@@ -25,13 +25,13 @@ def run_cli_command(args: list[str]) -> object:
     return runner.invoke(cli, args)
 
 
-def assert_successful_command(result) -> None:
+def assert_successful_cli_command(result) -> None:
     """Helper function to assert command executed successfully."""
     assert result.exit_code == 0
     assert result.output is not None
 
 
-def assert_failed_command(result, expected_exit_code: int = 1) -> None:
+def assert_failed_cli_command(result, expected_exit_code: int = 1) -> None:
     """Helper function to assert command failed with expected exit code."""
     assert result.exit_code == expected_exit_code
 
@@ -51,25 +51,77 @@ def create_mock_playlist(name: str = "Test Playlist", tracks: list = None, child
     return mock_playlist
 
 
+def create_standard_config(processor_enabled=True, spotify_enabled=True):
+    """Create standard test configuration."""
+    config = {
+        "rekordbox": {"library_path": "/test/db.edb"},
+    }
+
+    if processor_enabled:
+        config["processor"] = {"add_key_to_title": True}
+    # When processor_enabled=False, don't add the processor config at all
+
+    if spotify_enabled:
+        config["spotify"] = {"client_id": "test_client_id", "client_secret": "test_client_secret"}
+
+    return config
+
+
+def setup_standard_cli_mocks(
+    mock_load_config,
+    mock_load_library,
+    mock_get_collection,
+    mock_spotify_class,
+    mock_sync_service_class,
+    config=None,
+    collection=None,
+    spotify_user_id="test_user",
+):
+    """Set up standard CLI mocks for integration tests."""
+    # Config setup
+    if config is None:
+        config = create_standard_config()
+    mock_load_config.return_value = config
+
+    # Library setup
+    mock_rekordbox = Mock()
+    mock_rekordbox.is_rekordbox_running = False
+    mock_load_library.return_value = mock_rekordbox
+
+    # Collection setup
+    if collection is None:
+        sample_track = create_track()
+        mock_playlist = create_mock_playlist("Test Playlist", [sample_track])
+        collection = create_collection(playlists=[mock_playlist])
+    mock_get_collection.return_value = collection
+
+    # Spotify setup
+    mock_spotify = Mock()
+    mock_spotify.user_id = spotify_user_id
+    mock_spotify.get_playlists.return_value = []
+    mock_spotify_class.return_value = mock_spotify
+
+    # Sync service setup
+    mock_sync_service = Mock()
+    mock_sync_service_class.return_value = mock_sync_service
+
+    return mock_rekordbox, mock_spotify, mock_sync_service
+
+
 class TestCLIBasics:
     """Test basic CLI functionality."""
 
     def test_cli_help(self):
         """Test that help command works."""
         result = run_cli_command(["--help"])
-        assert_successful_command(result)
+        assert_successful_cli_command(result)
         assert "ForTheRekord" in result.output
+        assert "ForTheRekord - Process Rekordbox track metadata" in result.output
 
     def test_cli_version(self):
         """Test that version command works."""
         result = run_cli_command(["--version"])
-        assert_successful_command(result)
-
-    def test_main_command_help(self):
-        """Test main command help."""
-        result = run_cli_command(["--help"])
-        assert_successful_command(result)
-        assert "ForTheRekord - Process Rekordbox track metadata" in result.output
+        assert_successful_cli_command(result)
 
     @patch("fortherekord.main.load_config")
     def test_main_command_no_config(self, mock_load_config):
@@ -77,7 +129,7 @@ class TestCLIBasics:
         mock_load_config.return_value = None
 
         result = run_cli_command([])
-        assert_successful_command(result)  # Should exit gracefully
+        assert_successful_cli_command(result)  # Should exit gracefully
 
     @patch("fortherekord.main.load_library")
     @patch("fortherekord.main.load_config")
@@ -100,7 +152,7 @@ class TestCLIBasics:
             mock_processor_class.return_value = Mock()
 
             result = run_cli_command([])
-            assert_successful_command(result)
+            assert_successful_cli_command(result)
             assert "Spotify credentials not configured" in result.output
 
 
@@ -158,7 +210,7 @@ class TestLoadLibrary:
             with pytest.raises(RuntimeError, match="Rekordbox is currently running"):
                 load_library(config)
 
-        assert mock_echo.call_count == 4  # Loading + 3 error messages
+        assert mock_echo.call_count == 1  # Loading message only
 
     @patch("fortherekord.main.RekordboxLibrary")
     def test_load_library_rekordbox_running_dry_run(self, mock_rekordbox_class):
@@ -337,7 +389,7 @@ class TestCLIIntegration:
         mock_load_config.return_value = {}
 
         result = run_cli_command([])
-        assert_successful_command(result)
+        assert_successful_cli_command(result)
         assert "Error: rekordbox library_path not configured" in result.output
         mock_create_default.assert_called_once()
 
@@ -349,7 +401,7 @@ class TestCLIIntegration:
         mock_load_library.side_effect = RuntimeError("Rekordbox is currently running")
 
         result = run_cli_command([])
-        assert_successful_command(result)  # CLI handles the error gracefully
+        assert_successful_cli_command(result)  # CLI handles the error gracefully
 
     @patch("fortherekord.main.load_config")
     @patch("fortherekord.main.load_library")
@@ -359,7 +411,7 @@ class TestCLIIntegration:
         mock_load_library.side_effect = FileNotFoundError()
 
         result = run_cli_command([])
-        assert_successful_command(result)
+        assert_successful_cli_command(result)
         assert "Error: Rekordbox database not found" in result.output
 
     @patch("fortherekord.main.load_config")
@@ -429,7 +481,7 @@ class TestCLIIntegration:
         result = run_cli_command([])
         assert result.exit_code == 0
         mock_process_tracks.assert_called_once_with(
-            mock_collection, mock_rekordbox, mock_processor, False
+            mock_collection, mock_rekordbox, mock_processor, dry_run=False
         )
 
     @patch("fortherekord.main.load_config")
@@ -440,7 +492,7 @@ class TestCLIIntegration:
         mock_load_library.side_effect = OSError("Permission denied")
 
         result = run_cli_command([])
-        assert_successful_command(result)
+        assert_successful_cli_command(result)
         assert "Error loading Rekordbox library: Permission denied" in result.output
 
     @patch("fortherekord.main.load_config")
@@ -461,72 +513,36 @@ class TestCLIIntegration:
         mock_load_config,
     ):
         """Test CLI with successful Spotify sync workflow."""
-        # Mock config with Spotify credentials and processor config
-        mock_load_config.return_value = {
-            "rekordbox": {"library_path": "/test/db.edb"},
-            "processor": {"add_key_to_title": True},  # Add processor config so it gets called
-            "spotify": {
-                "client_id": "test_client_id",
-                "client_secret": "test_client_secret",
-            },
-        }
-
-        # Mock successful library loading
-        mock_rekordbox = Mock()
-
-        # Create mock playlists with proper attributes
+        # Create test collection with multiple playlists
         sample_track = create_track()
         mock_playlist1 = create_mock_playlist("Test Playlist 1", [])
         mock_playlist2 = create_mock_playlist("Test Playlist 2", [sample_track])
-        mock_collection = create_collection(playlists=[mock_playlist1, mock_playlist2])
+        collection = create_collection(playlists=[mock_playlist1, mock_playlist2])
 
-        # Need to provide tracks for the CLI to continue to Spotify sync
-        mock_get_collection.return_value = mock_collection
-
-        mock_load_library.return_value = mock_rekordbox
-
-        # Mock successful Spotify authentication
-        mock_spotify = Mock()
-        mock_spotify.user_id = "test_user"
-        mock_spotify.get_playlists.return_value = []  # Return empty list
-        mock_spotify_class.return_value = mock_spotify
-
-        # Mock sync service
-        mock_sync_service = Mock()
-        mock_sync_service_class.return_value = mock_sync_service
+        # Setup standard mocks
+        mock_rekordbox, mock_spotify, mock_sync_service = setup_standard_cli_mocks(
+            mock_load_config,
+            mock_load_library,
+            mock_get_collection,
+            mock_spotify_class,
+            mock_sync_service_class,
+            collection=collection,
+        )
 
         result = run_cli_command([])
-        assert_successful_command(result)
+        assert_successful_cli_command(result)
 
         # Verify the workflow
-        mock_spotify_class.assert_called_once_with(
-            "test_client_id",
-            "test_client_secret",
-            {
-                "rekordbox": {"library_path": "/test/db.edb"},
-                "processor": {"add_key_to_title": True},
-                "spotify": {
-                    "client_id": "test_client_id",
-                    "client_secret": "test_client_secret",
-                },
-            },
+        config = create_standard_config()
+        mock_spotify_class.assert_called_once_with("test_client_id", "test_client_secret", config)
+        mock_sync_service_class.assert_called_once_with(mock_rekordbox, mock_spotify, config)
+        mock_sync_service.sync_collection.assert_called_once_with(
+            collection, dry_run=False, interactive=False
         )
-        expected_config = {
-            "rekordbox": {"library_path": "/test/db.edb"},
-            "processor": {"add_key_to_title": True},
-            "spotify": {
-                "client_id": "test_client_id",
-                "client_secret": "test_client_secret",
-            },
-        }
-        mock_sync_service_class.assert_called_once_with(
-            mock_rekordbox, mock_spotify, expected_config
-        )
-        mock_sync_service.sync_collection.assert_called_once_with(mock_collection, dry_run=False)
 
         # Verify process_tracks was called with dry_run=False
         mock_process_tracks.assert_called_once_with(
-            mock_collection, mock_rekordbox, mock_processor_class.return_value, False
+            collection, mock_rekordbox, mock_processor_class.return_value, dry_run=False
         )
 
         # Check output messages
@@ -550,26 +566,19 @@ class TestCLIIntegration:
         mock_load_config,
     ):
         """Test CLI when Spotify authentication fails."""
-        # Mock config with Spotify credentials
-        mock_load_config.return_value = {
-            "rekordbox": {"library_path": "/test/db.edb"},
-            "spotify": {
-                "client_id": "test_client_id",
-                "client_secret": "test_client_secret",
-            },
-        }
-
-        # Mock successful library loading
-        mock_rekordbox = Mock()
-        mock_load_library.return_value = mock_rekordbox
-
-        # Create a sample track so Spotify sync is attempted
+        # Create test collection
         sample_track = create_track()
         mock_playlist = create_mock_playlist("Test Playlist", [sample_track])
-        mock_collection = create_collection(playlists=[mock_playlist])
+        collection = create_collection(playlists=[mock_playlist])
 
-        # Mock get_collection_to_process to return collection
-        mock_get_collection.return_value = mock_collection
+        # Setup standard mocks but don't set up sync service since Spotify will fail
+        mock_load_config.return_value = create_standard_config()
+
+        mock_rekordbox = Mock()
+        mock_rekordbox.is_rekordbox_running = False
+        mock_load_library.return_value = mock_rekordbox
+
+        mock_get_collection.return_value = collection
 
         # Mock Spotify authentication failure
         mock_spotify_class.side_effect = ValueError("Invalid credentials")
@@ -598,44 +607,32 @@ class TestCLIIntegration:
         mock_load_config,
     ):
         """Test CLI with --dry-run flag passes dry_run=True to relevant functions."""
-        # Mock config with Spotify credentials and processor config
-        mock_load_config.return_value = {
-            "rekordbox": {"library_path": "/test/db.edb"},
-            "processor": {"add_key_to_title": True},  # Add processor config so it gets called
-            "spotify": {
-                "client_id": "test_client_id",
-                "client_secret": "test_client_secret",
-            },
-        }
-
-        # Setup mocks
-        mock_rekordbox = Mock()
-        mock_load_library.return_value = mock_rekordbox
-
-        # Mock collection and tracks
+        # Create test collection
         sample_track = create_track()
         mock_playlist = create_mock_playlist("Test Playlist", [sample_track])
-        mock_collection = create_collection(playlists=[mock_playlist])
-        mock_get_collection.return_value = mock_collection
+        collection = create_collection(playlists=[mock_playlist])
 
-        # Mock Spotify
-        mock_spotify = Mock()
-        mock_spotify.user_id = "test_user"
-        mock_spotify_class.return_value = mock_spotify
-
-        # Mock sync service
-        mock_sync_service = Mock()
-        mock_sync_service_class.return_value = mock_sync_service
+        # Setup standard mocks
+        mock_rekordbox, mock_spotify, mock_sync_service = setup_standard_cli_mocks(
+            mock_load_config,
+            mock_load_library,
+            mock_get_collection,
+            mock_spotify_class,
+            mock_sync_service_class,
+            collection=collection,
+        )
 
         # Run with --dry-run flag
         result = run_cli_command(["--dry-run"])
-        assert_successful_command(result)
+        assert_successful_cli_command(result)
 
         # Verify dry_run=True was passed to the right functions
         mock_process_tracks.assert_called_once_with(
-            mock_collection, mock_rekordbox, mock_processor_class.return_value, True
+            collection, mock_rekordbox, mock_processor_class.return_value, dry_run=True
         )
-        mock_sync_service.sync_collection.assert_called_once_with(mock_collection, dry_run=True)
+        mock_sync_service.sync_collection.assert_called_once_with(
+            collection, dry_run=True, interactive=False
+        )
 
         # The output will show the normal workflow - the key test is that
         # dry_run=True was passed correctly
@@ -659,46 +656,119 @@ class TestCLIIntegration:
         mock_sync_service_class,
     ):
         """Test CLI when processor is disabled but continues to Spotify sync."""
-        # Mock basic setup
-        mock_load_config.return_value = {
-            "rekordbox": {"library_path": "/test/db.edb"},
-            "spotify": {
-                "client_id": "test_id",
-                "client_secret": "test_secret",
-            },
-        }
-        mock_rekordbox = Mock()
-        mock_load_library.return_value = mock_rekordbox
-
-        # Mock collection with tracks
+        # Create test collection
         sample_track = create_track()
         mock_playlist = create_mock_playlist("Test Playlist", [sample_track])
-        mock_collection = create_collection(playlists=[mock_playlist])
-        mock_get_collection.return_value = mock_collection
+        collection = create_collection(playlists=[mock_playlist])
+
+        # Create config without processor settings (which disables it)
+        config = create_standard_config(processor_enabled=False)
+        config["spotify"] = {
+            "client_id": "test_id",
+            "client_secret": "test_secret",
+        }
+
+        # Setup standard mocks
+        mock_rekordbox, mock_spotify, mock_sync_service = setup_standard_cli_mocks(
+            mock_load_config,
+            mock_load_library,
+            mock_get_collection,
+            mock_spotify_class,
+            mock_sync_service_class,
+            config=config,
+            collection=collection,
+        )
 
         # Mock processor as disabled (returns None)
         mock_processor_class.return_value = None
 
-        # Mock Spotify
-        mock_spotify = Mock()
-        mock_spotify.user_id = "test_user"
-        mock_spotify_class.return_value = mock_spotify
-
-        # Mock sync service
-        mock_sync_service = Mock()
-        mock_sync_service_class.return_value = mock_sync_service
-
         result = run_cli_command([])
-        assert_successful_command(result)
+        assert_successful_cli_command(result)
 
         # Verify process_tracks was NOT called (processor disabled)
         mock_process_tracks.assert_not_called()
 
         # Verify Spotify sync still happened
-        mock_sync_service.sync_collection.assert_called_once_with(mock_collection, dry_run=False)
+        mock_sync_service.sync_collection.assert_called_once_with(
+            collection, dry_run=False, interactive=False
+        )
 
         assert "Skipping track processing (processor is disabled)" in result.output
         assert "Spotify playlist sync complete" in result.output
+
+    @patch("fortherekord.main.SpotifyLibrary")
+    @patch("fortherekord.main.PlaylistSyncService")
+    @patch("fortherekord.main.process_tracks")
+    @patch("fortherekord.main.get_collection_to_process")
+    @patch("fortherekord.main.load_library")
+    @patch("fortherekord.main.load_config")
+    def test_cli_remap_all_mappings(
+        self,
+        mock_load_config,
+        mock_load_library,
+        mock_get_collection,
+        mock_process_tracks,
+        mock_sync_service_class,
+        mock_spotify_class,
+    ):
+        """Test CLI with --remap option clears all mappings."""
+        # Setup standard mocks with processor disabled
+        config = create_standard_config(processor_enabled=False)
+        collection = create_collection(
+            [create_playlist("test_playlist", tracks=[create_track("test1")])]
+        )
+
+        mock_rekordbox, mock_spotify, mock_sync_service = setup_standard_cli_mocks(
+            mock_load_config,
+            mock_load_library,
+            mock_get_collection,
+            mock_spotify_class,
+            mock_sync_service_class,
+            config=config,
+            collection=collection,
+        )
+
+        result = run_cli_command(["--remap", ""])
+
+        assert_successful_cli_command(result)
+        mock_sync_service.clear_cache.assert_called_once()
+
+    @patch("fortherekord.main.SpotifyLibrary")
+    @patch("fortherekord.main.PlaylistSyncService")
+    @patch("fortherekord.main.process_tracks")
+    @patch("fortherekord.main.get_collection_to_process")
+    @patch("fortherekord.main.load_library")
+    @patch("fortherekord.main.load_config")
+    def test_cli_remap_specific_algorithm(
+        self,
+        mock_load_config,
+        mock_load_library,
+        mock_get_collection,
+        mock_process_tracks,
+        mock_sync_service_class,
+        mock_spotify_class,
+    ):
+        """Test CLI with --remap basic option clears only basic algorithm mappings."""
+        # Setup standard mocks with processor disabled
+        config = create_standard_config(processor_enabled=False)
+        collection = create_collection(
+            [create_playlist("test_playlist", tracks=[create_track("test1")])]
+        )
+
+        mock_rekordbox, mock_spotify, mock_sync_service = setup_standard_cli_mocks(
+            mock_load_config,
+            mock_load_library,
+            mock_get_collection,
+            mock_spotify_class,
+            mock_sync_service_class,
+            config=config,
+            collection=collection,
+        )
+
+        result = run_cli_command(["--remap", "basic"])
+
+        assert_successful_cli_command(result)
+        mock_sync_service.clear_cache.assert_called_once()
 
 
 class TestUtilityFunctions:

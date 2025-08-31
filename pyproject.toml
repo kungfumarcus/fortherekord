@@ -88,6 +88,10 @@ show_missing = true
 [tool.pylint.MASTER]
 ignore = ["_version.py"]
 
+[tool.pylint.DESIGN]
+max-args = 6
+max-positional-arguments = 6
+
 [tool.mypy]
 python_version = "3.9"
 warn_return_any = true

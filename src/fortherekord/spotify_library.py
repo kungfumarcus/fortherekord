@@ -142,13 +142,14 @@ class SpotifyLibrary:
             # Re-raise other exceptions
             raise
 
-    def search_track(self, title: str, artists: str) -> Optional[str]:
+    def search_track(self, title: str, artists: str, interactive: bool = False) -> Optional[str]:
         """
-        Search for a track and return the first result's Spotify ID.
+        Search for a track and return the best result's Spotify ID.
 
         Args:
             title: Track title
             artists: Artist name
+            interactive: If True, show user multiple options to choose from
 
         Returns:
             Spotify track ID if found, None otherwise
@@ -158,14 +159,95 @@ class SpotifyLibrary:
 
         # Simple free text search - just combine title and artist
         query = f"{title} {artists}"
-        results = self.sp.search(q=query, type="track", limit=1)
+        results = self.sp.search(q=query, type="track", limit=10 if interactive else 1)
 
-        if results["tracks"]["items"]:
+        if not results["tracks"]["items"]:
+            if interactive:
+                print(f"\nNo matches found for: {title} - {artists}")
+                return None
+            return None
+
+        # If not interactive, return first result (current behavior)
+        if not interactive:
             track_result = results["tracks"]["items"][0]
-            track_id = str(track_result["id"])
-            return track_id
+            return str(track_result["id"])
 
-        return None
+        # Interactive mode: show top 5 results and let user choose
+        return self._interactive_track_selection(title, artists, results["tracks"]["items"][:5])
+
+    def _interactive_track_selection(
+        self, source_title: str, source_artists: str, candidates: List[dict]
+    ) -> Optional[str]:
+        """
+        Present track options to user and get their selection.
+
+        Args:
+            source_title: Original track title
+            source_artists: Original track artists
+            candidates: List of Spotify track candidates
+
+        Returns:
+            Selected Spotify track ID or None if no match chosen
+        """
+        print(f"\n🎵 Finding match for: {source_title} - {source_artists}")
+        print("=" * 60)
+
+        # Display options (first one is the automatic choice)
+        for i, track in enumerate(candidates):
+            spotify_title = track["name"]
+            spotify_artists = ", ".join([artist["name"] for artist in track["artists"]])
+
+            if i == 0:
+                # Bold the automatic choice (first result)
+                print(f"👑 {i+1}. {spotify_title} - {spotify_artists}")
+            else:
+                print(f"   {i+1}. {spotify_title} - {spotify_artists}")
+
+        print("\n   0. No match (skip this track)")
+        print(
+            f"\n   Press Enter to select the top match (👑), "
+            f"choose 1-{len(candidates)} or 0, or 'save' to save cache:"
+        )
+
+        while True:
+            try:
+                choice = input("> ").strip()
+
+                if choice == "":
+                    # Enter pressed - select the top match (first result)
+                    selected = candidates[0]
+                    spotify_title = selected["name"]
+                    spotify_artists = ", ".join([artist["name"] for artist in selected["artists"]])
+                    print(f"✅ Selected: {spotify_title} - {spotify_artists}")
+                    return str(selected["id"])
+
+                if choice.lower() == "save":
+                    # Force save the mapping cache
+                    return "__SAVE_CACHE__"
+
+                choice_num = int(choice)
+
+                if choice_num == 0:
+                    print("❌ No match selected")
+                    return None
+
+                if 1 <= choice_num <= len(candidates):
+                    selected = candidates[choice_num - 1]
+                    spotify_title = selected["name"]
+                    spotify_artists = ", ".join([artist["name"] for artist in selected["artists"]])
+                    print(f"✅ Selected: {spotify_title} - {spotify_artists}")
+                    return str(selected["id"])
+
+                print(f"Invalid choice. Please enter 0-{len(candidates)} or press Enter.")
+
+            except ValueError:
+                print(
+                    f"Invalid input. Please enter a number 0-{len(candidates)}, "
+                    "'save', or press Enter."
+                )
+            except KeyboardInterrupt:
+                print("\n❌ Cancelled")
+                raise  # Re-raise to exit the program
 
     def get_playlists(self, ignore_playlists: Optional[List[str]] = None) -> List[Playlist]:
         """

@@ -55,13 +55,27 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         # Initialize mapping cache
         self.mapping_cache = MappingCache()
 
-    def sync_collection(self, collection: Collection, dry_run: bool = False) -> None:
+    def clear_cache(self, algorithm: Optional[str] = None) -> None:
+        """Clear the mapping cache."""
+        if not algorithm:
+            # No algorithm specified - clear all mappings
+            cleared_count = self.mapping_cache.clear_all_mappings()
+            click.echo(f"Cleared all {cleared_count} track mappings from cache")
+        else:
+            # Specific algorithm specified - clear only those mappings
+            cleared_count = self.mapping_cache.clear_mappings_by_algorithm(algorithm)
+            click.echo(f"Cleared {cleared_count} '{algorithm}' algorithm mappings from cache")
+
+    def sync_collection(
+        self, collection: Collection, dry_run: bool = False, interactive: bool = False
+    ) -> None:
         """
         Sync playlists from a Collection to Spotify.
 
         Args:
             collection: Collection with playlists and tracks already loaded and filtered
             dry_run: If True, preview changes without making them
+            interactive: If True, prompt user for track matches
         """
         if dry_run:
             click.echo("DRY RUN MODE - Previewing changes without making them")
@@ -80,7 +94,9 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         # Use manual progress tracking with in-place updates
         for i, rekordbox_playlist in enumerate(all_playlists):
             progress = Progress(i + 1, len(all_playlists))
-            self._sync_single_playlist(rekordbox_playlist, spotify_playlist_map, progress, dry_run)
+            self._sync_single_playlist(
+                rekordbox_playlist, spotify_playlist_map, progress, dry_run, interactive
+            )
 
         click.echo(" " * 40)
         click.echo("Overall [100%]")
@@ -101,6 +117,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         spotify_playlist_map: Dict[str, Playlist],
         progress: Progress,
         dry_run: bool = False,
+        interactive: bool = False,
     ) -> None:
         """
         Sync a single playlist from Rekordbox to Spotify.
@@ -109,7 +126,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             rekordbox_playlist: Source playlist from Rekordbox (with tracks already loaded)
             spotify_playlist_map: Map of existing Spotify playlists by name
             dry_run: If True, preview changes without making them
-            progress: Progress tracking object for display (required)
+            interactive: If True, prompt user for track matches
         """
         # Apply mandatory prefix to create Spotify playlist name
         # First, clean the name by removing excluded terms
@@ -123,14 +140,20 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             f"{rekordbox_playlist.full_name()} -> {spotify_name}"
         )
 
-        # Show overall progress
+        # Show overall progress (skip in interactive mode to avoid interfering with prompts)
         click.echo()
-        click.echo(" " * 20)
-        click.echo(f"Overall [{progress.percentage()}%]")
-        click.echo(f"{cursor_up(4)}")
+        if not interactive:
+            click.echo(" " * 20)
+            click.echo(f"Overall [{progress.percentage()}%]")
+            click.echo(f"{cursor_up(4)}")
+        else:
+            click.echo(base_line)
+            click.echo()
 
         # Find matching tracks with progress updates
-        matched_tracks = self._find_spotify_matches(rekordbox_playlist.tracks, dry_run, base_line)
+        matched_tracks = self._find_spotify_matches(
+            rekordbox_playlist.tracks, base_line, dry_run, interactive
+        )
 
         # If no tracks matched on Spotify, delete the playlist if it exists, or skip creating it
         if len(matched_tracks) == 0:
@@ -171,8 +194,9 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
     def _find_spotify_matches(
         self,
         rekordbox_tracks: List[Track],
+        base_line: str,
         dry_run: bool = False,
-        base_line: str = "",
+        interactive: bool = False,
     ) -> List[str]:
         """
         Find Spotify track IDs for Rekordbox tracks using cached mappings and search.
@@ -180,7 +204,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         Args:
             rekordbox_tracks: List of tracks from Rekordbox
             dry_run: If True, preview matches without detailed search output
-            base_line: Base line text for progress updates
+            interactive: If True, prompt user for track matches
 
         Returns:
             List of Spotify track IDs that were found
@@ -207,43 +231,62 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         # Second pass: search for tracks not in cache
         if tracks_to_search:
             for i, track in enumerate(tracks_to_search):
-                # Update progress in place
-                total_processed = cached_hits + i + 1  # +1 because we're processing track i
-                progress_percent = int((total_processed / len(rekordbox_tracks)) * 100)
-                click.echo(f"\r{base_line} [{progress_percent}%]{cursor_up()}")
+                # Update progress in place (skip in interactive mode)
+                if not interactive:
+                    total_processed = cached_hits + i + 1  # +1 because we're processing track i
+                    progress_percent = int((total_processed / len(rekordbox_tracks)) * 100)
+                    click.echo(f"\r{base_line} [{progress_percent}%]{cursor_up()}")
 
-                spotify_id = self._search_and_cache_track(track, dry_run)
-                if spotify_id:
-                    spotify_track_ids.append(spotify_id)
+                # Handle interactive search with save command support
+                while True:
+                    spotify_id = self.spotify.search_track(track.title, track.artists, interactive)
+
+                    # Handle special commands from interactive mode
+                    if spotify_id == "__SAVE_CACHE__":
+                        self.mapping_cache.save_cache()
+                        print("Cache saved!")
+                        # Continue the loop to show the selection again for this track
+                        continue
+
+                    # Normal result (ID or None), cache it and add to results
+                    self._cache_track_result(track, spotify_id, interactive, dry_run)
+                    if spotify_id:
+                        spotify_track_ids.append(spotify_id)
+                    break
 
             # Save all new mappings at once
             self.mapping_cache.save_cache()
 
         return spotify_track_ids
 
-    def _search_and_cache_track(self, track: Track, dry_run: bool = False) -> Optional[str]:
+    def _cache_track_result(
+        self,
+        track: Track,
+        spotify_id: Optional[str],
+        interactive: bool = False,
+        dry_run: bool = False,
+    ) -> None:
         """
-        Search for a single track and cache the result.
+        Cache a track search result.
 
         Args:
-            track: Rekordbox track to search for
-            dry_run: If True, preview matches without detailed search output
-            auto_save: Whether to automatically save cache to file
+            track: Rekordbox track that was searched for
+            spotify_id: Spotify track ID if found, None otherwise
+            interactive: Whether this was from interactive mode
+            dry_run: If True, suppress detailed failure messages
 
         Returns:
-            Spotify track ID if found, None otherwise
+            None
         """
-        # Simple search: title + artists, take first result
-        spotify_id = self.spotify.search_track(track.title, track.artists)
-
         # Cache the result (whether successful or not)
         confidence_score = 1.0 if spotify_id else 0.0
-        self.mapping_cache.set_mapping(track.id, spotify_id, confidence_score)
+        algorithm_version = (
+            "manual" if interactive else None
+        )  # Use "manual" for interactive selections
+        self.mapping_cache.set_mapping(track.id, spotify_id, confidence_score, algorithm_version)
 
         if not spotify_id and not dry_run:  # Only show detailed failures when not in dry-run
             click.echo(f"      X No match: {track.title} - {track.artists}")
-
-        return spotify_id
 
     def _create_spotify_playlist(
         self, name: str, track_ids: List[str], dry_run: bool = False

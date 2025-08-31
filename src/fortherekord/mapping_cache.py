@@ -21,7 +21,6 @@ class MappingEntry:
     algorithm_version: str  # Algorithm version used for matching
     confidence_score: float  # Confidence score of the match
     timestamp: float  # When mapping was created
-    manual_override: bool = False  # Whether user manually selected this match
 
 
 class MappingCache:
@@ -58,36 +57,19 @@ class MappingCache:
                         algorithm_version=self.ALGORITHM_VERSION,
                         confidence_score=0.0,
                         timestamp=time.time(),
-                        manual_override=False,
                     )
                 elif isinstance(entry_data, dict):
-                    # Check if it's the new compact format
-                    if "spid" in entry_data and "algo" in entry_data:
-                        # New format: {"spid": "...", "algo": "v1" or "manual"}
-                        spotify_id = entry_data["spid"]
-                        algo = entry_data["algo"]
+                    # New format: {"spid": "...", "algo": "v1" or "manual"}
+                    spotify_id = entry_data["spid"]
+                    algo = entry_data["algo"]
 
-                        if algo == "manual":
-                            # Manual override
-                            self.mappings[track_id] = MappingEntry(
-                                target_track_id=spotify_id,
-                                algorithm_version=self.ALGORITHM_VERSION,
-                                confidence_score=1.0,
-                                timestamp=time.time(),
-                                manual_override=True,
-                            )
-                        else:
-                            # Algorithm version only
-                            self.mappings[track_id] = MappingEntry(
-                                target_track_id=spotify_id,
-                                algorithm_version=algo,
-                                confidence_score=1.0,  # Default confidence for new format
-                                timestamp=time.time(),
-                                manual_override=False,
-                            )
-                    else:
-                        # Old verbose format - convert it
-                        self.mappings[track_id] = MappingEntry(**entry_data)
+                    # Store with the algorithm version (including "manual")
+                    self.mappings[track_id] = MappingEntry(
+                        target_track_id=spotify_id,
+                        algorithm_version=algo,  # Keep original algo (basic or manual)
+                        confidence_score=1.0,
+                        timestamp=time.time(),
+                    )
 
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             # If cache file is corrupted, start fresh
@@ -105,12 +87,10 @@ class MappingCache:
                     data[track_id] = None
                 else:
                     # Successful mapping
-                    if entry.manual_override:
-                        algo = "manual"
-                    else:
-                        algo = entry.algorithm_version
-
-                    data[track_id] = {"spid": entry.target_track_id, "algo": algo}
+                    data[track_id] = {
+                        "spid": entry.target_track_id,
+                        "algo": entry.algorithm_version,
+                    }
 
             with open(self.cache_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, separators=(",", ":"))  # Compact JSON with no spaces
@@ -135,7 +115,7 @@ class MappingCache:
         rekordbox_track_id: str,
         spotify_track_id: Optional[str],
         confidence_score: float = 1.0,
-        manual_override: bool = False,
+        algorithm_version: Optional[str] = None,
     ) -> None:
         """
         Cache a track mapping.
@@ -144,14 +124,17 @@ class MappingCache:
             rekordbox_track_id: Rekordbox track ID
             spotify_track_id: Spotify track ID or None if no match found
             confidence_score: Confidence score of the match
-            manual_override: Whether this was manually selected by user
+            algorithm_version: Algorithm version used (defaults to ALGORITHM_VERSION,
+                              use "manual" for interactive selection)
         """
+        if algorithm_version is None:
+            algorithm_version = self.ALGORITHM_VERSION
+
         entry = MappingEntry(
             target_track_id=spotify_track_id,
-            algorithm_version=self.ALGORITHM_VERSION,
+            algorithm_version=algorithm_version,
             confidence_score=confidence_score,
             timestamp=time.time(),
-            manual_override=manual_override,
         )
 
         self.mappings[rekordbox_track_id] = entry
@@ -176,3 +159,41 @@ class MappingCache:
 
         # Could add logic here to check if mapping is too old or uses outdated algorithm
         return False
+
+    def clear_all_mappings(self) -> int:
+        """
+        Clear all cached mappings.
+
+        Returns:
+            Number of mappings that were cleared
+        """
+        cleared_count = len(self.mappings)
+        self.mappings.clear()
+        self.save_cache()
+        return cleared_count
+
+    def clear_mappings_by_algorithm(self, algorithm_version: str) -> int:
+        """
+        Clear cached mappings for a specific algorithm version.
+
+        Args:
+            algorithm_version: Algorithm version to clear (e.g., "basic", "manual")
+
+        Returns:
+            Number of mappings that were cleared
+        """
+        original_count = len(self.mappings)
+
+        # Filter out mappings with the specified algorithm version
+        self.mappings = {
+            track_id: entry
+            for track_id, entry in self.mappings.items()
+            if entry.algorithm_version != algorithm_version
+        }
+
+        cleared_count = original_count - len(self.mappings)
+
+        if cleared_count > 0:
+            self.save_cache()
+
+        return cleared_count
