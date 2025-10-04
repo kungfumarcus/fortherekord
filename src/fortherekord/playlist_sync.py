@@ -129,7 +129,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
 
         # Show start message
         total_tracks = len(rekordbox_playlist.tracks)
-        click.echo(f"> ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} ({total_tracks})")
+        click.echo(f">  ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} ({total_tracks})")
 
         # Find matching tracks 
         matched_tracks = self._find_spotify_matches(
@@ -140,13 +140,13 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         if len(matched_tracks) == 0:
             if spotify_name in spotify_playlist_map:
                 playlist_obj = spotify_playlist_map[spotify_name]
-                click.echo(f"< ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} (0/{total_tracks}) - would delete")
+                click.echo(f" < ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} (0/{total_tracks}) - delete")
                 if not(dry_run):
                     if not self.spotify.sp or not self.spotify.user_id:
                         raise RuntimeError("Spotify client not authenticated")
                     self.spotify.sp.current_user_unfollow_playlist(playlist_obj.id)
             else:
-                click.echo(f"< ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} (0/{total_tracks}) - would skip")
+                click.echo(f" < ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} (0/{total_tracks}) - skip")
             return
 
         if spotify_name in spotify_playlist_map:
@@ -160,7 +160,8 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
                 spotify_name, matched_tracks, dry_run
             )
 
-        click.echo(f"DONE ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} ({len(matched_tracks)}/{total_tracks})")
+        click.echo(f" < ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} ({len(matched_tracks)}/{total_tracks})")
+        click.echo(f" < ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} ({len(matched_tracks)}/{total_tracks})")
 
     def _find_spotify_matches(
         self,
@@ -250,7 +251,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         self.mapping_cache.set_mapping(track.id, spotify_id, confidence_score, algorithm_version)
 
         if not spotify_id and not dry_run:  # Only show detailed failures when not in dry-run
-            click.echo(f"    NO MATCH: {track.title} - {track.artists}")
+            click.echo(f"    NO MATCH: {track.original_title} - {track.original_artists}")
 
     def _create_spotify_playlist(
         self, name: str, track_ids: List[str], dry_run: bool = False

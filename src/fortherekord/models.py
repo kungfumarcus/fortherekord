@@ -116,9 +116,18 @@ class Collection:
     def from_playlists(cls, playlists: List[Playlist]) -> "Collection":
         """Create a Collection from playlists, automatically calculating tracks dictionary."""
         tracks = {}
-        for playlist in playlists:
-            for track in playlist.tracks:
-                tracks[track.id] = track
+        
+        def add_tracks_recursively(playlist_list: List[Playlist]):
+            for playlist in playlist_list:
+                for track in playlist.tracks:
+                    if track.id not in tracks:
+                        tracks[track.id] = track
+                
+                # Recursively process child playlists
+                if playlist.children:
+                    add_tracks_recursively(playlist.children)
+        
+        add_tracks_recursively(playlists)
         return cls(playlists=playlists, tracks=tracks)
 
     def get_all_tracks(self) -> List[Track]:

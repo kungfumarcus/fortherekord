@@ -168,17 +168,31 @@ def cli(
 
             collection = get_collection_to_process(rekordbox)
 
-            # Check if there are any tracks to process
-            if not collection.get_all_tracks():
-                click.echo("No tracks found to process")
-                return
+            # IMMEDIATELY set original titles after loading, before any processing
+            temp_processor = MusicLibraryProcessor({})
+            temp_processor.set_original_titles(collection)
 
+            # Set original titles by de-enhancing loaded titles (for Spotify matching)
             processor_config = config.get("processor")
             if processor_config:
-                process_tracks(
-                    collection, rekordbox, MusicLibraryProcessor(processor_config), dry_run=dry_run
-                )
+                processor = MusicLibraryProcessor(processor_config)
+                
+                # Check if there are any tracks to process
+                if not collection.get_all_tracks():
+                    click.echo("No tracks found to process")
+                    return
+
+                process_tracks(collection, rekordbox, processor, dry_run=dry_run)
             else:
+                # Even if processor is disabled, we still need to set original titles
+                default_processor = MusicLibraryProcessor({})
+                default_processor.set_original_titles(collection)
+                
+                # Check if there are any tracks to process
+                if not collection.get_all_tracks():
+                    click.echo("No tracks found to process")
+                    return
+                    
                 click.echo("Skipping track processing (processor is disabled)")
                 click.echo("No changes needed")
 

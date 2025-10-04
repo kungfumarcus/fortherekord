@@ -32,39 +32,41 @@ class MusicLibraryProcessor:
         Args:
             track: Track object to process (modified in-place)
         """
+        
+        # Use original_title if available (cleaned version), otherwise fall back to title
+        working_title = track.original_title if hasattr(track, 'original_title') and track.original_title else track.title
 
-        # Clean up whitespace
-        track.title = re.sub(r"\s+", " ", track.title).strip()
+        # Clean up whitespace in working title and artists
+        working_title = re.sub(r"\s+", " ", working_title).strip()
         if track.artists:
             track.artists = re.sub(r"\s+", " ", track.artists).strip()
 
-        # Remove artists suffix if already present in title
-        if track.artists:
-            track.title = self._remove_artist_suffixes(track.title, track.artists)
-
         # Extract artists from title if artists field is empty
         # (do this early, before other processing)
-        if track.artists == "" and " - " in track.title:
-            title_parts = track.title.split(" - ")
+        if track.artists == "" and " - " in working_title:
+            title_parts = working_title.split(" - ")
             if len(title_parts) == 2:
                 extracted_artist = title_parts[1].strip()
-                track.title = title_parts[0].strip()
+                working_title = title_parts[0].strip()
                 track.artists = extracted_artist
-                print(f"Set artist name for '{track.title}' to '{extracted_artist}'")
+                print(f"Set artist name for '{working_title}' to '{extracted_artist}'")
 
-        # Remove existing key suffix if present
-        track.title = re.sub(r"\s\[..?.?\]$", "", track.title)
+        # Remove existing key suffix if present (shouldn't be needed with original_title but just in case)
+        working_title = re.sub(r"\s\[..?.?\]$", "", working_title)
 
         # Apply configured text replacements
-        track.title, track.artists = self._apply_text_replacements(track.title, track.artists)
+        working_title, track.artists = self._apply_text_replacements(working_title, track.artists)
 
         # Build enhanced title based on configuration
         artists_not_in_title = track.artists
         if track.artists and self.remove_artists_in_title:
-            artists_not_in_title, _ = self._split_artists_by_title(track.title, track.artists)
+            artists_not_in_title, _ = self._split_artists_by_title(working_title, track.artists)
         track.enhanced_title = self._format_enhanced_title(
-            track.title, artists_not_in_title, track.key
+            working_title, artists_not_in_title, track.key
         )
+
+        # Update the actual title field with the processed clean title
+        track.title = working_title
 
         # Print detailed change information
         self._print_track_changes(track)
@@ -98,14 +100,14 @@ class MusicLibraryProcessor:
         if title_changed or artist_changed:
             if title_changed and artist_changed:
                 print(
-                    f"Updating title '{track.original_title}' to '{title}' "
-                    f"and artists '{track.original_artists}' to '{track.artists}'"
+                    f"Updating title '{track.title}' to '{title}' "
+                    f"and artists '{track.artists}' to '{track.artists}'"
                 )
             elif title_changed:
-                print(f"Updating title '{track.original_title}' to '{title}'")
+                print(f"Updating title '{track.title}' to '{title}'")
             elif artist_changed:
                 print(
-                    f"Updating '{track.original_title}' artists '{track.original_artists}'"
+                    f"Updating '{track.title}' artists '{track.original_artists}'"
                     f" to '{track.artists}'"
                 )
 
@@ -145,36 +147,94 @@ class MusicLibraryProcessor:
 
         return enhanced_title
 
-    def _remove_artist_suffixes(self, title: str, artists: str) -> str:
+    def set_original_titles(self, collection) -> None:
         """
-        Remove artist suffixes from title, repeating until no more changes are made.
-
-        Args:
-            title: The track title
-            artists: The artists string
-
-        Returns:
-            Title with artist suffixes removed
+        Set original_title and original_artists by de-enhancing the loaded titles.
+        This should be called after loading from database but before processing.
         """
-        if not artists or " - " not in title:
+        # Use the existing get_all_tracks method to get all unique tracks
+        all_tracks = collection.get_all_tracks()
+        
+        for track in all_tracks:
+            # De-enhance the title and artists to set as originals
+            clean_title = self._clean_title(track.title, track.artists)
+            clean_artists = track.artists  # Artists don't need de-enhancement in this case
+
+            track.original_title = clean_title
+            track.original_artists = clean_artists
+
+    def _clean_title(self, title: str, artists: str) -> str:
+        """
+        De-enhance a title by removing artist suffixes and key brackets.
+        Uses smart matching - removes " - xxx" when xxx contains ANY of the individual artists.
+        """
+        if not title or not " - " in title:
             return title
-
-        # Get the last part after the final " - "
-        title_parts = title.split(" - ")
-        last_part = title_parts[-1]
-
-        # Remove key suffix from last part for comparison
-        last_part_no_key = re.sub(r"\s\[..?.?\]$", "", last_part)
-
-        # Split last part by comma and check if any artist matches
-        last_part_artists = [a.strip() for a in last_part_no_key.split(",")]
-        track_artists = [a.strip() for a in artists.split(",")]
-
-        # If any artist from the track appears in the last part, remove the suffix
-        if any(artist in track_artists for artist in last_part_artists):
-            return " - ".join(title_parts[:-1])
-
-        return title
+        
+        clean_title = title
+        
+        # Split artist field into individual artists if provided
+        individual_artists = []
+        if artists:
+            # Split on common separators: comma, &, feat, ft, featuring
+            artists_split = re.split(r',\s*|&\s*|\s+feat\.?\s+|\s+ft\.?\s+|\s+featuring\s+', artists)
+            individual_artists = [a.strip() for a in artists_split if a.strip()]
+        
+        # Keep removing patterns from the end
+        while True:
+            changed = False
+            
+            # Pattern 1: Remove " - anything [Key]" at the end
+            end_with_key = r'^(.+) - (.+?) \[([A-G][#b]?/?[m]?)\]$'
+            match = re.match(end_with_key, clean_title)
+            if match:
+                suffix_part = match.group(2).strip()
+                # Check if the suffix appears in any individual artist OR matches the full artist field
+                should_remove = False
+                
+                # Check individual artists
+                for artist in individual_artists:
+                    if suffix_part.lower() in artist.lower():
+                        should_remove = True
+                        break
+                
+                # Check full artist field (case-insensitive)
+                if not should_remove and artists and suffix_part.lower() == artists.lower():
+                    should_remove = True
+                
+                if should_remove:
+                    clean_title = match.group(1)
+                    changed = True
+                    continue
+            
+            # Pattern 2: Remove " - anything" if the suffix appears in ANY artist
+            end_pattern = r'^(.+) - (.+?)$'
+            match = re.match(end_pattern, clean_title)
+            if match:
+                suffix_part = match.group(2).strip()
+                # Check if the suffix appears in any individual artist OR matches the full artist field
+                should_remove = False
+                
+                # Check individual artists
+                for artist in individual_artists:
+                    if suffix_part.lower() in artist.lower():
+                        should_remove = True
+                        break
+                
+                # Check full artist field (case-insensitive)
+                if not should_remove and artists and suffix_part.lower() == artists.lower():
+                    should_remove = True
+                
+                if should_remove:
+                    clean_title = match.group(1)
+                    changed = True
+                    continue
+            
+            # No more changes, break
+            if not changed:
+                break
+        
+        return clean_title.strip()
 
     def check_for_duplicates(self, tracks: List[Track]) -> None:
         """Check for duplicate tracks by title AND artists and print warnings."""
