@@ -12,6 +12,9 @@ from typing import Any, List, Optional
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth, CacheFileHandler
 
+# For fuzzy string matching
+import Levenshtein
+
 from .models import Track, Playlist
 from .config import get_config_path
 
@@ -159,21 +162,52 @@ class SpotifyLibrary:
 
         # Simple free text search - just combine title and artist
         query = f"{title} {artists}"
-        results = self.sp.search(q=query, type="track", limit=10 if interactive else 1)
+        results = self.sp.search(q=query, type="track", limit=10 if interactive else 5)
 
-        if not results["tracks"]["items"]:
+        items = results["tracks"]["items"]
+        if not items:
             if interactive:
                 print(f"\nNo matches found for: {title} - {artists}")
                 return None
             return None
 
-        # If not interactive, return first result (current behavior)
         if not interactive:
-            track_result = results["tracks"]["items"][0]
-            return str(track_result["id"])
+            # Use Levenshtein similarity on title and artist, pick best above threshold
+            def norm(s):
+                return s.lower().strip()
+
+            best_score = 0.0
+            best_id = None
+            threshold = 0.5  # 50% threshold
+            norm_title = norm(title)
+            norm_artists = norm(artists)
+            for track in items:
+                candidate_title = norm(track["name"])
+                candidate_artists = norm(", ".join([a["name"] for a in track["artists"]]))
+                # Title similarity
+                if len(norm_title) > 0 and len(candidate_title) > 0:
+                    title_sim = 1.0 - Levenshtein.distance(norm_title, candidate_title) / max(
+                        len(norm_title), len(candidate_title)
+                    )
+                else:
+                    title_sim = 0.0
+                # Artist similarity
+                if len(norm_artists) > 0 and len(candidate_artists) > 0:
+                    artist_sim = 1.0 - Levenshtein.distance(norm_artists, candidate_artists) / max(
+                        len(norm_artists), len(candidate_artists)
+                    )
+                else:
+                    artist_sim = 0.0
+                score = (title_sim + artist_sim) / 2
+                if score > best_score:
+                    best_score = score
+                    best_id = track["id"]
+            if best_score >= threshold:
+                return str(best_id)
+            return None
 
         # Interactive mode: show top 5 results and let user choose
-        return self._interactive_track_selection(title, artists, results["tracks"]["items"][:5])
+        return self._interactive_track_selection(title, artists, items[:5])
 
     def _interactive_track_selection(
         self, source_title: str, source_artists: str, candidates: List[dict]
@@ -249,12 +283,13 @@ class SpotifyLibrary:
                 print("\n❌ Cancelled")
                 raise  # Re-raise to exit the program
 
-    def get_playlists(self, ignore_playlists: Optional[List[str]] = None) -> List[Playlist]:
+    def get_playlists(self, ignore_playlists: Optional[List[str]] = None, prefix: Optional[str] = None) -> List[Playlist]:
         """
         Get user's playlists from Spotify.
 
         Args:
             ignore_playlists: List of playlist names to exclude
+            prefix: Optional prefix to filter playlists by
 
         Returns:
             List of user's playlists
@@ -272,7 +307,9 @@ class SpotifyLibrary:
 
         while results and pagination_count < max_pages:
             for item in results["items"]:
-                if item["name"] not in ignore_playlists and item["owner"]["id"] == self.user_id:
+                if (item["name"] not in ignore_playlists and 
+                    item["owner"]["id"] == self.user_id and
+                    (prefix is None or item["name"].startswith(prefix))):
                     playlist = Playlist(
                         id=item["id"], name=item["name"], tracks=[]  # Will be loaded on demand
                     )

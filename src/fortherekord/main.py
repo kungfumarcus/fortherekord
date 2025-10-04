@@ -198,11 +198,9 @@ def cli(
                 click.echo(f"Authenticated with Spotify as user: {spotify.user_id}")
                 click.echo()
 
-                # Sync playlists from Rekordbox to Spotify using the collection
-                click.echo(f"Found {len(collection.playlists)} Rekordbox playlists to sync")
-
                 # Use PlaylistSyncService to sync the playlists
                 sync_service = PlaylistSyncService(rekordbox, spotify, config)
+                
                 if remap is not None:
                     sync_service.clear_cache()
                 sync_service.sync_collection(collection, dry_run=dry_run, interactive=interactive)

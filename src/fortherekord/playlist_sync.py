@@ -81,15 +81,13 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             click.echo("DRY RUN MODE - Previewing changes without making them")
             click.echo()
 
-        click.echo("Loading Spotify playlists...")
-        spotify_playlists = self.spotify.get_playlists()
+        spotify_playlists = self.spotify.get_playlists(prefix=self.playlist_prefix)
         spotify_playlist_map = {p.name: p for p in spotify_playlists}
-
+        
         # Process all playlists recursively (including children)
         all_playlists = self._get_all_playlists_recursive(collection.playlists)
 
-        action_verb = "Previewing" if dry_run else "Syncing"
-        click.echo(f"{action_verb} {len(all_playlists)} playlists to Spotify\n")
+        click.echo(f"Syncing {len(all_playlists)} playlists to {len(spotify_playlists)} existing Spotify playlists\n")
 
         # Use manual progress tracking with in-place updates
         for i, rekordbox_playlist in enumerate(all_playlists):
@@ -97,11 +95,6 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             self._sync_single_playlist(
                 rekordbox_playlist, spotify_playlist_map, progress, dry_run, interactive
             )
-
-        click.echo(" " * 40)
-        click.echo("Overall [100%]")
-
-        click.echo()  # Final newline
 
         # Clean up orphaned Spotify playlists
         # (that have our prefix but no longer exist in Rekordbox)
@@ -134,46 +127,26 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             rekordbox_playlist.full_name()
         )
 
-        # Initialize single-line display
-        base_line = (
-            f"({progress.current}/{progress.total}) "
-            f"{rekordbox_playlist.full_name()} -> {spotify_name}"
-        )
+        # Show start message
+        total_tracks = len(rekordbox_playlist.tracks)
+        click.echo(f"> ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} ({total_tracks})")
 
-        # Show overall progress (skip in interactive mode to avoid interfering with prompts)
-        click.echo()
-        if not interactive:
-            click.echo(" " * 20)
-            click.echo(f"Overall [{progress.percentage()}%]")
-            click.echo(f"{cursor_up(4)}")
-        else:
-            click.echo(base_line)
-            click.echo()
-
-        # Find matching tracks with progress updates
+        # Find matching tracks 
         matched_tracks = self._find_spotify_matches(
-            rekordbox_playlist.tracks, base_line, dry_run, interactive
+            rekordbox_playlist.tracks, dry_run, interactive
         )
 
         # If no tracks matched on Spotify, delete the playlist if it exists, or skip creating it
         if len(matched_tracks) == 0:
             if spotify_name in spotify_playlist_map:
                 playlist_obj = spotify_playlist_map[spotify_name]
-                if dry_run:
-                    result_text = f"{base_line} (0 matching tracks) - would delete"
-                else:
-                    result_text = f"{base_line} (0 matching tracks) - deleted"
+                click.echo(f"< ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} (0/{total_tracks}) - would delete")
+                if not(dry_run):
                     if not self.spotify.sp or not self.spotify.user_id:
                         raise RuntimeError("Spotify client not authenticated")
                     self.spotify.sp.current_user_unfollow_playlist(playlist_obj.id)
             else:
-                if dry_run:
-                    result_text = f"{base_line} (0 matching tracks) - would skip"
-                else:
-                    result_text = f"{base_line} (0 matching tracks) - skipped"
-
-            # Update the line with final result
-            click.echo(f"\r{result_text}" + " " * 20)
+                click.echo(f"< ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} (0/{total_tracks}) - would skip")
             return
 
         if spotify_name in spotify_playlist_map:
@@ -187,14 +160,11 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
                 spotify_name, matched_tracks, dry_run
             )
 
-        click.echo(
-            f"\r{base_line} ({len(matched_tracks)}/{len(rekordbox_playlist.tracks)}){" " * 5}"
-        )
+        click.echo(f"DONE ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} ({len(matched_tracks)}/{total_tracks})")
 
     def _find_spotify_matches(
         self,
         rekordbox_tracks: List[Track],
-        base_line: str,
         dry_run: bool = False,
         interactive: bool = False,
     ) -> List[str]:
@@ -230,16 +200,10 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
 
         # Second pass: search for tracks not in cache
         if tracks_to_search:
-            for i, track in enumerate(tracks_to_search):
-                # Update progress in place (skip in interactive mode)
-                if not interactive:
-                    total_processed = cached_hits + i + 1  # +1 because we're processing track i
-                    progress_percent = int((total_processed / len(rekordbox_tracks)) * 100)
-                    click.echo(f"\r{base_line} [{progress_percent}%]{cursor_up()}")
-
+            for track in tracks_to_search:
                 # Handle interactive search with save command support
                 while True:
-                    spotify_id = self.spotify.search_track(track.title, track.artists, interactive)
+                    spotify_id = self.spotify.search_track(track.original_title, track.original_artists, interactive)
 
                     # Handle special commands from interactive mode
                     if spotify_id == "__SAVE_CACHE__":
@@ -286,7 +250,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         self.mapping_cache.set_mapping(track.id, spotify_id, confidence_score, algorithm_version)
 
         if not spotify_id and not dry_run:  # Only show detailed failures when not in dry-run
-            click.echo(f"      X No match: {track.title} - {track.artists}")
+            click.echo(f"    NO MATCH: {track.title} - {track.artists}")
 
     def _create_spotify_playlist(
         self, name: str, track_ids: List[str], dry_run: bool = False
@@ -459,10 +423,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         # Find Spotify playlists with our prefix that are not in expected set
         orphaned_playlists = []
         for sp_playlist in spotify_playlists:
-            if (
-                sp_playlist.name.startswith(self.playlist_prefix)
-                and sp_playlist.name not in expected_names
-            ):
+            if sp_playlist.name not in expected_names:
                 orphaned_playlists.append(sp_playlist)
 
         if orphaned_playlists:

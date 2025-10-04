@@ -138,13 +138,23 @@ class TestSpotifyLibrary:
         """Test track search with results."""
         client, mock_sp = mock_spotify_client
 
-        # Mock search response
-        mock_sp.search.return_value = {"tracks": {"items": [{"id": "spotify_track_id_123"}]}}
+        # Mock search response with required fields for Levenshtein logic
+        mock_sp.search.return_value = {
+            "tracks": {
+                "items": [
+                    {
+                        "id": "spotify_track_id_123",
+                        "name": "Test Song",
+                        "artists": [{"name": "Test Artist"}]
+                    }
+                ]
+            }
+        }
 
         result = client.search_track("Test Song", "Test Artist")
 
         assert result == "spotify_track_id_123"
-        mock_sp.search.assert_called_once_with(q="Test Song Test Artist", type="track", limit=1)
+        mock_sp.search.assert_called_once_with(q="Test Song Test Artist", type="track", limit=5)
 
     def test_search_track_not_found(self, mock_spotify_client):
         """Test track search with no results."""
@@ -247,10 +257,15 @@ class TestSpotifyLibrary:
         # Mock playlist creation response
         mock_sp.user_playlist_create.return_value = {"id": "new_playlist_id"}
 
-        # Mock search for tracks
+
+        # Mock search for tracks with required fields for Levenshtein logic
         mock_sp.search.side_effect = [
-            {"tracks": {"items": [{"id": "spotify_track_1"}]}},
-            {"tracks": {"items": [{"id": "spotify_track_2"}]}},
+            {"tracks": {"items": [
+                {"id": "spotify_track_1", "name": "Song 1", "artists": [{"name": "Artist 1"}]}
+            ]}},
+            {"tracks": {"items": [
+                {"id": "spotify_track_2", "name": "Song 2", "artists": [{"name": "Artist 2"}]}
+            ]}},
         ]
 
         tracks = [
