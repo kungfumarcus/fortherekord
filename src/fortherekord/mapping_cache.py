@@ -93,7 +93,15 @@ class MappingCache:
                     }
 
             with open(self.cache_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, separators=(",", ":"))  # Compact JSON with no spaces
+                f.write("{\n")
+                for i, (track_id, entry_data) in enumerate(data.items()):
+                    if i > 0:
+                        f.write(",\n")
+                    if entry_data is None:
+                        f.write(f'"{track_id}": null')
+                    else:
+                        f.write(f'"{track_id}": {json.dumps(entry_data, separators=(",", ":"))}')
+                f.write("\n}")
 
         except (OSError, TypeError) as e:
             print(f"Warning: Failed to save mapping cache: {e}")
@@ -177,18 +185,19 @@ class MappingCache:
         Clear cached mappings for a specific algorithm version.
 
         Args:
-            algorithm_version: Algorithm version to clear (e.g., "basic", "manual")
+            algorithm_version: Algorithm version to clear (e.g., "basic", "manual", "null")
 
         Returns:
             Number of mappings that were cleared
         """
         original_count = len(self.mappings)
 
-        # Filter out mappings with the specified algorithm version
+        # Filter mappings: for "null", keep non-null entries; for others, keep entries with different algorithm
         self.mappings = {
             track_id: entry
             for track_id, entry in self.mappings.items()
-            if entry.algorithm_version != algorithm_version
+            if (algorithm_version == "null" and entry.target_track_id is not None) or 
+               (algorithm_version != "null" and entry.algorithm_version != algorithm_version)
         }
 
         cleared_count = original_count - len(self.mappings)

@@ -51,9 +51,6 @@ class MusicLibraryProcessor:
                 track.artists = extracted_artist
                 print(f"Set artist name for '{working_title}' to '{extracted_artist}'")
 
-        # Remove existing key suffix if present (shouldn't be needed with original_title but just in case)
-        working_title = re.sub(r"\s\[..?.?\]$", "", working_title)
-
         # Apply configured text replacements
         working_title, track.artists = self._apply_text_replacements(working_title, track.artists)
 
@@ -64,9 +61,6 @@ class MusicLibraryProcessor:
         track.enhanced_title = self._format_enhanced_title(
             working_title, artists_not_in_title, track.key
         )
-
-        # Update the actual title field with the processed clean title
-        track.title = working_title
 
         # Print detailed change information
         self._print_track_changes(track)
@@ -91,25 +85,13 @@ class MusicLibraryProcessor:
 
         return title, artists
 
-    def _print_track_changes(self, track: Track) -> None:
-        """Print detailed information about track changes."""
+    def _print_track_changes(self, track: Track) -> bool:
+        """Print detailed information about track changes and return if there was a change."""
         title = track.enhanced_title or track.title
-        title_changed = track.original_title != title
-        artist_changed = track.original_artists != track.artists
-
-        if title_changed or artist_changed:
-            if title_changed and artist_changed:
-                print(
-                    f"Updating title '{track.title}' to '{title}' "
-                    f"and artists '{track.artists}' to '{track.artists}'"
-                )
-            elif title_changed:
-                print(f"Updating title '{track.title}' to '{title}'")
-            elif artist_changed:
-                print(
-                    f"Updating '{track.title}' artists '{track.original_artists}'"
-                    f" to '{track.artists}'"
-                )
+        has_change = track.title != title
+        if has_change:
+            print(f"Updating title '{track.title}' to '{title}'")
+        return has_change
 
     def _split_artists_by_title(self, title: str, artists: str) -> Tuple[str, str]:
         """Split artists into those not in title and those in title."""

@@ -148,7 +148,7 @@ def process_tracks(
 @click.option(
     "--remap",
     default=None,
-    help="Clear existing track mappings (optionally specify algorithm: 'basic', 'manual', etc.)",
+    help="Clear existing track mappings (options: 'basic', 'manual', 'null' for failed mappings only)",
 )
 def cli(
     dry_run: bool, interactive: bool, remap: Optional[str]
@@ -216,7 +216,10 @@ def cli(
                 sync_service = PlaylistSyncService(rekordbox, spotify, config)
                 
                 if remap is not None:
-                    sync_service.clear_cache()
+                    if remap == "":
+                        sync_service.clear_cache()  # Clear all when --remap used with no value
+                    else:
+                        sync_service.clear_cache(remap)  # Clear specific algorithm
                 sync_service.sync_collection(collection, dry_run=dry_run, interactive=interactive)
 
                 click.echo("Spotify playlist sync complete.")

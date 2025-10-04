@@ -147,8 +147,9 @@ class Collection:
         """
         changed_tracks = []
         for track in self.tracks.values():
-            # Use enhanced_title if available, otherwise use regular title (same logic as save)
-            title = track.enhanced_title or track.title
-            if title != track.original_title or track.artists != track.original_artists:
+            # Use enhanced_title if available, otherwise use regular title (same logic as save and print)
+            title_to_save = track.enhanced_title or track.title
+            # Compare what we want to save vs what's currently in database (track.title)
+            if title_to_save != track.title:
                 changed_tracks.append(track)
         return changed_tracks
