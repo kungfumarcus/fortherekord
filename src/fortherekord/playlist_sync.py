@@ -419,9 +419,10 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         # Create set of expected Spotify playlist names (with prefix)
         expected_names = set()
         for rb_playlist in rekordbox_playlists:
-            rekordbox_name = rb_playlist.full_name().replace(" / ", " ")
-            cleaned_name = self._clean_playlist_name(rekordbox_name)
-            spotify_name = self.playlist_prefix + cleaned_name
+            # Use the same logic as in the main sync method
+            spotify_name = self.playlist_prefix + self._clean_playlist_name(
+                rb_playlist.full_name()
+            )
             expected_names.add(spotify_name)
 
         # Find Spotify playlists with our prefix that are not in expected set
