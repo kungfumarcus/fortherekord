@@ -2,18 +2,46 @@ name: Build and Release
 
 on:
   push:
-    branches: [ main ]
-    tags: [ 'v*', '[0-9]+.[0-9]+.[0-9]+*' ]
-  pull_request:
-    branches: [ main ]
+    tags: [ 'v*', '[0-9]+.[0-9]+.[0-9]+*' ]  # Only build and release on version tags
 
 permissions:
   contents: write  # Required for creating releases
   actions: read    # Required for downloading artifacts
 
 jobs:
+  check-tests:
+    runs-on: ubuntu-latest
+    outputs:
+      tests-passed: ${{ steps.check.outputs.tests-passed }}
+    steps:
+    - name: Check if tests passed on this tag
+      id: check
+      run: |
+        # Get the latest test workflow run for this commit
+        COMMIT_SHA="${{ github.sha }}"
+        echo "Checking tests for commit: $COMMIT_SHA"
+        
+        # Use GitHub API to check if tests passed for this commit
+        TEST_STATUS=$(gh api repos/${{ github.repository }}/actions/runs \
+          --jq ".workflow_runs[] | select(.head_sha == \"$COMMIT_SHA\" and .name == \"Test\") | .conclusion" \
+          | head -1)
+        
+        echo "Test status: $TEST_STATUS"
+        
+        if [ "$TEST_STATUS" = "success" ]; then
+          echo "tests-passed=true" >> $GITHUB_OUTPUT
+        else
+          echo "tests-passed=false" >> $GITHUB_OUTPUT
+          echo "ERROR: Tests have not passed for this commit. Cannot proceed with release."
+          exit 1
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build:
+    needs: check-tests
     runs-on: ${{ matrix.os }}
+    if: needs.check-tests.outputs.tests-passed == 'true'
     strategy:
       matrix:
         include:
@@ -47,9 +75,8 @@ jobs:
         retention-days: 7
 
   release:
-    needs: build
+    needs: build  # Only release if builds succeed (tests already passed to trigger this workflow)
     runs-on: ubuntu-latest
-    if: contains(github.ref, 'refs/tags/')
     
     steps:
     - name: Checkout code

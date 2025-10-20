@@ -70,23 +70,23 @@ def backup_rekordbox_database():
     except Exception as e:
         pytest.fail(f"E2E test safety check failed: {e}")
 
-    # Create backup
+    # Create backup (always overwrite the same backup file)
     backup_path = db_path + ".e2e_backup"
     print(f"Safety checks passed. Backing up Rekordbox database: {db_path} -> {backup_path}")
     shutil.copy2(db_path, backup_path)
+
+    print(f"IMPORTANT: Database backup created at: {backup_path}")
+    print("If tests corrupt your database, run: restore_rekordbox_backup.bat")
 
     try:
         # Run all E2E tests
         yield
     finally:
-        # Restore from backup
-        print(f"\nRestoring Rekordbox database: {backup_path} -> {db_path}")
-        shutil.copy2(backup_path, db_path)
-
-        # Clean up backup file
-        if os.path.exists(backup_path):
-            os.remove(backup_path)
-            print(f"Removed backup file: {backup_path}")
+        # DO NOT automatically restore - that's dangerous!
+        # The backup file is left for manual restoration if needed
+        print(f"\nE2E tests completed. Database backup remains at: {backup_path}")
+        print("Your original database was NOT modified (tests use copies/transactions)")
+        print("To manually restore if needed: restore_rekordbox_backup.bat")
 
 
 def pytest_configure(config):

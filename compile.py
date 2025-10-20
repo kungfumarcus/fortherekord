@@ -184,10 +184,49 @@ def rename_executable():
     return True
 
 
+def test_compilation_readiness():
+    """Test that compilation would work without actually building."""
+    print("Testing compilation readiness...")
+    
+    # Test 1: Import main module
+    try:
+        sys.path.insert(0, 'src')
+        import fortherekord.main
+        print("[OK] Main module imports successfully")
+    except Exception as e:
+        print(f"[FAIL] Main module import failed: {e}")
+        return False
+    
+    # Test 2: Test PyInstaller can be imported and used
+    try:
+        import PyInstaller
+        from PyInstaller.building.build_main import Analysis
+        print("[OK] PyInstaller is available and importable")
+    except Exception as e:
+        print(f"[FAIL] PyInstaller import failed: {e}")
+        return False
+    
+    # Test 3: Check platform info
+    try:
+        platform_info = get_platform_info()
+        print(f"[OK] Platform detection: {platform_info['name']}")
+    except Exception as e:
+        print(f"[FAIL] Platform detection failed: {e}")
+        return False
+    
+    return True
+
+
 def main():
     """Main build process."""
+    dry_run = len(sys.argv) > 1 and sys.argv[1] == "--dry-run"
+    
     print("ForTheRekord Compile Script")
     print("=" * 50)
+    
+    if dry_run:
+        print("DRY RUN MODE - Testing compilation readiness")
+        print("=" * 50)
     
     # Check we're in the right directory
     if not Path("src/fortherekord").exists():
@@ -199,7 +238,15 @@ def main():
     if not install_pyinstaller():
         sys.exit(1)
     
-    # Clean previous builds
+    if dry_run:
+        # Test compilation readiness without actually building
+        if not test_compilation_readiness():
+            sys.exit(1)
+        print("\n[OK] Compilation readiness test PASSED")
+        print("   Ready for actual compilation!")
+        return
+    
+    # Normal compilation process
     clean_dist()
     
     # Build executable
