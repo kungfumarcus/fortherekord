@@ -124,10 +124,9 @@ class TestMappingCache:
 
     @patch("fortherekord.mapping_cache.get_config_path")
     @patch("builtins.open", new_callable=mock_open)
-    @patch("json.dump")
     @patch("builtins.print")
     def test_save_cache_scenarios(
-        self, mock_print, mock_json_dump, mock_file, mock_get_config_path
+        self, mock_print, mock_file, mock_get_config_path
     ):
         """Test cache saving success and error scenarios."""
         mock_get_config_path.return_value = Path("/mock/config.yaml")
@@ -158,27 +157,17 @@ class TestMappingCache:
             # Test successful save
             cache.save_cache()
             mock_file.assert_called_with(cache.cache_file, "w", encoding="utf-8")
-            mock_json_dump.assert_called_once()
 
-            # Check data format conversion - should be compact format
-            call_args = mock_json_dump.call_args
-            data = call_args[0][0]
-
-            # Regular mapping
-            assert "track1" in data
-            assert isinstance(data["track1"], dict)
-            assert data["track1"]["spid"] == "spotify:track:123"
-            assert data["track1"]["algo"] == MappingCache.ALGORITHM_VERSION
-
-            # Failed mapping (should be None)
-            assert "track_failed" in data
-            assert data["track_failed"] is None
-
-            # Manual override mapping
-            assert "track_manual" in data
-            assert isinstance(data["track_manual"], dict)
-            assert data["track_manual"]["spid"] == "spotify:track:456"
-            assert data["track_manual"]["algo"] == "manual"
+            # Get the handle and check what was written
+            handle = mock_file()
+            written_content = "".join(call.args[0] for call in handle.write.call_args_list)
+            
+            # Verify JSON structure (should contain all mappings)
+            assert '"track1": {"spid":"spotify:track:123","algo":"basic"}' in written_content
+            assert '"track_failed": null' in written_content  
+            assert '"track_manual": {"spid":"spotify:track:456","algo":"manual"}' in written_content
+            assert written_content.startswith("{")
+            assert written_content.endswith("}")
 
             # Test OS error
             mock_file.side_effect = OSError("Permission denied")

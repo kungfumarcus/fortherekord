@@ -192,12 +192,15 @@ class MappingCache:
         """
         original_count = len(self.mappings)
 
-        # Filter mappings: for "null", keep non-null entries; for others, keep entries with different algorithm
+        # Filter mappings: for "null", keep non-null entries;
+        # for others, keep entries with different algorithm
         self.mappings = {
             track_id: entry
             for track_id, entry in self.mappings.items()
-            if (algorithm_version == "null" and entry.target_track_id is not None) or 
-               (algorithm_version != "null" and entry.algorithm_version != algorithm_version)
+            if (
+                (algorithm_version == "null" and entry.target_track_id is not None)
+                or (algorithm_version != "null" and entry.algorithm_version != algorithm_version)
+            )
         }
 
         cleared_count = original_count - len(self.mappings)

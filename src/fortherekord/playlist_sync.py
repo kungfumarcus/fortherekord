@@ -12,7 +12,6 @@ from .models import Playlist, Track, Collection
 from .rekordbox_library import RekordboxLibrary
 from .spotify_library import SpotifyLibrary
 from .mapping_cache import MappingCache
-from .cli_tools import cursor_up
 
 
 @dataclass
@@ -86,11 +85,14 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
 
         spotify_playlists = self.spotify.get_playlists(prefix=self.playlist_prefix)
         spotify_playlist_map = {p.name: p for p in spotify_playlists}
-        
+
         # Process all playlists recursively (including children)
         all_playlists = self._get_all_playlists_recursive(collection.playlists)
 
-        click.echo(f"Syncing {len(all_playlists)} playlists to {len(spotify_playlists)} existing Spotify playlists\n")
+        click.echo(
+            f"Syncing {len(all_playlists)} playlists to "
+            f"{len(spotify_playlists)} existing Spotify playlists\n"
+        )
 
         # Use manual progress tracking with in-place updates
         for i, rekordbox_playlist in enumerate(all_playlists):
@@ -132,24 +134,33 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
 
         # Show start message
         total_tracks = len(rekordbox_playlist.tracks)
-        click.echo(f"> ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} ({total_tracks})")
-
-        # Find matching tracks 
-        matched_tracks = self._find_spotify_matches(
-            rekordbox_playlist.tracks, dry_run, interactive
+        click.echo(
+            f"> ({progress.current}/{progress.total}) "
+            f"{rekordbox_playlist.full_name()} -> {spotify_name} ({total_tracks})"
         )
+
+        # Find matching tracks
+        matched_tracks = self._find_spotify_matches(rekordbox_playlist.tracks, dry_run, interactive)
 
         # If no tracks matched on Spotify, delete the playlist if it exists, or skip creating it
         if len(matched_tracks) == 0:
             if spotify_name in spotify_playlist_map:
                 playlist_obj = spotify_playlist_map[spotify_name]
-                click.echo(f"  ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} (0/{total_tracks}) - delete")
-                if not(dry_run):
+                click.echo(
+                    f"  ({progress.current}/{progress.total}) "
+                    f"{rekordbox_playlist.full_name()} -> {spotify_name} "
+                    f"(0/{total_tracks}) - delete"
+                )
+                if not (dry_run):
                     if not self.spotify.sp or not self.spotify.user_id:
                         raise RuntimeError("Spotify client not authenticated")
                     self.spotify.sp.current_user_unfollow_playlist(playlist_obj.id)
             else:
-                click.echo(f"  ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} (0/{total_tracks}) - skip")
+                click.echo(
+                    f"  ({progress.current}/{progress.total}) "
+                    f"{rekordbox_playlist.full_name()} -> {spotify_name} "
+                    f"(0/{total_tracks}) - skip"
+                )
             return
 
         if spotify_name in spotify_playlist_map:
@@ -163,7 +174,11 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
                 spotify_name, matched_tracks, dry_run
             )
 
-        click.echo(f"  ({progress.current}/{progress.total}) {rekordbox_playlist.full_name()} -> {spotify_name} ({len(matched_tracks)}/{total_tracks})")
+        click.echo(
+            f"  ({progress.current}/{progress.total}) "
+            f"{rekordbox_playlist.full_name()} -> {spotify_name} "
+            f"({len(matched_tracks)}/{total_tracks})"
+        )
 
     def _find_spotify_matches(
         self,
@@ -206,7 +221,9 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             for track in tracks_to_search:
                 # Try matching (automatic first, then interactive if enabled and no match found)
                 while True:
-                    spotify_id = self.spotify.search_track(track.original_title, track.original_artists, interactive)
+                    spotify_id = self.spotify.search_track(
+                        track.original_title, track.original_artists, interactive
+                    )
 
                     # Handle special commands from interactive mode
                     if spotify_id == "__SAVE_CACHE__":
@@ -420,15 +437,14 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         expected_names = set()
         for rb_playlist in rekordbox_playlists:
             # Use the same logic as in the main sync method
-            spotify_name = self.playlist_prefix + self._clean_playlist_name(
-                rb_playlist.full_name()
-            )
+            spotify_name = self.playlist_prefix + self._clean_playlist_name(rb_playlist.full_name())
             expected_names.add(spotify_name)
 
         # Find Spotify playlists with our prefix that are not in expected set
         orphaned_playlists = []
         for sp_playlist in spotify_playlists:
-            if sp_playlist.name not in expected_names:
+            # Defensive check: only consider playlists with our prefix
+            if sp_playlist.name.startswith(self.playlist_prefix) and sp_playlist.name not in expected_names:
                 orphaned_playlists.append(sp_playlist)
 
         if orphaned_playlists:

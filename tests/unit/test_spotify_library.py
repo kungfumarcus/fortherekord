@@ -145,7 +145,7 @@ class TestSpotifyLibrary:
                     {
                         "id": "spotify_track_id_123",
                         "name": "Test Song",
-                        "artists": [{"name": "Test Artist"}]
+                        "artists": [{"name": "Test Artist"}],
                     }
                 ]
             }
@@ -257,15 +257,30 @@ class TestSpotifyLibrary:
         # Mock playlist creation response
         mock_sp.user_playlist_create.return_value = {"id": "new_playlist_id"}
 
-
         # Mock search for tracks with required fields for Levenshtein logic
         mock_sp.search.side_effect = [
-            {"tracks": {"items": [
-                {"id": "spotify_track_1", "name": "Song 1", "artists": [{"name": "Artist 1"}]}
-            ]}},
-            {"tracks": {"items": [
-                {"id": "spotify_track_2", "name": "Song 2", "artists": [{"name": "Artist 2"}]}
-            ]}},
+            {
+                "tracks": {
+                    "items": [
+                        {
+                            "id": "spotify_track_1",
+                            "name": "Song 1",
+                            "artists": [{"name": "Artist 1"}],
+                        }
+                    ]
+                }
+            },
+            {
+                "tracks": {
+                    "items": [
+                        {
+                            "id": "spotify_track_2",
+                            "name": "Song 2",
+                            "artists": [{"name": "Artist 2"}],
+                        }
+                    ]
+                }
+            },
         ]
 
         tracks = [
@@ -496,152 +511,56 @@ class TestSpotifyLibraryErrorConditions:
         with pytest.raises(NotImplementedError, match="Track metadata updates not supported"):
             client.update_track_metadata("track_id", "new_title", "new_artist")
 
+    @pytest.mark.parametrize("user_input,expected_result,expected_calls,should_raise", [
+        # Test case: Enter selects top match
+        ("", "track1", 1, None),
+        # Test case: 'save' command returns special marker
+        ("save", "__SAVE_CACHE__", 1, None),
+        # Test case: Number choice selects specific track
+        ("2", "track2", 1, None),
+        # Test case: Zero skips track
+        ("0", None, 1, None),
+        # Test case: Invalid input then valid choice
+        (["invalid", "1"], "track1", 2, None),
+        # Test case: KeyboardInterrupt is re-raised
+        (KeyboardInterrupt, None, 1, KeyboardInterrupt),
+    ])
     @patch("builtins.input")
     @patch("builtins.print")
-    def test_interactive_track_selection_enter_selects_top(
-        self, mock_print, mock_input, mock_spotify_client
+    def test_interactive_track_selection_scenarios(
+        self, mock_print, mock_input, user_input, expected_result, expected_calls, should_raise, mock_spotify_client
     ):
-        """Test interactive mode - pressing Enter selects top match."""
+        """Test various interactive mode scenarios."""
         client, mock_sp = mock_spotify_client
 
-        # Mock search results
+        # Mock search results with completely unrelated data to force interactive mode
         mock_sp.search.return_value = {
             "tracks": {
                 "items": [
-                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
-                    {"id": "track2", "name": "Test Song 2", "artists": [{"name": "Test Artist 2"}]},
+                    {"id": "track1", "name": "Banana Pancakes", "artists": [{"name": "ZZ Top"}]},
+                    {"id": "track2", "name": "Purple Rain", "artists": [{"name": "Mozart"}]},
                 ]
             }
         }
 
-        # Mock user pressing Enter (empty input)
-        mock_input.return_value = ""
+        # Set up mock input based on test case
+        if isinstance(user_input, list):
+            mock_input.side_effect = user_input
+        elif user_input == KeyboardInterrupt:
+            mock_input.side_effect = KeyboardInterrupt
+        else:
+            mock_input.return_value = user_input
 
-        result = client.search_track("Test Song", "Test Artist", interactive=True)
-
-        assert result == "track1"
-        mock_input.assert_called_once()
-
-    @patch("builtins.input")
-    @patch("builtins.print")
-    def test_interactive_track_selection_save_command(
-        self, mock_print, mock_input, mock_spotify_client
-    ):
-        """Test interactive mode - 'save' command returns special marker."""
-        client, mock_sp = mock_spotify_client
-
-        # Mock search results
-        mock_sp.search.return_value = {
-            "tracks": {
-                "items": [
-                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
-                ]
-            }
-        }
-
-        # Mock user typing 'save'
-        mock_input.return_value = "save"
-
-        result = client.search_track("Test Song", "Test Artist", interactive=True)
-
-        assert result == "__SAVE_CACHE__"
-
-    @patch("builtins.input")
-    @patch("builtins.print")
-    def test_interactive_track_selection_number_choice(
-        self, mock_print, mock_input, mock_spotify_client
-    ):
-        """Test interactive mode - selecting by number."""
-        client, mock_sp = mock_spotify_client
-
-        # Mock search results
-        mock_sp.search.return_value = {
-            "tracks": {
-                "items": [
-                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
-                    {"id": "track2", "name": "Test Song 2", "artists": [{"name": "Test Artist 2"}]},
-                ]
-            }
-        }
-
-        # Mock user selecting option 2
-        mock_input.return_value = "2"
-
-        result = client.search_track("Test Song", "Test Artist", interactive=True)
-
-        assert result == "track2"
-
-    @patch("builtins.input")
-    @patch("builtins.print")
-    def test_interactive_track_selection_zero_skips(
-        self, mock_print, mock_input, mock_spotify_client
-    ):
-        """Test interactive mode - selecting 0 skips track."""
-        client, mock_sp = mock_spotify_client
-
-        # Mock search results
-        mock_sp.search.return_value = {
-            "tracks": {
-                "items": [
-                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
-                ]
-            }
-        }
-
-        # Mock user selecting 0
-        mock_input.return_value = "0"
-
-        result = client.search_track("Test Song", "Test Artist", interactive=True)
-
-        assert result is None
-
-    @patch("builtins.input")
-    @patch("builtins.print")
-    def test_interactive_track_selection_invalid_input_retry(
-        self, mock_print, mock_input, mock_spotify_client
-    ):
-        """Test interactive mode - invalid input causes retry."""
-        client, mock_sp = mock_spotify_client
-
-        # Mock search results
-        mock_sp.search.return_value = {
-            "tracks": {
-                "items": [
-                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
-                ]
-            }
-        }
-
-        # Mock user typing invalid input then valid choice
-        mock_input.side_effect = ["invalid", "1"]
-
-        result = client.search_track("Test Song", "Test Artist", interactive=True)
-
-        assert result == "track1"
-        assert mock_input.call_count == 2
-
-    @patch("builtins.input")
-    @patch("builtins.print")
-    def test_interactive_track_selection_keyboard_interrupt(
-        self, mock_print, mock_input, mock_spotify_client
-    ):
-        """Test interactive mode - KeyboardInterrupt is re-raised."""
-        client, mock_sp = mock_spotify_client
-
-        # Mock search results
-        mock_sp.search.return_value = {
-            "tracks": {
-                "items": [
-                    {"id": "track1", "name": "Test Song", "artists": [{"name": "Test Artist"}]},
-                ]
-            }
-        }
-
-        # Mock KeyboardInterrupt
-        mock_input.side_effect = KeyboardInterrupt()
-
-        with pytest.raises(KeyboardInterrupt):
-            client.search_track("Test Song", "Test Artist", interactive=True)
+        # Execute test with exception handling if needed
+        if should_raise:
+            with pytest.raises(should_raise):
+                client.search_track("Test Song", "Test Artist", interactive=True)
+        else:
+            result = client.search_track("Test Song", "Test Artist", interactive=True)
+            assert result == expected_result
+            
+        # Verify input was called the expected number of times
+        assert mock_input.call_count == expected_calls
 
     @patch("fortherekord.spotify_library.input")
     def test_search_track_interactive_no_matches(self, mock_input, mock_spotify_client):

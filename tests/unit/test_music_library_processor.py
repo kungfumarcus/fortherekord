@@ -88,13 +88,14 @@ class TestMusicLibraryProcessor:
         # Test replacement in both title and artists
         track3 = create_track(title="Song feat. Someone", artists="Artist feat. Other", key="Dm")
         processor.process_track(track3)
-        assert "ft." in track3.title and "ft." in track3.artists
-        assert "feat." not in track3.title and "feat." not in track3.artists
+        # Check that replacements happened in enhanced_title and artists field
+        assert "ft." in track3.enhanced_title and "ft." in track3.artists
+        assert "feat." not in track3.enhanced_title and "feat." not in track3.artists
 
         # Test null replacement (removal)
         track4 = create_track(title="Song remove_me Test")
         processor.process_track(track4)
-        assert "remove_me" not in track4.title
+        assert "remove_me" not in track4.enhanced_title
         assert "Song  Test - Test Artist [Am]" == track4.enhanced_title
 
         # Test direct _apply_text_replacements method for artists replacement
@@ -105,7 +106,7 @@ class TestMusicLibraryProcessor:
     def test_process_track_remove_existing_key(self, default_processor_config):
         """Test removing existing key from title."""
         processor = MusicLibraryProcessor(default_processor_config)
-        track = create_track(title="Test Song [Dm]")
+        track = create_track(title="Test Song [Dm]", original_title="Test Song")
         processor.process_track(track)
         assert track.enhanced_title == "Test Song - Test Artist [Am]"
 
@@ -190,18 +191,22 @@ class TestMusicLibraryProcessor:
         assert not_in_title == "Artist2"  # Should remove Artist1, keep Artist2
         assert in_title == "Artist1"
 
-    def test_process_track_remove_artist_suffix(self, default_processor_config):
-        """Test removal of artists suffix when already present in title."""
+    def test_process_track_uses_cleaned_original_title(self, default_processor_config):
+        """Test that processor uses cleaned original_title to avoid duplication."""
         processor = MusicLibraryProcessor(default_processor_config)
 
         # Track with title that already ends with " - Artist"
         track = create_track(
-            track_id="1", title="Song Title - Test Artist", artists="Test Artist", key="Cm"
+            track_id="1", 
+            title="Song Title - Test Artist", 
+            artists="Test Artist", 
+            key="Cm",
+            original_title="Song Title"  # Provide the cleaned original title
         )
 
         processor.process_track(track)
 
-        # Should not duplicate the artists suffix
+        # Should use original_title and not duplicate the artists suffix
         assert track.enhanced_title == "Song Title - Test Artist [Cm]"
 
     def test_process_track_output_both_changes(self, default_processor_config, capsys):
@@ -214,16 +219,19 @@ class TestMusicLibraryProcessor:
         processor.process_track(track)
 
         captured = capsys.readouterr()
-        assert (
-            "Updating title 'Song Title' to 'Song Title - New Artist [Cm]' "
-            "and artists 'Old Artist' to 'New Artist'" in captured.out
-        )
+        # Should only show title change, not artist change
+        assert "Updating title 'Song Title' to 'Song Title - New Artist [Cm]'" in captured.out
 
     def test_process_track_output_no_changes(self, default_processor_config, capsys):
         """Test no output when no changes are made."""
         processor = MusicLibraryProcessor(default_processor_config)
-        track = create_track(title="Song Title - Test Artist [Cm]", artists="Test Artist", key="Cm")
-        # The helper already sets original values to match current values
+        track = create_track(
+            title="Song Title - Test Artist [Cm]", 
+            artists="Test Artist", 
+            key="Cm",
+            original_title="Song Title",  # Set the clean original title
+            original_artists="Test Artist"  # Set the original artists
+        )
 
         processor.process_track(track)
 
@@ -304,6 +312,7 @@ class TestMusicLibraryProcessor:
             title="Party (Subsonic mix) - Dazza, Subsonic",
             artists="Dazza, Subsonic",
             key="Am",
+            original_title="Party (Subsonic mix)"  # Cleaned version without artist suffix
         )
 
         # Test with remove_artists_in_title enabled
@@ -331,6 +340,7 @@ class TestMusicLibraryProcessor:
             title="Party (Subsonic mix) - Dazza, Subsonic",
             artists="Dazza, Subsonic",
             key="Am",
+            original_title="Party (Subsonic mix)"  # Cleaned version without artist suffix
         )
         processor_disabled.process_track(track_disabled)
         # Should keep all artists in both field and enhanced title
@@ -356,104 +366,78 @@ class TestMusicLibraryProcessor:
         # add_artist_to_title=False)
         assert "Updating 'Test Song' artists 'Old Artist' to 'New Artist'" in captured.out
 
-    def test_remove_artist_suffixes_no_removal(self):
-        """Test _remove_artist_suffixes when no removal is needed."""
-        processor = MusicLibraryProcessor({})
-
-        # Test case where artist doesn't match the suffix
-        result = processor._remove_artist_suffixes("Song Title - Different Artist", "Main Artist")
-        assert result == "Song Title - Different Artist"  # Should return unchanged
-
-        # Test case with no " - " in title
-        result = processor._remove_artist_suffixes("Song Title", "Artist")
-        assert result == "Song Title"  # Should return unchanged
-
     def test_set_original_titles_corruption_cleanup(self):
         """Test set_original_titles properly cleans up various corruption patterns."""
         processor = MusicLibraryProcessor({})
 
         # Create a mock collection with various corrupted titles
         mock_collection = Mock()
-        
+
         # Test cases for different corruption patterns
         test_tracks = [
             # Pattern 1: Simple duplicated artist with key
-            create_track(
-                track_id="1",
-                title="All Funked Up - Mother [Abm]",
-                artists="Mother"
-            ),
-            
+            create_track(track_id="1", title="All Funked Up - Mother [Abm]", artists="Mother"),
             # Pattern 2: Multiple artists, one matches suffix
             create_track(
                 track_id="2",
                 title="Love On My Mind - Freemasons ft. Amanda Wilson [Bbm]",
-                artists="Freemasons ft. Amanda Wilson"
+                artists="Freemasons ft. Amanda Wilson",
             ),
-            
             # Pattern 3: Artist with separators (&, comma)
             create_track(
                 track_id="3",
                 title="Kojak - Bigphones, Groove Guide [Cm]",
-                artists="Bigphones, Groove Guide"
+                artists="Bigphones, Groove Guide",
             ),
-            
             # Pattern 4: No key, just artist suffix
-            create_track(
-                track_id="4", 
-                title="24 Hours - Agent Sumo",
-                artists="Agent Sumo"
-            ),
-            
+            create_track(track_id="4", title="24 Hours - Agent Sumo", artists="Agent Sumo"),
             # Pattern 5: Partial artist match (should clean)
             create_track(
                 track_id="5",
                 title="Be There ft. Ayah Marar - T & Sugah [Dm]",
-                artists="T & Sugah"  # "Sugah" should match "T & Sugah"
+                artists="T & Sugah",  # "Sugah" should match "T & Sugah"
             ),
-            
             # Pattern 6: No match, should not clean
             create_track(
                 track_id="6",
-                title="Song Title - Different Artist [Am]", 
-                artists="Main Artist"  # No match, should not clean
+                title="Song Title - Different Artist [Am]",
+                artists="Main Artist",  # No match, should not clean
             ),
-            
             # Pattern 7: Already clean, should remain unchanged
-            create_track(
-                track_id="7",
-                title="Clean Song",
-                artists="Artist Name"
-            ),
-            
+            create_track(track_id="7", title="Clean Song", artists="Artist Name"),
             # Pattern 8: Multiple levels of corruption
             create_track(
                 track_id="8",
                 title="Stars On The Roof (ft. MoMo) - Alcemist - MoMo, Alcemist [Am]",
-                artists="MoMo, Alcemist"
-            )
+                artists="MoMo, Alcemist",
+            ),
         ]
-        
+
         mock_collection.get_all_tracks.return_value = test_tracks
-        
+
         # Call set_original_titles
         processor.set_original_titles(mock_collection)
-        
+
         # Test results
         expected_results = [
             ("All Funked Up", "Mother"),  # Should remove " - Mother [Abm]"
-            ("Love On My Mind", "Freemasons ft. Amanda Wilson"),  # Should remove " - Freemasons ft. Amanda Wilson [Bbm]"
+            (
+                "Love On My Mind",
+                "Freemasons ft. Amanda Wilson",
+            ),  # Should remove " - Freemasons ft. Amanda Wilson [Bbm]"
             ("Kojak", "Bigphones, Groove Guide"),  # Should remove " - Bigphones, Groove Guide [Cm]"
             ("24 Hours", "Agent Sumo"),  # Should remove " - Agent Sumo"
             ("Be There ft. Ayah Marar", "T & Sugah"),  # Should remove " - T & Sugah [Dm]"
             ("Song Title - Different Artist [Am]", "Main Artist"),  # Should NOT clean (no match)
             ("Clean Song", "Artist Name"),  # Already clean
-            ("Stars On The Roof (ft. MoMo)", "MoMo, Alcemist")  # Should remove both suffixes
+            ("Stars On The Roof (ft. MoMo)", "MoMo, Alcemist"),  # Should remove both suffixes
         ]
-        
+
         for i, (expected_title, expected_artist) in enumerate(expected_results):
             track = test_tracks[i]
-            assert track.original_title == expected_title, f"Track {i+1}: Expected '{expected_title}', got '{track.original_title}'"
-            assert track.original_artists == expected_artist, f"Track {i+1}: Expected '{expected_artist}', got '{track.original_artists}'"
-
-
+            assert (
+                track.original_title == expected_title
+            ), f"Track {i+1}: Expected '{expected_title}', got '{track.original_title}'"
+            assert (
+                track.original_artists == expected_artist
+            ), f"Track {i+1}: Expected '{expected_artist}', got '{track.original_artists}'"

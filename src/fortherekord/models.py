@@ -116,17 +116,17 @@ class Collection:
     def from_playlists(cls, playlists: List[Playlist]) -> "Collection":
         """Create a Collection from playlists, automatically calculating tracks dictionary."""
         tracks = {}
-        
+
         def add_tracks_recursively(playlist_list: List[Playlist]):
             for playlist in playlist_list:
                 for track in playlist.tracks:
                     if track.id not in tracks:
                         tracks[track.id] = track
-                
+
                 # Recursively process child playlists
                 if playlist.children:
                     add_tracks_recursively(playlist.children)
-        
+
         add_tracks_recursively(playlists)
         return cls(playlists=playlists, tracks=tracks)
 
@@ -147,7 +147,8 @@ class Collection:
         """
         changed_tracks = []
         for track in self.tracks.values():
-            # Use enhanced_title if available, otherwise use regular title (same logic as save and print)
+            # Use enhanced_title if available, otherwise use regular title
+            # (same logic as save and print)
             title_to_save = track.enhanced_title or track.title
             # Compare what we want to save vs what's currently in database (track.title)
             if title_to_save != track.title:

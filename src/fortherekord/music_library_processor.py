@@ -32,9 +32,13 @@ class MusicLibraryProcessor:
         Args:
             track: Track object to process (modified in-place)
         """
-        
+
         # Use original_title if available (cleaned version), otherwise fall back to title
-        working_title = track.original_title if hasattr(track, 'original_title') and track.original_title else track.title
+        working_title = (
+            track.original_title
+            if hasattr(track, "original_title") and track.original_title
+            else track.title
+        )
 
         # Clean up whitespace in working title and artists
         working_title = re.sub(r"\s+", " ", working_title).strip()
@@ -87,11 +91,22 @@ class MusicLibraryProcessor:
 
     def _print_track_changes(self, track: Track) -> bool:
         """Print detailed information about track changes and return if there was a change."""
-        title = track.enhanced_title or track.title
-        has_change = track.title != title
-        if has_change:
-            print(f"Updating title '{track.title}' to '{title}'")
-        return has_change
+        current_title = track.title
+        new_title = track.enhanced_title or track.title
+        current_artists = getattr(track, "original_artists", "") or ""
+        new_artists = track.artists or ""
+        
+        has_title_change = current_title != new_title
+        has_artist_change = current_artists != new_artists
+        
+        if has_title_change and has_artist_change:
+            print(f"Updating title '{current_title}' to '{new_title}' and artists '{current_artists}' to '{new_artists}'")
+        elif has_title_change:
+            print(f"Updating title '{current_title}' to '{new_title}'")
+        elif has_artist_change:
+            print(f"Updating '{current_title}' artists '{current_artists}' to '{new_artists}'")
+        
+        return has_title_change or has_artist_change
 
     def _split_artists_by_title(self, title: str, artists: str) -> Tuple[str, str]:
         """Split artists into those not in title and those in title."""
@@ -136,7 +151,7 @@ class MusicLibraryProcessor:
         """
         # Use the existing get_all_tracks method to get all unique tracks
         all_tracks = collection.get_all_tracks()
-        
+
         for track in all_tracks:
             # De-enhance the title and artists to set as originals
             clean_title = self._clean_title(track.title, track.artists)
@@ -150,72 +165,76 @@ class MusicLibraryProcessor:
         De-enhance a title by removing artist suffixes and key brackets.
         Uses smart matching - removes " - xxx" when xxx contains ANY of the individual artists.
         """
-        if not title or not " - " in title:
+        if not title or " - " not in title:
             return title
-        
+
         clean_title = title
-        
+
         # Split artist field into individual artists if provided
         individual_artists = []
         if artists:
             # Split on common separators: comma, &, feat, ft, featuring
-            artists_split = re.split(r',\s*|&\s*|\s+feat\.?\s+|\s+ft\.?\s+|\s+featuring\s+', artists)
+            artists_split = re.split(
+                r",\s*|&\s*|\s+feat\.?\s+|\s+ft\.?\s+|\s+featuring\s+", artists
+            )
             individual_artists = [a.strip() for a in artists_split if a.strip()]
-        
+
         # Keep removing patterns from the end
         while True:
             changed = False
-            
+
             # Pattern 1: Remove " - anything [Key]" at the end
-            end_with_key = r'^(.+) - (.+?) \[([A-G][#b]?/?[m]?)\]$'
+            end_with_key = r"^(.+) - (.+?) \[([A-G][#b]?/?[m]?)\]$"
             match = re.match(end_with_key, clean_title)
             if match:
                 suffix_part = match.group(2).strip()
-                # Check if the suffix appears in any individual artist OR matches the full artist field
+                # Check if the suffix appears in any individual artist
+                # OR matches the full artist field
                 should_remove = False
-                
+
                 # Check individual artists
                 for artist in individual_artists:
                     if suffix_part.lower() in artist.lower():
                         should_remove = True
                         break
-                
+
                 # Check full artist field (case-insensitive)
                 if not should_remove and artists and suffix_part.lower() == artists.lower():
                     should_remove = True
-                
+
                 if should_remove:
                     clean_title = match.group(1)
                     changed = True
                     continue
-            
+
             # Pattern 2: Remove " - anything" if the suffix appears in ANY artist
-            end_pattern = r'^(.+) - (.+?)$'
+            end_pattern = r"^(.+) - (.+?)$"
             match = re.match(end_pattern, clean_title)
             if match:
                 suffix_part = match.group(2).strip()
-                # Check if the suffix appears in any individual artist OR matches the full artist field
+                # Check if the suffix appears in any individual artist
+                # OR matches the full artist field
                 should_remove = False
-                
+
                 # Check individual artists
                 for artist in individual_artists:
                     if suffix_part.lower() in artist.lower():
                         should_remove = True
                         break
-                
+
                 # Check full artist field (case-insensitive)
                 if not should_remove and artists and suffix_part.lower() == artists.lower():
                     should_remove = True
-                
+
                 if should_remove:
                     clean_title = match.group(1)
                     changed = True
                     continue
-            
+
             # No more changes, break
             if not changed:
                 break
-        
+
         return clean_title.strip()
 
     def check_for_duplicates(self, tracks: List[Track]) -> None:

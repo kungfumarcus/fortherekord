@@ -56,14 +56,14 @@ class SpotifyLibrary:
     def _authenticate(self) -> None:
         """Setup Spotify OAuth authentication with retry logic."""
         import time
-        
+
         scope = (
             "playlist-read-private playlist-modify-public playlist-modify-private user-library-read"
         )
 
         max_retries = 3  # Original attempt + 2 retries
         last_exception = None
-        
+
         for attempt in range(max_retries):
             try:
                 # Use the new CacheFileHandler approach to avoid deprecation warning
@@ -86,7 +86,8 @@ class SpotifyLibrary:
                 # Apply timeout to the Spotify client to handle authentication timeouts
                 self.sp = spotipy.Spotify(
                     auth_manager=auth_manager,
-                    requests_timeout=2,  # 2 second timeout to prevent hanging with invalid credentials
+                    # 2 second timeout to prevent hanging with invalid credentials
+                    requests_timeout=2,
                 )
 
                 # Get user ID with manual timeout since spotipy timeout doesn't work reliably
@@ -132,7 +133,7 @@ class SpotifyLibrary:
                 raise
             except Exception as e:
                 last_exception = e
-                
+
                 # Handle authentication failures gracefully
                 error_str = str(e).lower()
                 if any(
@@ -150,14 +151,14 @@ class SpotifyLibrary:
                 ):
                     # Don't retry for credential errors
                     raise ValueError(f"Invalid Spotify credentials: {e}") from e
-                
+
                 # For other errors (timeouts, network issues), retry
                 if attempt < max_retries - 1:  # Not the last attempt
                     print(f"Spotify authentication attempt {attempt + 1} failed: {e}")
                     print("Waiting 2 seconds before retrying...")
                     time.sleep(2)
                     continue
-        
+
         # If we get here, all retries failed
         if last_exception:
             raise last_exception
@@ -195,11 +196,11 @@ class SpotifyLibrary:
         best_score = 0.0
         best_id = None
         threshold = 0.5  # 50% threshold
-        
+
         for track in items:
             candidate_title = track["name"]
             candidate_artists = ", ".join([a["name"] for a in track["artists"]])
-            
+
             # Use the helper method for consistency
             title_sim, artist_sim, score = self._calculate_similarity(
                 title, artists, candidate_title, candidate_artists
@@ -207,7 +208,7 @@ class SpotifyLibrary:
             if score > best_score:
                 best_score = score
                 best_id = track["id"]
-        
+
         # If we found a good automatic match, use it
         if best_score >= threshold:
             if interactive:
@@ -215,92 +216,99 @@ class SpotifyLibrary:
                 best_track = next(t for t in items if t["id"] == best_id)
                 spotify_title = best_track["name"]
                 spotify_artists = ", ".join([a["name"] for a in best_track["artists"]])
-                print(f"🎯 Auto-matched: {spotify_title} - {spotify_artists} (score: {best_score:.2f})")
+                print(
+                    f"🎯 Auto-matched: {spotify_title} - {spotify_artists} (score: {best_score:.2f})"
+                )
             return str(best_id)
-        
+
         # No good automatic match found - try fallback searches with individual artists
         if not interactive:
             import re
-            
+
             # Clean title for search (remove featuring artists that break Spotify search)
             # Remove featuring artists in parentheses
-            clean_title = re.sub(r'\s*\([^)]*ft\.?[^)]*\)', '', title, flags=re.IGNORECASE)
-            clean_title = re.sub(r'\s*\([^)]*feat\.?[^)]*\)', '', clean_title, flags=re.IGNORECASE)
+            clean_title = re.sub(r"\s*\([^)]*ft\.?[^)]*\)", "", title, flags=re.IGNORECASE)
+            clean_title = re.sub(r"\s*\([^)]*feat\.?[^)]*\)", "", clean_title, flags=re.IGNORECASE)
             # Remove featuring artists not in parentheses (e.g., "Title feat. Artist")
             # Stop matching at parentheses to preserve remix info like "(Fred Remix)"
-            clean_title = re.sub(r'\s+ft\.?\s+[^(]*?(?=\s*\(|$)', '', clean_title, flags=re.IGNORECASE)
-            clean_title = re.sub(r'\s+feat\.?\s+[^(]*?(?=\s*\(|$)', '', clean_title, flags=re.IGNORECASE)
+            clean_title = re.sub(
+                r"\s+ft\.?\s+[^(]*?(?=\s*\(|$)", "", clean_title, flags=re.IGNORECASE
+            )
+            clean_title = re.sub(
+                r"\s+feat\.?\s+[^(]*?(?=\s*\(|$)", "", clean_title, flags=re.IGNORECASE
+            )
             clean_title = clean_title.strip()
-            
+
             # Clean artist names (only remove periods)
             clean_artists = artists.replace(".", "")
-            
+
             # Split artists by comma to keep artist names intact
-            artist_list = [artist.strip() for artist in clean_artists.split(',') if artist.strip()]
-            
+            artist_list = [artist.strip() for artist in clean_artists.split(",") if artist.strip()]
+
             all_fallback_candidates = []
-            
+
             print(f"  Unmatched: {title} - {artists}")
-            
-            # Fallback 1: Try with cleaned title and all artists (only if title was actually cleaned)
+
+            # Fallback 1: Try with cleaned title and all artists
+            # (only if title was actually cleaned)
             if clean_title != title:
                 fallback_query = f"{clean_title} {clean_artists}"
                 print(f"🔄 Trying fallback search (clean title): '{fallback_query}'")
-                
+
                 fallback_results = self.sp.search(q=fallback_query, type="track", limit=5)
                 fallback_items = fallback_results["tracks"]["items"]
-                
+
                 for track in fallback_items:
                     candidate_title = track["name"]
                     candidate_artists = ", ".join([a["name"] for a in track["artists"]])
-                    
+
                     title_sim, artist_sim, score = self._calculate_similarity(
                         title, artists, candidate_title, candidate_artists
                     )
-                    
-                    all_fallback_candidates.append({
-                        'track': track,
-                        'score': score,
-                        'query': fallback_query
-                    })
-            
+
+                    all_fallback_candidates.append(
+                        {"track": track, "score": score, "query": fallback_query}
+                    )
+
             # Fallback 2: Try searching with each complete artist name (only if multiple artists)
             if len(artist_list) > 1:
                 for individual_artist in artist_list:
                     fallback_query = f"{clean_title} {individual_artist}"
                     print(f"🔄 Trying fallback search: '{fallback_query}'")
-                    
+
                     fallback_results = self.sp.search(q=fallback_query, type="track", limit=5)
                     fallback_items = fallback_results["tracks"]["items"]
-                    
+
                     # Add all results to candidates list with their scores
                     for track in fallback_items:
                         candidate_title = track["name"]
                         candidate_artists = ", ".join([a["name"] for a in track["artists"]])
-                        
+
                         title_sim, artist_sim, score = self._calculate_similarity(
                             title, artists, candidate_title, candidate_artists
                         )
-                        
-                        all_fallback_candidates.append({
-                            'track': track,
-                            'score': score,
-                            'query': fallback_query
-                        })
-            
+
+                        all_fallback_candidates.append(
+                            {"track": track, "score": score, "query": fallback_query}
+                        )
+
             # Find the best match across ALL fallback searches
             if all_fallback_candidates:
-                best_candidate = max(all_fallback_candidates, key=lambda x: x['score'])
-                
-                if best_candidate['score'] >= threshold:
-                    track = best_candidate['track']
+                best_candidate = max(all_fallback_candidates, key=lambda x: x["score"])
+
+                if best_candidate["score"] >= threshold:
+                    track = best_candidate["track"]
                     spotify_title = track["name"]
                     spotify_artists = ", ".join([a["name"] for a in track["artists"]])
-                    print(f"    Best fallback match: {spotify_title} - {spotify_artists} (score: {best_candidate['score']:.2f}) from query '{best_candidate['query']}'")
+                    print(
+                        f"    Best fallback match: {spotify_title} - {spotify_artists} "
+                        f"(score: {best_candidate['score']:.2f}) "
+                        f"from query '{best_candidate['query']}'"
+                    )
                     return track["id"]
-            
+
             print(f"    All fallback searches failed for: {title} - {artists}")
-            
+
             # # TEMP DEBUG CODE: Show search details and allow alternative searches
             # print(f"\n🔍 No match found for: {title} - {artists}")
             # print(f"Search query: '{query}'")
@@ -309,36 +317,38 @@ class SpotifyLibrary:
             #     spotify_title = track["name"]
             #     spotify_artists = ", ".join([a["name"] for a in track["artists"]])
             #     print(f"  {i}. {spotify_title} - {spotify_artists}")
-            
+
             # # Allow alternative searches
             # while True:
             #     alt_query = input("\nEnter alternative search (or just Enter to skip): ").strip()
             #     if not alt_query:
             #         print("⏭️  Skipping track")
             #         return None
-                
+
             #     print(f"Searching for: '{alt_query}'")
             #     alt_results = self.sp.search(q=alt_query, type="track", limit=5)
             #     alt_items = alt_results["tracks"]["items"]
-                
+
             #     if not alt_items:
             #         print("No results found for alternative search")
             #         continue
-                
+
             #     print(f"Alternative results ({len(alt_items)}):")
             #     for i, track in enumerate(alt_items, 1):
             #         spotify_title = track["name"]
             #         spotify_artists = ", ".join([a["name"] for a in track["artists"]])
             #         print(f"  {i}. {spotify_title} - {spotify_artists}")
-                
+
             return None
 
         # Interactive mode: show options and let user choose
         return self._interactive_track_selection(title, artists, items[:5])
 
-    def _calculate_similarity(self, source_title: str, source_artists: str, 
-                           candidate_title: str, candidate_artists: str) -> tuple[float, float, float]:
+    def _calculate_similarity(
+        self, source_title: str, source_artists: str, candidate_title: str, candidate_artists: str
+    ) -> tuple[float, float, float]:
         """Calculate similarity by comparing full tracks, with artist match bonus."""
+
         def norm(s):
             return s.lower().strip()
 
@@ -350,7 +360,7 @@ class SpotifyLibrary:
         # Primary method: Full track comparison (title + artists combined)
         source_full = f"{norm_title} - {norm_artists}".strip(" -")
         candidate_full = f"{candidate_title_norm} - {candidate_artists_norm}".strip(" -")
-        
+
         if len(source_full) > 0 and len(candidate_full) > 0:
             full_track_sim = 1.0 - Levenshtein.distance(source_full, candidate_full) / max(
                 len(source_full), len(candidate_full)
@@ -362,10 +372,18 @@ class SpotifyLibrary:
         artist_match_bonus = 0.0
         if len(norm_artists) > 0 and len(candidate_artists_norm) > 0:
             # Split source artists on common separators
-            source_artists_list = [a.strip() for a in norm_artists.replace(',', ' ').replace('&', ' ').split() if a.strip()]
-            # Split candidate artists on common separators  
-            candidate_artists_list = [a.strip() for a in candidate_artists_norm.replace(',', ' ').replace('&', ' ').split() if a.strip()]
-            
+            source_artists_list = [
+                a.strip()
+                for a in norm_artists.replace(",", " ").replace("&", " ").split()
+                if a.strip()
+            ]
+            # Split candidate artists on common separators
+            candidate_artists_list = [
+                a.strip()
+                for a in candidate_artists_norm.replace(",", " ").replace("&", " ").split()
+                if a.strip()
+            ]
+
             # Check if any source artist appears in any candidate artist (or vice versa)
             for source_artist in source_artists_list:
                 for candidate_artist in candidate_artists_list:
@@ -377,11 +395,11 @@ class SpotifyLibrary:
 
         # Final score: full track similarity + artist bonus (max 1.0)
         combined_score = min(1.0, full_track_sim + artist_match_bonus)
-        
+
         # For display purposes, still calculate individual components
         title_sim = full_track_sim  # Use full track as title similarity for display
         artist_sim = 1.0 if artist_match_bonus > 0 else 0.0  # Show 1.0 if artist matched
-        
+
         return title_sim, artist_sim, combined_score
 
     def _interactive_track_selection(
@@ -405,7 +423,7 @@ class SpotifyLibrary:
         for i, track in enumerate(candidates):
             spotify_title = track["name"]
             spotify_artists = ", ".join([artist["name"] for artist in track["artists"]])
-            
+
             # Calculate similarity scores for display
             title_sim, artist_sim, combined_score = self._calculate_similarity(
                 source_title, source_artists, spotify_title, spotify_artists
@@ -414,10 +432,16 @@ class SpotifyLibrary:
             if i == 0:
                 # Bold the automatic choice (first result)
                 print(f"👑 {i+1}. {spotify_title} - {spotify_artists}")
-                print(f"     Title: {title_sim:.2f} | Artist: {artist_sim:.2f} | Combined: {combined_score:.2f}")
+                print(
+                    f"     Title: {title_sim:.2f} | Artist: {artist_sim:.2f} | "
+                    f"Combined: {combined_score:.2f}"
+                )
             else:
                 print(f"   {i+1}. {spotify_title} - {spotify_artists}")
-                print(f"     Title: {title_sim:.2f} | Artist: {artist_sim:.2f} | Combined: {combined_score:.2f}")
+                print(
+                    f"     Title: {title_sim:.2f} | Artist: {artist_sim:.2f} | "
+                    f"Combined: {combined_score:.2f}"
+                )
 
         print("\n   0. No match (skip this track)")
         print(
@@ -465,7 +489,9 @@ class SpotifyLibrary:
                 print("\n❌ Cancelled")
                 raise  # Re-raise to exit the program
 
-    def get_playlists(self, ignore_playlists: Optional[List[str]] = None, prefix: Optional[str] = None) -> List[Playlist]:
+    def get_playlists(
+        self, ignore_playlists: Optional[List[str]] = None, prefix: Optional[str] = None
+    ) -> List[Playlist]:
         """
         Get user's playlists from Spotify.
 
@@ -489,9 +515,11 @@ class SpotifyLibrary:
 
         while results and pagination_count < max_pages:
             for item in results["items"]:
-                if (item["name"] not in ignore_playlists and 
-                    item["owner"]["id"] == self.user_id and
-                    (prefix is None or item["name"].startswith(prefix))):
+                if (
+                    item["name"] not in ignore_playlists
+                    and item["owner"]["id"] == self.user_id
+                    and (prefix is None or item["name"].startswith(prefix))
+                ):
                     playlist = Playlist(
                         id=item["id"], name=item["name"], tracks=[]  # Will be loaded on demand
                     )

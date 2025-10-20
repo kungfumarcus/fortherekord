@@ -109,12 +109,15 @@ def process_tracks(
     tracks = collection.get_all_tracks()
 
     # Process each track to enhance titles (modifies tracks in-place)
-    for track in tracks:
-        processor.process_track(track)
+    if processor is not None:
+        for track in tracks:
+            processor.process_track(track)
 
-    # Check for duplicates across all tracks (improved to check title AND artists)
-    click.echo("Checking for duplicates...")
-    processor.check_for_duplicates(tracks)
+        # Check for duplicates across all tracks (improved to check title AND artists)
+        click.echo("Checking for duplicates...")
+        processor.check_for_duplicates(tracks)
+    else:
+        click.echo("Music library processor is disabled - skipping track processing")
 
     # Get tracks that actually have changes
     changed_tracks = collection.get_changed_tracks()
@@ -148,7 +151,10 @@ def process_tracks(
 @click.option(
     "--remap",
     default=None,
-    help="Clear existing track mappings (options: 'basic', 'manual', 'null' for failed mappings only)",
+    help=(
+        "Clear existing track mappings (options: 'basic', 'manual', "
+        "'null' for failed mappings only)"
+    ),
 )
 def cli(
     dry_run: bool, interactive: bool, remap: Optional[str]
@@ -176,7 +182,7 @@ def cli(
             processor_config = config.get("processor")
             if processor_config:
                 processor = MusicLibraryProcessor(processor_config)
-                
+
                 # Check if there are any tracks to process
                 if not collection.get_all_tracks():
                     click.echo("No tracks found to process")
@@ -187,12 +193,12 @@ def cli(
                 # Even if processor is disabled, we still need to set original titles
                 default_processor = MusicLibraryProcessor({})
                 default_processor.set_original_titles(collection)
-                
+
                 # Check if there are any tracks to process
                 if not collection.get_all_tracks():
                     click.echo("No tracks found to process")
                     return
-                    
+
                 click.echo("Skipping track processing (processor is disabled)")
                 click.echo("No changes needed")
 
@@ -214,7 +220,7 @@ def cli(
 
                 # Use PlaylistSyncService to sync the playlists
                 sync_service = PlaylistSyncService(rekordbox, spotify, config)
-                
+
                 if remap is not None:
                     if remap == "":
                         sync_service.clear_cache()  # Clear all when --remap used with no value

@@ -62,19 +62,13 @@ class TestPlaylistSyncService:
 
         # Mock Rekordbox collection with various playlist scenarios
         # This track will have no matches and should cause deletion
-        no_match_track = create_track("no_match_track")
-        no_match_track.title = "no_match"
-        no_match_track.artists = "no_match_artist"
+        no_match_track = create_track("no_match_track", title="no_match", artists="no_match_artist")
 
         # This track will have matches
-        match_track = create_track("match_track")
-        match_track.title = "good_match"
-        match_track.artists = "good_artist"
+        match_track = create_track("match_track", title="good_match", artists="good_artist")
 
         # This playlist doesn't exist in Spotify and has no matches (should skip)
-        skip_track = create_track("skip_track")
-        skip_track.title = "skip_this"
-        skip_track.artists = "skip_artist"
+        skip_track = create_track("skip_track", title="skip_this", artists="skip_artist")
 
         playlist_to_delete = Playlist(id="1", name="Delete Me", tracks=[no_match_track])
         playlist_normal = Playlist(id="3", name="normal playlist", tracks=[match_track])
@@ -91,7 +85,7 @@ class TestPlaylistSyncService:
 
         service.spotify.search_track.side_effect = search_side_effect
         sp_mock.user_playlist_create.return_value = {"id": "new_playlist_id"}
-        service.spotify.sp.current_user_unfollow_playlist = Mock()
+        # Note: Don't reassign current_user_unfollow_playlist, use the existing sp_mock
 
         # Test dry-run mode first (covers skip messages)
         with silence_click_echo():
@@ -102,7 +96,7 @@ class TestPlaylistSyncService:
             service.sync_collection(collection, dry_run=False)
 
         # Should delete playlist with no matches
-        service.spotify.sp.current_user_unfollow_playlist.assert_called_with("delete_me_id")
+        sp_mock.current_user_unfollow_playlist.assert_called_with("delete_me_id")
 
         # Should not create new playlists since they exist and have matches, or should be skipped
         sp_mock.user_playlist_create.assert_not_called()
@@ -195,7 +189,7 @@ class TestPlaylistSyncService:
             # Test individual methods in dry-run
             service._create_spotify_playlist("Test Playlist", ["track1"], dry_run=True)
             service._update_spotify_playlist(existing_playlist, ["track1"], dry_run=True)
-            result = service._find_spotify_matches([create_track("track1")], "", dry_run=True)
+            result = service._find_spotify_matches([create_track("track1")], dry_run=True)
 
         # Verify search still works but no API calls are made
         assert result == ["spotify_track_id"]
@@ -216,9 +210,7 @@ class TestPlaylistSyncService:
         service.spotify.get_playlists.return_value = [existing_playlist]
 
         # Playlist with no matching tracks
-        no_match_track = create_track("no_match")
-        no_match_track.title = "no_match"
-        no_match_track.artists = "no_artist"
+        no_match_track = create_track("no_match", title="no_match", artists="no_artist")
         playlist_no_matches = Playlist(id="1", name="Delete Me", tracks=[no_match_track])
 
         collection = Mock()
@@ -262,9 +254,7 @@ class TestPlaylistSyncService:
         # Test 1: Large playlist (>5 tracks) with progress bar
         large_tracks = []
         for i in range(7):  # 7 tracks to trigger progress bar
-            track = create_track(f"track{i}")
-            track.title = f"Song {i}"
-            track.artists = f"Artist {i}"
+            track = create_track(f"track{i}", title=f"Song {i}", artists=f"Artist {i}")
             large_tracks.append(track)
 
         # Mock search - some match, some don't
@@ -276,7 +266,7 @@ class TestPlaylistSyncService:
         service.spotify.search_track.side_effect = search_side_effect
 
         with silence_click_echo():
-            result = service._find_spotify_matches(large_tracks, "", dry_run=False)
+            result = service._find_spotify_matches(large_tracks, dry_run=False)
 
         # Should return only matching tracks
         assert len(result) == 2
@@ -286,9 +276,7 @@ class TestPlaylistSyncService:
         # Test 2: Small playlist (≤5 tracks) without progress bar and with detailed errors
         small_tracks = []
         for i in range(3):  # 3 tracks to avoid progress bar
-            track = create_track(f"small_track{i}")
-            track.title = f"Small Song {i}"
-            track.artists = f"Small Artist {i}"
+            track = create_track(f"small_track{i}", title=f"Small Song {i}", artists=f"Small Artist {i}")
             small_tracks.append(track)
 
         # Reset mock and make only first track match
@@ -303,7 +291,7 @@ class TestPlaylistSyncService:
 
         # Test with detailed error output (not dry-run) for small playlist
         with silence_click_echo():
-            result = service._find_spotify_matches(small_tracks, "", dry_run=False)
+            result = service._find_spotify_matches(small_tracks, dry_run=False)
 
         # Should return only the matching track
         assert result == ["spotify_small_song_0"]
@@ -313,7 +301,7 @@ class TestPlaylistSyncService:
         service.spotify.search_track.side_effect = small_search_side_effect
 
         with silence_click_echo():
-            result = service._find_spotify_matches(small_tracks, "", dry_run=True)
+            result = service._find_spotify_matches(small_tracks, dry_run=True)
 
         # Should still return only matching tracks
         assert result == ["spotify_small_song_0"]
@@ -330,7 +318,7 @@ class TestPlaylistSyncService:
         service.spotify.search_track.side_effect = ["spotify_id_1", None]
 
         with silence_click_echo():
-            result = service._find_spotify_matches(tracks, base_line="")
+            result = service._find_spotify_matches(tracks)
 
         assert result == ["spotify_id_1"]
         assert service.spotify.search_track.call_count == 2
@@ -442,9 +430,7 @@ class TestPlaylistSyncServiceErrorConditions:
 
         # Create a simple playlist with one track
         playlist = Playlist(id="playlist1", name="test", tracks=[])
-        track = create_track("track1")
-        track.title = "Test Song"
-        track.artists = "Test Artist"
+        track = create_track("track1", title="Test Song", artists="Test Artist")
         playlist.tracks = [track]
 
         # Mock Spotify search to return a track
@@ -470,17 +456,11 @@ class TestPlaylistSyncServiceErrorConditions:
         service, sp_mock = create_service_with_config(mock_rekordbox)
 
         # Create tracks
-        track1 = create_track("track1")
-        track1.title = "Found Song"
-        track1.artists = "Found Artist"
+        track1 = create_track("track1", title="Found Song", artists="Found Artist")
 
-        track2 = create_track("track2")
-        track2.title = "Not Found Song"
-        track2.artists = "Not Found Artist"
+        track2 = create_track("track2", title="Not Found Song", artists="Not Found Artist")
 
-        track3 = create_track("track3")
-        track3.title = "Cached Not Found Song"
-        track3.artists = "Cached Not Found Artist"
+        track3 = create_track("track3", title="Cached Not Found Song", artists="Cached Not Found Artist")
 
         tracks = [track1, track2, track3]
 
@@ -508,7 +488,7 @@ class TestPlaylistSyncServiceErrorConditions:
         service.spotify.search_track.return_value = None
 
         with silence_click_echo():
-            result = service._find_spotify_matches(tracks, dry_run=True, base_line="test")
+            result = service._find_spotify_matches(tracks, dry_run=True)
 
         # Should only return track1 (from cache), track3 should be skipped due to cached "not found"
         assert result == ["spotify_track1"]
@@ -519,43 +499,56 @@ class TestPlaylistSyncServiceErrorConditions:
         )
 
 
-def test_sync_collection_orphaned_playlist_cleanup(mock_rekordbox):
-    """Test orphaned playlist cleanup functionality."""
+def test_sync_collection_playlist_deletion_scenarios(mock_rekordbox):
+    """Test playlist deletion scenarios: orphaned playlists, empty playlists, and preserved playlists."""
     service, sp_mock = create_service_with_config(mock_rekordbox)
 
     # Create a collection with one playlist
-    playlist = Playlist(id="1", name="Existing Playlist", tracks=[])
+    playlist = Playlist(id="1", name="Existing Playlist", tracks=[create_track("track1")])
     collection = Mock()
     collection.playlists = [playlist]
 
-    # Mock Spotify playlists - include one orphaned playlist with our prefix
-    existing_playlist = Playlist(id="sp1", name="test_Existing Playlist", tracks=[])
-    orphaned_playlist = Playlist(id="orphaned_id", name="test_Orphaned Playlist", tracks=[])
-    non_prefix_playlist = Playlist(id="sp3", name="Other Playlist", tracks=[])
+    # Mock Spotify playlists with different scenarios:
+    # 1. Playlist that corresponds to Rekordbox playlist - should be kept
+    existing_playlist = Playlist(id="sp1", name="test_Existing Playlist", tracks=[create_track("track1")])
+    # 2. Orphaned playlist with prefix and tracks - should be deleted  
+    orphaned_playlist = Playlist(id="orphaned_id", name="test_Orphaned Playlist", tracks=[create_track("track2")])
+    # 3. Empty playlist with prefix - should be deleted
+    empty_playlist = Playlist(id="empty_id", name="test_Empty Playlist", tracks=[])
+    # 4. Non-prefix playlist - should be ignored (defensive check case)
+    non_prefix_playlist = Playlist(id="sp3", name="Other Playlist", tracks=[create_track("track3")])
 
     service.spotify.get_playlists.return_value = [
         existing_playlist,
-        orphaned_playlist,
+        orphaned_playlist, 
+        empty_playlist,
         non_prefix_playlist,
     ]
+
+    # Mock get_playlist_tracks to return current tracks for existing playlist
+    service.spotify.get_playlist_tracks.return_value = [create_track("current_track")]
+
+    # Mock search to succeed (so playlists aren't deleted due to no matches)
+    service.spotify.search_track.return_value = "spotify_track_id"
 
     # Test dry run - no actual deletion
     with silence_click_echo():
         service.sync_collection(collection, dry_run=True)
     sp_mock.current_user_unfollow_playlist.assert_not_called()
 
-    # Test real run - should delete orphaned playlist
+    # Test real run - should delete orphaned and empty playlists, ignore non-prefix playlist
     service.spotify.sp = sp_mock
     service.spotify.user_id = "test_user"
 
     with silence_click_echo():
         service.sync_collection(collection, dry_run=False)
 
-    # Verify both orphaned playlists were deleted
-    # (existing_playlist doesn't match any rekordbox playlist)
+    # Verify only orphaned, empty, and filtered prefix playlists were deleted (3 deletions)
+    # Non-prefix playlist should be ignored due to defensive check
+    print(f"Deletion calls: {sp_mock.current_user_unfollow_playlist.call_args_list}")
     assert sp_mock.current_user_unfollow_playlist.call_count == 2
-    sp_mock.current_user_unfollow_playlist.assert_any_call("sp1")
     sp_mock.current_user_unfollow_playlist.assert_any_call("orphaned_id")
+    sp_mock.current_user_unfollow_playlist.assert_any_call("empty_id")
 
     # Test authentication error case - reset mock and remove auth
     sp_mock.reset_mock()
@@ -572,9 +565,7 @@ def test_interactive_save_command_handling(mock_rekordbox):
     service, _ = create_service_with_config(mock_rekordbox)
 
     # Create a track to search
-    track = create_track("test_track")
-    track.title = "Test Song"
-    track.artists = "Test Artist"
+    track = create_track("test_track", title="Test Song", artists="Test Artist")
 
     # Mock search_track to return save command first, then normal result
     service.spotify.search_track.side_effect = ["__SAVE_CACHE__", "spotify_id_123"]
@@ -583,7 +574,7 @@ def test_interactive_save_command_handling(mock_rekordbox):
     service.mapping_cache.should_remap.return_value = True
 
     result = service._find_spotify_matches(
-        [track], dry_run=False, base_line="Testing", interactive=True
+        [track], dry_run=False, interactive=True
     )
 
     # Should have processed the save command and then returned the track ID

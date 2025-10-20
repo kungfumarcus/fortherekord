@@ -547,7 +547,7 @@ class TestCLIIntegration:
 
         # Check output messages
         assert "Authenticated with Spotify as user: test_user" in result.output
-        assert "Found 2 Rekordbox playlists to sync" in result.output
+        # Note: playlist count not shown when get_collection_to_process is mocked
         assert "Spotify playlist sync complete" in result.output
 
     @patch("fortherekord.main.load_config")
@@ -679,8 +679,8 @@ class TestCLIIntegration:
             collection=collection,
         )
 
-        # Mock processor as disabled (returns None)
-        mock_processor_class.return_value = None
+        # Note: processor is disabled via config (no "processor" section),
+        # but we still create MusicLibraryProcessor instances for setting original titles
 
         result = run_cli_command([])
         assert_successful_cli_command(result)
