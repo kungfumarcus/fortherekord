@@ -159,7 +159,7 @@ def run_fortherekord_command(args: list[str], env_vars: dict = None) -> subproce
 
         # Wait for process to complete with timeout
         start_time = time.time()
-        timeout = 15
+        timeout = 60  # Increased timeout for Spotify API operations
 
         while process.poll() is None:
             if time.time() - start_time > timeout:
@@ -172,13 +172,13 @@ def run_fortherekord_command(args: list[str], env_vars: dict = None) -> subproce
 
                 print("=== E2E TEST TIMEOUT DEBUG INFO ===")
                 print(f"Command: {' '.join(cmd)}")
-                print("Timeout: 15 seconds")
+                print("Timeout: 60 seconds")
                 print("=== CAPTURED STDOUT ===")
                 print("".join(stdout_lines) or "(no stdout)")
                 print("=== CAPTURED STDERR ===")
                 print("".join(stderr_lines) or "(no stderr)")
                 print("=== END DEBUG INFO ===")
-                pytest.fail("E2E test timed out after 15 seconds")
+                pytest.fail("E2E test timed out after 60 seconds")
 
             time.sleep(0.1)
 

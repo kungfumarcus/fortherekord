@@ -62,6 +62,7 @@ class MusicLibraryProcessor:
         artists_not_in_title = track.artists
         if track.artists and self.remove_artists_in_title:
             artists_not_in_title, _ = self._split_artists_by_title(working_title, track.artists)
+        
         track.enhanced_title = self._format_enhanced_title(
             working_title, artists_not_in_title, track.key
         )
@@ -165,7 +166,7 @@ class MusicLibraryProcessor:
         De-enhance a title by removing artist suffixes and key brackets.
         Uses smart matching - removes " - xxx" when xxx contains ANY of the individual artists.
         """
-        if not title or " - " not in title:
+        if not title:
             return title
 
         clean_title = title
@@ -179,7 +180,7 @@ class MusicLibraryProcessor:
             )
             individual_artists = [a.strip() for a in artists_split if a.strip()]
 
-        # Keep removing patterns from the end
+        # Keep removing patterns from the end - process " - Artist [Key]" and " - Artist" first
         while True:
             changed = False
 
@@ -233,6 +234,16 @@ class MusicLibraryProcessor:
 
             # No more changes, break
             if not changed:
+                break
+
+        # Finally, remove ALL trailing [Key] patterns (handles duplicates and standalone keys)
+        # Keep removing until no more key patterns exist
+        key_pattern = r"^(.+?)\s*\[([A-G][#b]?/?[m]?)\]$"
+        while True:
+            match = re.match(key_pattern, clean_title)
+            if match:
+                clean_title = match.group(1).strip()
+            else:
                 break
 
         return clean_title.strip()
