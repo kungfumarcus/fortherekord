@@ -197,11 +197,11 @@ class TestMusicLibraryProcessor:
 
         # Track with title that already ends with " - Artist"
         track = create_track(
-            track_id="1", 
-            title="Song Title - Test Artist", 
-            artists="Test Artist", 
+            track_id="1",
+            title="Song Title - Test Artist",
+            artists="Test Artist",
             key="Cm",
-            original_title="Song Title"  # Provide the cleaned original title
+            original_title="Song Title",  # Provide the cleaned original title
         )
 
         processor.process_track(track)
@@ -226,11 +226,11 @@ class TestMusicLibraryProcessor:
         """Test no output when no changes are made."""
         processor = MusicLibraryProcessor(default_processor_config)
         track = create_track(
-            title="Song Title - Test Artist [Cm]", 
-            artists="Test Artist", 
+            title="Song Title - Test Artist [Cm]",
+            artists="Test Artist",
             key="Cm",
             original_title="Song Title",  # Set the clean original title
-            original_artists="Test Artist"  # Set the original artists
+            original_artists="Test Artist",  # Set the original artists
         )
 
         processor.process_track(track)
@@ -312,7 +312,7 @@ class TestMusicLibraryProcessor:
             title="Party (Subsonic mix) - Dazza, Subsonic",
             artists="Dazza, Subsonic",
             key="Am",
-            original_title="Party (Subsonic mix)"  # Cleaned version without artist suffix
+            original_title="Party (Subsonic mix)",  # Cleaned version without artist suffix
         )
 
         # Test with remove_artists_in_title enabled
@@ -340,7 +340,7 @@ class TestMusicLibraryProcessor:
             title="Party (Subsonic mix) - Dazza, Subsonic",
             artists="Dazza, Subsonic",
             key="Am",
-            original_title="Party (Subsonic mix)"  # Cleaned version without artist suffix
+            original_title="Party (Subsonic mix)",  # Cleaned version without artist suffix
         )
         processor_disabled.process_track(track_disabled)
         # Should keep all artists in both field and enhanced title

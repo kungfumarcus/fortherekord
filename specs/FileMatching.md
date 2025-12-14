@@ -44,7 +44,7 @@ Prepares clean strings for Spotify search API
 - Calculate Levenshtein distance for artist strings  
 - Convert distances to similarity scores (0.0 to 1.0)
 - Combined score = (title_similarity + artist_similarity) / 2
-- **Liked Track Bonus**: If track is in user's Spotify liked tracks, add +0.4 to combined score (max 1.0)
+- **Liked Track Bonus**: If track is in user's Spotify liked tracks, add +0.1 to combined score (max 1.0)
 
 #### Matching Thresholds
 - Accept matches with combined score > 0.75

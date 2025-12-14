@@ -511,24 +511,34 @@ class TestSpotifyLibraryErrorConditions:
         with pytest.raises(NotImplementedError, match="Track metadata updates not supported"):
             client.update_track_metadata("track_id", "new_title", "new_artist")
 
-    @pytest.mark.parametrize("user_input,expected_result,expected_calls,should_raise", [
-        # Test case: Enter selects top match
-        ("", "track1", 1, None),
-        # Test case: 'save' command returns special marker
-        ("save", "__SAVE_CACHE__", 1, None),
-        # Test case: Number choice selects specific track
-        ("2", "track2", 1, None),
-        # Test case: Zero skips track
-        ("0", None, 1, None),
-        # Test case: Invalid input then valid choice
-        (["invalid", "1"], "track1", 2, None),
-        # Test case: KeyboardInterrupt is re-raised
-        (KeyboardInterrupt, None, 1, KeyboardInterrupt),
-    ])
+    @pytest.mark.parametrize(
+        "user_input,expected_result,expected_calls,should_raise",
+        [
+            # Test case: Enter selects top match
+            ("", "track1", 1, None),
+            # Test case: 'save' command returns special marker
+            ("save", "__SAVE_CACHE__", 1, None),
+            # Test case: Number choice selects specific track
+            ("2", "track2", 1, None),
+            # Test case: Zero skips track
+            ("0", None, 1, None),
+            # Test case: Invalid input then valid choice
+            (["invalid", "1"], "track1", 2, None),
+            # Test case: KeyboardInterrupt is re-raised
+            (KeyboardInterrupt, None, 1, KeyboardInterrupt),
+        ],
+    )
     @patch("builtins.input")
     @patch("builtins.print")
     def test_interactive_track_selection_scenarios(
-        self, mock_print, mock_input, user_input, expected_result, expected_calls, should_raise, mock_spotify_client
+        self,
+        mock_print,
+        mock_input,
+        user_input,
+        expected_result,
+        expected_calls,
+        should_raise,
+        mock_spotify_client,
     ):
         """Test various interactive mode scenarios."""
         client, mock_sp = mock_spotify_client
@@ -558,7 +568,7 @@ class TestSpotifyLibraryErrorConditions:
         else:
             result = client.search_track("Test Song", "Test Artist", interactive=True)
             assert result == expected_result
-            
+
         # Verify input was called the expected number of times
         assert mock_input.call_count == expected_calls
 

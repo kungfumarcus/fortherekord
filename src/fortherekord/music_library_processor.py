@@ -62,7 +62,7 @@ class MusicLibraryProcessor:
         artists_not_in_title = track.artists
         if track.artists and self.remove_artists_in_title:
             artists_not_in_title, _ = self._split_artists_by_title(working_title, track.artists)
-        
+
         track.enhanced_title = self._format_enhanced_title(
             working_title, artists_not_in_title, track.key
         )
@@ -96,17 +96,19 @@ class MusicLibraryProcessor:
         new_title = track.enhanced_title or track.title
         current_artists = getattr(track, "original_artists", "") or ""
         new_artists = track.artists or ""
-        
+
         has_title_change = current_title != new_title
         has_artist_change = current_artists != new_artists
-        
+
         if has_title_change and has_artist_change:
-            print(f"Updating title '{current_title}' to '{new_title}' and artists '{current_artists}' to '{new_artists}'")
+            print(
+                f"Updating title '{current_title}' to '{new_title}' and artists '{current_artists}' to '{new_artists}'"
+            )
         elif has_title_change:
             print(f"Updating title '{current_title}' to '{new_title}'")
         elif has_artist_change:
             print(f"Updating '{current_title}' artists '{current_artists}' to '{new_artists}'")
-        
+
         return has_title_change or has_artist_change
 
     def _split_artists_by_title(self, title: str, artists: str) -> Tuple[str, str]:
@@ -234,16 +236,6 @@ class MusicLibraryProcessor:
 
             # No more changes, break
             if not changed:
-                break
-
-        # Finally, remove ALL trailing [Key] patterns (handles duplicates and standalone keys)
-        # Keep removing until no more key patterns exist
-        key_pattern = r"^(.+?)\s*\[([A-G][#b]?/?[m]?)\]$"
-        while True:
-            match = re.match(key_pattern, clean_title)
-            if match:
-                clean_title = match.group(1).strip()
-            else:
                 break
 
         return clean_title.strip()

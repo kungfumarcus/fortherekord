@@ -192,6 +192,17 @@ class SpotifyLibrary:
                 return None
             return None
 
+        # Check which of the search results are liked (for bonus scoring)
+        track_ids = [track["id"] for track in items]
+        liked_status = {}
+        try:
+            liked_results = self.sp.current_user_saved_tracks_contains(track_ids)
+            liked_status = {track_ids[i]: liked_results[i] for i in range(len(track_ids))}
+        except Exception as e:
+            # If checking liked status fails, just continue without the bonus
+            print(f"Warning: Could not check liked status: {e}")
+            liked_status = {track_id: False for track_id in track_ids}
+
         # Try automatic matching first (even in interactive mode)
         best_score = 0.0
         best_id = None
@@ -200,14 +211,20 @@ class SpotifyLibrary:
         for track in items:
             candidate_title = track["name"]
             candidate_artists = ", ".join([a["name"] for a in track["artists"]])
+            track_id = track["id"]
 
             # Use the helper method for consistency
             title_sim, artist_sim, score = self._calculate_similarity(
                 title, artists, candidate_title, candidate_artists
             )
+
+            # Apply liked track bonus (+0.1 if track is in user's liked tracks)
+            if liked_status.get(track_id, False):
+                score = min(1.0, score + 0.1)
+
             if score > best_score:
                 best_score = score
-                best_id = track["id"]
+                best_id = track_id
 
         # If we found a good automatic match, use it
         if best_score >= threshold:

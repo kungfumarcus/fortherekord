@@ -125,9 +125,7 @@ class TestMappingCache:
     @patch("fortherekord.mapping_cache.get_config_path")
     @patch("builtins.open", new_callable=mock_open)
     @patch("builtins.print")
-    def test_save_cache_scenarios(
-        self, mock_print, mock_file, mock_get_config_path
-    ):
+    def test_save_cache_scenarios(self, mock_print, mock_file, mock_get_config_path):
         """Test cache saving success and error scenarios."""
         mock_get_config_path.return_value = Path("/mock/config.yaml")
 
@@ -161,10 +159,10 @@ class TestMappingCache:
             # Get the handle and check what was written
             handle = mock_file()
             written_content = "".join(call.args[0] for call in handle.write.call_args_list)
-            
+
             # Verify JSON structure (should contain all mappings)
             assert '"track1": {"spid":"spotify:track:123","algo":"basic"}' in written_content
-            assert '"track_failed": null' in written_content  
+            assert '"track_failed": null' in written_content
             assert '"track_manual": {"spid":"spotify:track:456","algo":"manual"}' in written_content
             assert written_content.startswith("{")
             assert written_content.endswith("}")

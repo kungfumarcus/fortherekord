@@ -187,11 +187,16 @@ class RekordboxLibrary(MusicLibrary):
         playlist_map = {}  # For building parent-child relationships
         seq_map = {}  # For storing Rekordbox sequence order
         track_map: dict[str, Track] = {}  # For storing all unique tracks
+        empty_smart_playlists = []  # Track empty smart playlists for warning
 
         # First pass: Create all playlist objects and store sequence numbers
         for rb_playlist in db.get_playlist():
             # Get track list for this playlist
             tracks = self._get_playlist_tracks(rb_playlist, db, track_map)
+
+            # Detect empty smart playlists (Attribute 4 = smart playlist)
+            if rb_playlist.Attribute == 4 and len(tracks) == 0:
+                empty_smart_playlists.append(rb_playlist)
 
             # Create playlist object with parent_id
             playlist = Playlist(
@@ -220,6 +225,24 @@ class RekordboxLibrary(MusicLibrary):
         for playlist in all_playlists:
             if playlist.children:
                 playlist.children.sort(key=lambda p: seq_map[p.id])
+
+        # Warn about empty smart playlists
+        if empty_smart_playlists:
+            print()
+            print(f"WARNING: Found {len(empty_smart_playlists)} smart playlist(s) with 0 tracks:")
+            for rb_pl in empty_smart_playlists:
+                # Build full path for display
+                parent_chain: list = []
+                current = rb_pl.Parent
+                while current:
+                    parent_chain.insert(0, current.Name)
+                    current = current.Parent if hasattr(current, "Parent") else None
+                full_path = " / ".join(parent_chain + [rb_pl.Name]) if parent_chain else rb_pl.Name
+                print(f"  - {full_path}")
+            print("These playlists will be skipped during sync.")
+            print("This may be due to a pyrekordbox bug with MyTag smart playlists.")
+            print("Try recreating these playlists in Rekordbox to fix the issue.")
+            print()
 
         root_playlists = [p for p in all_playlists if p.parent_id is None]
         return Collection(playlists=root_playlists, tracks=track_map)

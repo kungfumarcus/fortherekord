@@ -161,12 +161,14 @@ class TestPlaylistSyncService:
         playlists = [parent1, parent2, parent3]
         result = service._get_all_playlists_recursive(playlists)
 
-        # Should include: child1 (normal), parent3 (normal)
-        # Should exclude: child2 (excluded term), child3 (empty),
-        # parent1 (excluded term), parent2 (empty)
-        assert len(result) == 2
+        # Should include: child1 (has tracks), child2 (has tracks), parent1 (has tracks), parent3 (has tracks)
+        # Should exclude: child3 (empty), parent2 (empty)
+        # Note: exclude_from_playlist_names removes terms from names, doesn't filter playlists
+        assert len(result) == 4
         playlist_names = [p.name for p in result]
         assert "Child 1" in playlist_names
+        assert "Child 2 exclude" in playlist_names
+        assert "Parent exclude" in playlist_names
         assert "Normal Parent" in playlist_names
 
     def test_comprehensive_dry_run_mode(self, mock_rekordbox, sample_collection):
@@ -276,7 +278,9 @@ class TestPlaylistSyncService:
         # Test 2: Small playlist (≤5 tracks) without progress bar and with detailed errors
         small_tracks = []
         for i in range(3):  # 3 tracks to avoid progress bar
-            track = create_track(f"small_track{i}", title=f"Small Song {i}", artists=f"Small Artist {i}")
+            track = create_track(
+                f"small_track{i}", title=f"Small Song {i}", artists=f"Small Artist {i}"
+            )
             small_tracks.append(track)
 
         # Reset mock and make only first track match
@@ -460,7 +464,9 @@ class TestPlaylistSyncServiceErrorConditions:
 
         track2 = create_track("track2", title="Not Found Song", artists="Not Found Artist")
 
-        track3 = create_track("track3", title="Cached Not Found Song", artists="Cached Not Found Artist")
+        track3 = create_track(
+            "track3", title="Cached Not Found Song", artists="Cached Not Found Artist"
+        )
 
         tracks = [track1, track2, track3]
 
@@ -510,9 +516,13 @@ def test_sync_collection_playlist_deletion_scenarios(mock_rekordbox):
 
     # Mock Spotify playlists with different scenarios:
     # 1. Playlist that corresponds to Rekordbox playlist - should be kept
-    existing_playlist = Playlist(id="sp1", name="test_Existing Playlist", tracks=[create_track("track1")])
-    # 2. Orphaned playlist with prefix and tracks - should be deleted  
-    orphaned_playlist = Playlist(id="orphaned_id", name="test_Orphaned Playlist", tracks=[create_track("track2")])
+    existing_playlist = Playlist(
+        id="sp1", name="test_Existing Playlist", tracks=[create_track("track1")]
+    )
+    # 2. Orphaned playlist with prefix and tracks - should be deleted
+    orphaned_playlist = Playlist(
+        id="orphaned_id", name="test_Orphaned Playlist", tracks=[create_track("track2")]
+    )
     # 3. Empty playlist with prefix - should be deleted
     empty_playlist = Playlist(id="empty_id", name="test_Empty Playlist", tracks=[])
     # 4. Non-prefix playlist - should be ignored (defensive check case)
@@ -520,7 +530,7 @@ def test_sync_collection_playlist_deletion_scenarios(mock_rekordbox):
 
     service.spotify.get_playlists.return_value = [
         existing_playlist,
-        orphaned_playlist, 
+        orphaned_playlist,
         empty_playlist,
         non_prefix_playlist,
     ]
@@ -573,9 +583,7 @@ def test_interactive_save_command_handling(mock_rekordbox):
     # Ensure the track will be searched (force should_remap to return True)
     service.mapping_cache.should_remap.return_value = True
 
-    result = service._find_spotify_matches(
-        [track], dry_run=False, interactive=True
-    )
+    result = service._find_spotify_matches([track], dry_run=False, interactive=True)
 
     # Should have processed the save command and then returned the track ID
     assert result == ["spotify_id_123"]

@@ -136,7 +136,8 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         total_tracks = len(rekordbox_playlist.tracks)
         click.echo(
             f"> ({progress.current}/{progress.total}) "
-            f"{rekordbox_playlist.full_name()} -> {spotify_name} ({total_tracks})"
+            f"{rekordbox_playlist.full_name()} -> {spotify_name} ({total_tracks})",
+            nl=False,
         )
 
         # Find matching tracks
@@ -146,6 +147,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         if len(matched_tracks) == 0:
             if spotify_name in spotify_playlist_map:
                 playlist_obj = spotify_playlist_map[spotify_name]
+                click.echo()
                 click.echo(
                     f"  ({progress.current}/{progress.total}) "
                     f"{rekordbox_playlist.full_name()} -> {spotify_name} "
@@ -156,6 +158,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
                         raise RuntimeError("Spotify client not authenticated")
                     self.spotify.sp.current_user_unfollow_playlist(playlist_obj.id)
             else:
+                click.echo()
                 click.echo(
                     f"  ({progress.current}/{progress.total}) "
                     f"{rekordbox_playlist.full_name()} -> {spotify_name} "
@@ -174,8 +177,9 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
                 spotify_name, matched_tracks, dry_run
             )
 
+        # Overwrite the initial line with final count
         click.echo(
-            f"  ({progress.current}/{progress.total}) "
+            f"\r> ({progress.current}/{progress.total}) "
             f"{rekordbox_playlist.full_name()} -> {spotify_name} "
             f"({len(matched_tracks)}/{total_tracks})"
         )
@@ -397,23 +401,15 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             playlists: Top-level playlists
 
         Returns:
-            Flattened list of all playlists including children (excluding those with excluded terms)
+            Flattened list of all playlists including children
         """
         all_playlists = []
         for playlist in playlists:
-            # Skip playlists that contain excluded terms
-            should_skip = False
-            for exclude_term in self.exclude_from_playlist_names:
-                if exclude_term.lower() in playlist.name.lower():
-                    should_skip = True
-                    break
+            # Only include playlists that have tracks (not empty folders)
+            if len(playlist.tracks) > 0:
+                all_playlists.append(playlist)
 
-            if not should_skip:
-                # Only include playlists that have tracks (not empty folders)
-                if len(playlist.tracks) > 0:
-                    all_playlists.append(playlist)
-
-            # Recursively add children (regardless of whether parent was skipped)
+            # Recursively add children
             if playlist.children:
                 all_playlists.extend(self._get_all_playlists_recursive(playlist.children))
 
@@ -444,7 +440,10 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         orphaned_playlists = []
         for sp_playlist in spotify_playlists:
             # Defensive check: only consider playlists with our prefix
-            if sp_playlist.name.startswith(self.playlist_prefix) and sp_playlist.name not in expected_names:
+            if (
+                sp_playlist.name.startswith(self.playlist_prefix)
+                and sp_playlist.name not in expected_names
+            ):
                 orphaned_playlists.append(sp_playlist)
 
         if orphaned_playlists:
