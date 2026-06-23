@@ -191,6 +191,15 @@ class MusicLibraryProcessor:
             match = re.match(end_with_key, clean_title)
             if match:
                 suffix_part = match.group(2).strip()
+
+                if not individual_artists and not artists:
+                    # Artist field is empty: strip only the [Key] suffix, keeping
+                    # " - Artist" so process_track can extract the artist next run.
+                    # Without this, accumulated [Key][Key]... builds up each run.
+                    clean_title = f"{match.group(1)} - {match.group(2)}"
+                    changed = True
+                    continue
+
                 # Check if the suffix appears in any individual artist
                 # OR matches the full artist field
                 should_remove = False
@@ -204,6 +213,23 @@ class MusicLibraryProcessor:
                 # Check full artist field (case-insensitive)
                 if not should_remove and artists and suffix_part.lower() == artists.lower():
                     should_remove = True
+
+                # Check if suffix is multiple artists (e.g. "Artist1, Artist2") all of
+                # which are in the known artist list — single-artist check above misses this
+                if not should_remove and individual_artists:
+                    suffix_parts = [
+                        a.strip()
+                        for a in re.split(
+                            r",\s*|&\s*|\s+feat\.?\s+|\s+ft\.?\s+|\s+featuring\s+",
+                            suffix_part,
+                        )
+                        if a.strip()
+                    ]
+                    if len(suffix_parts) > 1 and all(
+                        any(sp.lower() in ia.lower() for ia in individual_artists)
+                        for sp in suffix_parts
+                    ):
+                        should_remove = True
 
                 if should_remove:
                     clean_title = match.group(1)
@@ -228,6 +254,22 @@ class MusicLibraryProcessor:
                 # Check full artist field (case-insensitive)
                 if not should_remove and artists and suffix_part.lower() == artists.lower():
                     should_remove = True
+
+                # Check if suffix is multiple artists all of which are known
+                if not should_remove and individual_artists:
+                    suffix_parts = [
+                        a.strip()
+                        for a in re.split(
+                            r",\s*|&\s*|\s+feat\.?\s+|\s+ft\.?\s+|\s+featuring\s+",
+                            suffix_part,
+                        )
+                        if a.strip()
+                    ]
+                    if len(suffix_parts) > 1 and all(
+                        any(sp.lower() in ia.lower() for ia in individual_artists)
+                        for sp in suffix_parts
+                    ):
+                        should_remove = True
 
                 if should_remove:
                     clean_title = match.group(1)
