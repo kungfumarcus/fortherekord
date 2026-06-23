@@ -6,13 +6,10 @@ Handles loading and processing of Rekordbox database files
 
 import logging
 import io
-import subprocess
-import sys
 from pathlib import Path
 from typing import List, Any
 
 from pyrekordbox import Rekordbox6Database
-from pyrekordbox.db6.database import NoCachedKey
 
 from .models import Track, Playlist, Collection
 from .music_library import MusicLibrary
@@ -60,29 +57,6 @@ class RekordboxLibrary(MusicLibrary):
                 log_output = log_capture.getvalue()
                 self.is_rekordbox_running = "Rekordbox is running" in log_output
 
-            except NoCachedKey:
-                # Try to download the key automatically
-                print("Database key not found. Attempting to download...")
-                try:
-                    subprocess.run(
-                        [sys.executable, "-m", "pyrekordbox", "download-key"],
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                    )
-                    print("Key downloaded successfully!")
-                    # Try opening the database again
-                    self._db = Rekordbox6Database(str(self.db_path))
-                except subprocess.CalledProcessError as e:
-                    raise RuntimeError(
-                        f"Failed to download database key: {e.stderr or e.stdout}"
-                    ) from e
-                except NoCachedKey as e:
-                    raise RuntimeError(
-                        "Database key could not be obtained. Please ensure Rekordbox is "
-                        "installed and has been run at least once, or manually download "
-                        "the key using: python -m pyrekordbox download-key"
-                    ) from e
             finally:
                 # Clean up the logging handler
                 logger.removeHandler(handler)
