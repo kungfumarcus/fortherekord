@@ -141,7 +141,9 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
         )
 
         # Find matching tracks
-        matched_tracks = self._find_spotify_matches(rekordbox_playlist.tracks, dry_run, interactive)
+        matched_tracks, had_match_print = self._find_spotify_matches(
+            rekordbox_playlist.tracks, dry_run, interactive
+        )
 
         # If no tracks matched on Spotify, delete the playlist if it exists, or skip creating it
         if len(matched_tracks) == 0:
@@ -177,19 +179,27 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
                 spotify_name, matched_tracks, dry_run
             )
 
-        # Overwrite the initial line with final count
-        click.echo(
-            f"\r> ({progress.current}/{progress.total}) "
-            f"{rekordbox_playlist.full_name()} -> {spotify_name} "
-            f"({len(matched_tracks)}/{total_tracks})"
-        )
+        if had_match_print:
+            # Header was already terminated by the first Matched print; summary on new line
+            click.echo(
+                f"  ({progress.current}/{progress.total}) "
+                f"{rekordbox_playlist.full_name()} -> {spotify_name} "
+                f"({len(matched_tracks)}/{total_tracks})"
+            )
+        else:
+            # All cache hits — overwrite the header in-place with the final count
+            click.echo(
+                f"\r> ({progress.current}/{progress.total}) "
+                f"{rekordbox_playlist.full_name()} -> {spotify_name} "
+                f"({len(matched_tracks)}/{total_tracks})"
+            )
 
     def _find_spotify_matches(
         self,
         rekordbox_tracks: List[Track],
         dry_run: bool = False,
         interactive: bool = False,
-    ) -> List[str]:
+    ) -> tuple[List[str], bool]:
         """
         Find Spotify track IDs for Rekordbox tracks using cached mappings and search.
 
@@ -199,11 +209,14 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             interactive: If True, prompt user for track matches
 
         Returns:
-            List of Spotify track IDs that were found
+            Tuple of (spotify_track_ids, had_match_print) where had_match_print
+            indicates whether any Matched lines were printed (meaning the caller's
+            nl=False header line has already been terminated).
         """
         spotify_track_ids = []
         tracks_to_search = []
         cached_hits = 0
+        had_match_print = False
 
         # First pass: check cache for existing mappings
         for track in rekordbox_tracks:
@@ -239,6 +252,9 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
                     # Normal result (ID or None), cache it and add to results
                     self._cache_track_result(track, spotify_id, interactive, dry_run)
                     if spotify_id:
+                        if not had_match_print:
+                            print()  # terminate the nl=False header line
+                            had_match_print = True
                         print(f"  Matched: {track.original_title} - {track.original_artists}")
                         spotify_track_ids.append(spotify_id)
                     break
@@ -246,7 +262,7 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             # Save all new mappings at once
             self.mapping_cache.save_cache()
 
-        return spotify_track_ids
+        return spotify_track_ids, had_match_print
 
     def _cache_track_result(
         self,
@@ -298,8 +314,8 @@ class PlaylistSyncService:  # pylint: disable=too-few-public-methods
             raise RuntimeError("Spotify client not authenticated")
 
         # Create empty playlist
-        playlist = self.spotify.sp.user_playlist_create(
-            user=self.spotify.user_id, name=name, public=False
+        playlist = self.spotify.sp.current_user_playlist_create(
+            name=name, public=False
         )
 
         playlist_id = playlist["id"]

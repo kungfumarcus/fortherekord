@@ -607,7 +607,7 @@ class SpotifyLibrary:
             raise RuntimeError("Spotify client not authenticated")
 
         # Create empty playlist
-        playlist = self.sp.user_playlist_create(user=self.user_id, name=name, public=False)
+        playlist = self.sp.current_user_playlist_create(name=name, public=False)
 
         playlist_id = str(playlist["id"])
 
