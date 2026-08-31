@@ -26,6 +26,8 @@ The application is built using a modular architecture with clear separation of c
 
 **[MusicLibraryInterface.md](MusicLibraryInterface.md)** - Generic adapter interface for music platform abstraction
 
+**[McpServer.md](McpServer.md)** - MCP server contract over Rekordbox: playlist CRUD, track properties, and read-only history
+
 ### Cross-cutting Concerns
 
 **[common/Testing.md](common/Testing.md)** - Comprehensive testing strategy with unit, integration, and end-to-end tests

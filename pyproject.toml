@@ -32,16 +32,23 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
     "pytest-timeout>=2.0.0",
     "pytest-env>=0.8.0",
     "flake8>=5.0.0",
     "pylint>=2.15.0",
     "mypy>=1.0.0",
     "black>=23.0.0",
+    "mcp>=1.27,<2",
+]
+
+mcp = [
+    "mcp>=1.27,<2",
 ]
 
 [project.scripts]
 fortherekord = "fortherekord.main:cli"
+fortherekord-mcp = "fortherekord_mcp.server:main"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -88,6 +95,7 @@ show_missing = true
 
 [tool.pylint.MASTER]
 ignore = ["_version.py"]
+ignored-modules = ["pyrekordbox", "spotipy", "click", "mcp"]
 
 [tool.pylint.DESIGN]
 max-args = 6

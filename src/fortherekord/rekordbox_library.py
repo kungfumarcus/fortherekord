@@ -4,12 +4,13 @@ Rekordbox library integration.
 Handles loading and processing of Rekordbox database files
 """
 
-import logging
-import io
 from pathlib import Path
-from typing import List, Any
+from typing import List, Any, Optional
 
 from pyrekordbox import Rekordbox6Database
+
+from rekordboxkit.content import artist_name, key_name
+from rekordboxkit.session import RekordboxSession
 
 from .models import Track, Playlist, Collection
 from .music_library import MusicLibrary
@@ -34,34 +35,29 @@ class RekordboxLibrary(MusicLibrary):
             raise ValueError("rekordbox.library_path not configured")
 
         self.db_path = Path(library_path)
-        self._db = None
-        self.is_rekordbox_running = False
+        self._session = RekordboxSession(self.db_path)
+
+    @property
+    def _db(self) -> Optional[Any]:
+        """Database connection used by tests and save_changes."""
+        return self._session._db  # pylint: disable=protected-access
+
+    @_db.setter
+    def _db(self, value: Optional[Any]) -> None:
+        self._session._db = value  # pylint: disable=protected-access
+
+    @property
+    def is_rekordbox_running(self) -> bool:
+        """True when pyrekordbox reported that Rekordbox holds the database lock."""
+        return self._session.is_rekordbox_running
+
+    @is_rekordbox_running.setter
+    def is_rekordbox_running(self, value: bool) -> None:
+        self._session.is_rekordbox_running = value
 
     def _get_database(self) -> Rekordbox6Database:
         """Get database connection, opening if necessary."""
-        if self._db is None:
-            if not self.db_path.exists():
-                raise FileNotFoundError(f"Rekordbox database not found: {self.db_path}")
-
-            # Capture logging output from pyrekordbox to detect if Rekordbox is running
-            log_capture = io.StringIO()
-            handler = logging.StreamHandler(log_capture)
-            logger = logging.getLogger("pyrekordbox")
-            logger.addHandler(handler)
-            logger.setLevel(logging.WARNING)
-
-            try:
-                self._db = Rekordbox6Database(str(self.db_path))
-
-                # Check the log output for the warning message
-                log_output = log_capture.getvalue()
-                self.is_rekordbox_running = "Rekordbox is running" in log_output
-
-            finally:
-                # Clean up the logging handler
-                logger.removeHandler(handler)
-
-        return self._db
+        return self._session.database()
 
     def _create_track_from_content(self, content: Any) -> Track:
         """
@@ -74,7 +70,7 @@ class RekordboxLibrary(MusicLibrary):
             Track object
         """
         current_title = content.Title or ""
-        current_artist = content.Artist.Name if content.Artist else ""
+        current_artist = artist_name(content)
 
         return Track(
             id=str(content.ID),
@@ -82,11 +78,7 @@ class RekordboxLibrary(MusicLibrary):
             artists=current_artist,
             original_title=current_title,  # Set to actual database value
             original_artists=current_artist,  # Set to actual database value
-            key=(
-                content.Key.ScaleName
-                if hasattr(content.Key, "ScaleName") and content.Key
-                else (content.Key if isinstance(content.Key, str) else None)
-            ),
+            key=key_name(content),
         )
 
     def _get_playlist_tracks(
@@ -307,6 +299,6 @@ class RekordboxLibrary(MusicLibrary):
 
         # Normal mode: commit to database only if there are changes
         if modified_count > 0 and self._db:
-            self._db.commit()
+            self._session.commit()
             print("Changes saved to database")
         return modified_count
