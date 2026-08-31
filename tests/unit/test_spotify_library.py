@@ -255,7 +255,7 @@ class TestSpotifyLibrary:
         client, mock_sp = mock_spotify_client
 
         # Mock playlist creation response
-        mock_sp.user_playlist_create.return_value = {"id": "new_playlist_id"}
+        mock_sp.current_user_playlist_create.return_value = {"id": "new_playlist_id"}
 
         # Mock search for tracks with required fields for Levenshtein logic
         mock_sp.search.side_effect = [
@@ -293,8 +293,8 @@ class TestSpotifyLibrary:
         assert playlist_id == "new_playlist_id"
 
         # Verify playlist creation
-        mock_sp.user_playlist_create.assert_called_once_with(
-            user="test_user", name="New Playlist", public=False
+        mock_sp.current_user_playlist_create.assert_called_once_with(
+            name="New Playlist", public=False
         )
 
         # Verify tracks were searched and added

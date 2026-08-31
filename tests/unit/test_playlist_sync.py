@@ -84,7 +84,7 @@ class TestPlaylistSyncService:
             return f"spotify_{title}"
 
         service.spotify.search_track.side_effect = search_side_effect
-        sp_mock.user_playlist_create.return_value = {"id": "new_playlist_id"}
+        sp_mock.current_user_playlist_create.return_value = {"id": "new_playlist_id"}
         # Note: Don't reassign current_user_unfollow_playlist, use the existing sp_mock
 
         # Test dry-run mode first (covers skip messages)
@@ -99,7 +99,7 @@ class TestPlaylistSyncService:
         sp_mock.current_user_unfollow_playlist.assert_called_with("delete_me_id")
 
         # Should not create new playlists since they exist and have matches, or should be skipped
-        sp_mock.user_playlist_create.assert_not_called()
+        sp_mock.current_user_playlist_create.assert_not_called()
 
         # Should update existing playlists
         sp_mock.playlist_add_items.assert_called()
@@ -119,14 +119,14 @@ class TestPlaylistSyncService:
 
         # Mock successful search
         service.spotify.search_track.return_value = "spotify_track_id"
-        sp_mock.user_playlist_create.return_value = {"id": "new_playlist_id"}
+        sp_mock.current_user_playlist_create.return_value = {"id": "new_playlist_id"}
 
         with silence_click_echo():
             service.sync_collection(collection)
 
         # Should create playlist normally (no cleaning needed)
-        sp_mock.user_playlist_create.assert_called_once_with(
-            user="test_user", name="test_deep house", public=False
+        sp_mock.current_user_playlist_create.assert_called_once_with(
+            name="test_deep house", public=False
         )
 
     def test_name_cleaning_functionality(self, mock_rekordbox):
@@ -191,13 +191,13 @@ class TestPlaylistSyncService:
             # Test individual methods in dry-run
             service._create_spotify_playlist("Test Playlist", ["track1"], dry_run=True)
             service._update_spotify_playlist(existing_playlist, ["track1"], dry_run=True)
-            result = service._find_spotify_matches([create_track("track1")], dry_run=True)
+            result, _printed = service._find_spotify_matches([create_track("track1")], dry_run=True)
 
         # Verify search still works but no API calls are made
         assert result == ["spotify_track_id"]
         service.spotify.get_playlists.assert_called()  # Should still check playlists
         # Should not make any modification calls
-        sp_mock.user_playlist_create.assert_not_called()
+        sp_mock.current_user_playlist_create.assert_not_called()
         sp_mock.playlist_add_items.assert_not_called()
         sp_mock.playlist_remove_all_occurrences_of_items.assert_not_called()
 
@@ -268,7 +268,7 @@ class TestPlaylistSyncService:
         service.spotify.search_track.side_effect = search_side_effect
 
         with silence_click_echo():
-            result = service._find_spotify_matches(large_tracks, dry_run=False)
+            result, _printed = service._find_spotify_matches(large_tracks, dry_run=False)
 
         # Should return only matching tracks
         assert len(result) == 2
@@ -295,7 +295,7 @@ class TestPlaylistSyncService:
 
         # Test with detailed error output (not dry-run) for small playlist
         with silence_click_echo():
-            result = service._find_spotify_matches(small_tracks, dry_run=False)
+            result, _printed = service._find_spotify_matches(small_tracks, dry_run=False)
 
         # Should return only the matching track
         assert result == ["spotify_small_song_0"]
@@ -305,7 +305,7 @@ class TestPlaylistSyncService:
         service.spotify.search_track.side_effect = small_search_side_effect
 
         with silence_click_echo():
-            result = service._find_spotify_matches(small_tracks, dry_run=True)
+            result, _printed = service._find_spotify_matches(small_tracks, dry_run=True)
 
         # Should still return only matching tracks
         assert result == ["spotify_small_song_0"]
@@ -322,7 +322,7 @@ class TestPlaylistSyncService:
         service.spotify.search_track.side_effect = ["spotify_id_1", None]
 
         with silence_click_echo():
-            result = service._find_spotify_matches(tracks)
+            result, _printed = service._find_spotify_matches(tracks)
 
         assert result == ["spotify_id_1"]
         assert service.spotify.search_track.call_count == 2
@@ -346,14 +346,14 @@ class TestPlaylistSyncService:
         service, sp_mock = create_service_with_config(mock_rekordbox)
 
         # Test creating new playlist
-        sp_mock.user_playlist_create.return_value = {"id": "new_playlist_id"}
+        sp_mock.current_user_playlist_create.return_value = {"id": "new_playlist_id"}
         track_ids = ["track_1", "track_2", "track_3"]
 
         with silence_click_echo():
             service._create_spotify_playlist("New Playlist", track_ids)
 
-        sp_mock.user_playlist_create.assert_called_once_with(
-            user="test_user", name="New Playlist", public=False
+        sp_mock.current_user_playlist_create.assert_called_once_with(
+            name="New Playlist", public=False
         )
         sp_mock.playlist_add_items.assert_called_once_with("new_playlist_id", track_ids)
 
@@ -386,7 +386,7 @@ class TestPlaylistSyncService:
         with silence_click_echo():
             service.sync_collection(sample_collection)
 
-        sp_mock.user_playlist_create.assert_not_called()  # Should update, not create
+        sp_mock.current_user_playlist_create.assert_not_called()  # Should update, not create
 
     def test_initialization_and_configuration(self, mock_rekordbox):
         """Test service initialization and configuration validation."""
@@ -494,7 +494,7 @@ class TestPlaylistSyncServiceErrorConditions:
         service.spotify.search_track.return_value = None
 
         with silence_click_echo():
-            result = service._find_spotify_matches(tracks, dry_run=True)
+            result, _printed = service._find_spotify_matches(tracks, dry_run=True)
 
         # Should only return track1 (from cache), track3 should be skipped due to cached "not found"
         assert result == ["spotify_track1"]
@@ -583,7 +583,7 @@ def test_interactive_save_command_handling(mock_rekordbox):
     # Ensure the track will be searched (force should_remap to return True)
     service.mapping_cache.should_remap.return_value = True
 
-    result = service._find_spotify_matches([track], dry_run=False, interactive=True)
+    result, _printed = service._find_spotify_matches([track], dry_run=False, interactive=True)
 
     # Should have processed the save command and then returned the track ID
     assert result == ["spotify_id_123"]
@@ -635,7 +635,7 @@ class TestInteractiveMode:
 
         # Mock Spotify responses
         service.spotify.get_playlists.return_value = []
-        sp_mock.user_playlist_create.return_value = {"id": "new_playlist_id"}
+        sp_mock.current_user_playlist_create.return_value = {"id": "new_playlist_id"}
 
         # Mock search to return a result immediately
         service.spotify.search_track.return_value = "spotify_track_id"
@@ -645,4 +645,4 @@ class TestInteractiveMode:
             service.sync_collection(collection, dry_run=False, interactive=True)
 
         # Verify that the sync completed (this covers the interactive display code)
-        sp_mock.user_playlist_create.assert_called_once()
+        sp_mock.current_user_playlist_create.assert_called_once()

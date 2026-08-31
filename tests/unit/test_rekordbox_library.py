@@ -4,7 +4,6 @@ Tests for Rekordbox library integration.
 Tests the RekordboxLibrary class with appropriate mocking of external dependencies.
 """
 
-import subprocess
 from pathlib import Path
 from unittest.mock import Mock, patch
 import pytest
@@ -111,16 +110,6 @@ def create_mock_playlist_content(playlist_id, name, seq=1, parent_id=None):
     return playlist
 
 
-# Helper functions to reduce repetition
-def create_mock_subprocess_success():
-    """Helper function to create a successful subprocess mock."""
-    mock_result = Mock()
-    mock_result.returncode = 0
-    mock_result.stdout = "Key downloaded successfully"
-    mock_result.stderr = ""
-    return mock_result
-
-
 class TestRekordboxLibraryInit:
     """Test RekordboxLibrary initialization."""
 
@@ -150,7 +139,7 @@ class TestRekordboxLibraryInit:
 class TestDatabaseConnection:
     """Test database connection functionality."""
 
-    @patch("fortherekord.rekordbox_library.Rekordbox6Database")
+    @patch("rekordboxkit.session.Rekordbox6Database")
     @patch("pathlib.Path.exists")
     def test_get_database_success(self, mock_exists, mock_db_class):
         """Test successful database connection."""
@@ -161,7 +150,6 @@ class TestDatabaseConnection:
         library = RekordboxLibrary({"rekordbox": {"library_path": "/path/to/database.db"}})
         db = library._get_database()
         assert db == mock_db
-        # Check that the database was called with the correct path (accounting for Path conversion)
         mock_db_class.assert_called_once()
         called_path = mock_db_class.call_args[0][0]
         assert called_path.endswith("database.db")
@@ -173,74 +161,6 @@ class TestDatabaseConnection:
         library = RekordboxLibrary({"rekordbox": {"library_path": "/nonexistent/database.db"}})
 
         with pytest.raises(FileNotFoundError, match="Rekordbox database not found"):
-            library._get_database()
-
-    @patch("fortherekord.rekordbox_library.Rekordbox6Database")
-    @patch("fortherekord.rekordbox_library.subprocess.run")
-    @patch("pathlib.Path.exists")
-    def test_get_database_key_download_success(self, mock_exists, mock_subprocess, mock_db_class):
-        """Test database connection with successful key download."""
-        from pyrekordbox.db6.database import NoCachedKey
-
-        mock_exists.return_value = True
-
-        # First call raises NoCachedKey, second call succeeds
-        mock_db_instance = create_mock_rekordbox_db()
-        mock_db_class.side_effect = [NoCachedKey("No key"), mock_db_instance]
-
-        # Mock successful subprocess
-        mock_subprocess.return_value = create_mock_subprocess_success()
-
-        library = RekordboxLibrary({"rekordbox": {"library_path": "/path/to/database.db"}})
-        db = library._get_database()
-        assert db == mock_db_instance
-
-        # Verify subprocess was called correctly
-        mock_subprocess.assert_called_once()
-        args = mock_subprocess.call_args[0][0]
-        assert "pyrekordbox" in args
-        assert "download-key" in args
-
-    @patch("fortherekord.rekordbox_library.Rekordbox6Database")
-    @patch("fortherekord.rekordbox_library.subprocess.run")
-    @patch("pathlib.Path.exists")
-    def test_get_database_key_download_fails(self, mock_exists, mock_subprocess, mock_db_class):
-        """Test database connection when key download fails."""
-        from pyrekordbox.db6.database import NoCachedKey
-
-        mock_exists.return_value = True
-        mock_db_class.side_effect = NoCachedKey("No key")
-
-        # Mock failed subprocess
-        mock_subprocess.side_effect = subprocess.CalledProcessError(
-            1, "cmd", stderr="Download failed"
-        )
-
-        library = RekordboxLibrary({"rekordbox": {"library_path": "/path/to/database.db"}})
-
-        with pytest.raises(RuntimeError, match="Failed to download database key"):
-            library._get_database()
-
-    @patch("fortherekord.rekordbox_library.Rekordbox6Database")
-    @patch("fortherekord.rekordbox_library.subprocess.run")
-    @patch("pathlib.Path.exists")
-    def test_get_database_key_still_missing_after_download(
-        self, mock_exists, mock_subprocess, mock_db_class
-    ):
-        """Test database connection when key is still missing after download."""
-        from pyrekordbox.db6.database import NoCachedKey
-
-        mock_exists.return_value = True
-
-        # Both calls raise NoCachedKey
-        mock_db_class.side_effect = [NoCachedKey("No key"), NoCachedKey("Still no key")]
-
-        # Mock successful subprocess (but key still not available)
-        mock_subprocess.return_value = create_mock_subprocess_success()
-
-        library = RekordboxLibrary({"rekordbox": {"library_path": "/path/to/database.db"}})
-
-        with pytest.raises(RuntimeError, match="Database key could not be obtained"):
             library._get_database()
 
 

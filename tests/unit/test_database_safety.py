@@ -49,9 +49,26 @@ class TestDatabaseSafetyFirst:
 
             # Verify it succeeded but never called commit (returns 0 for no tracks)
             assert result == 0, "save_changes should return 0 for empty track list"
-            mock_db.commit.assert_not_called(), (
-                "CRITICAL: Database commit was called during test mode!"
-            )
+            mock_db.commit.assert_not_called()
+        finally:
+            cleanup_test_dump_file()
+
+    def test_kit_write_guard_never_commits_in_test_mode(self):
+        """rekordboxkit must not commit while FORTHEREKORD_TEST_MODE is on."""
+        from unittest.mock import Mock
+        from rekordboxkit.session import RekordboxSession
+        from rekordboxkit.repository import RekordboxRepository
+        from .conftest import cleanup_test_dump_file
+
+        mock_db = Mock()
+        mock_db.create_playlist_folder.return_value = Mock(ID=1)
+        session = RekordboxSession(__import__("pathlib").Path("/test/db.edb"))
+        session._db = mock_db  # pylint: disable=protected-access
+        session.is_rekordbox_running = False
+        repo = RekordboxRepository(session)
+        try:
+            repo.create_playlist_folder("safety", confirm=True)
+            mock_db.commit.assert_not_called()
         finally:
             cleanup_test_dump_file()
 
