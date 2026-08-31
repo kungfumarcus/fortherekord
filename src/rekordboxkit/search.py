@@ -2,9 +2,7 @@
 
 # pylint: disable=duplicate-code
 
-import os
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .domain import (
@@ -31,26 +29,30 @@ def matches_criteria(values: Dict[str, Any], criteria: Criteria, path_prefix: bo
 
 def track_values(track: Track) -> Dict[str, Any]:
     """Property map for track search, including filename derived from location."""
-    filename = None
-    if track.location:
-        filename = Path(track.location).name
     return {
         "title": track.title,
         "artist": track.artist,
         "album": track.album,
+        "album_artist": track.album_artist,
+        "original_artist": track.original_artist,
+        "remixer": track.remixer,
+        "composer": track.composer,
         "genre": track.genre,
         "label": track.label,
         "comments": track.comments,
         "key": track.key,
-        "filename": filename,
+        "filename": _path_filename(track.location),
         "tags": track.tags,
         "bpm": track.bpm,
         "rating": track.rating,
         "duration": track.duration,
+        "year": track.year,
         "color": track.color,
         "location": track.location,
         "missing": track.missing,
         "date_added": track.date_added,
+        "date_created": track.date_created,
+        "date_released": track.date_released,
         "bitrate": track.bitrate,
         "file_type": track.file_type,
         "play_count": track.play_count,
@@ -198,12 +200,26 @@ def _number(value: Any) -> Optional[float]:
         return None
 
 
+def _norm_location(value: Any) -> str:
+    text = str(value).replace("\\", "/")
+    while "//" in text:
+        text = text.replace("//", "/")
+    return text.casefold().rstrip("/")
+
+
+def _path_filename(location: Optional[str]) -> Optional[str]:
+    if not location:
+        return None
+    parts = location.replace("\\", "/").rstrip("/").split("/")
+    return parts[-1] if parts and parts[-1] else None
+
+
 def _location_starts_with(location: Any, prefix: Any) -> bool:
     if not location or not prefix:
         return False
-    loc = os.path.normcase(os.path.normpath(str(location)))
-    pre = os.path.normcase(os.path.normpath(str(prefix)))
-    return loc == pre or loc.startswith(pre + os.sep)
+    loc = _norm_location(location)
+    pre = _norm_location(prefix)
+    return loc == pre or loc.startswith(pre + "/")
 
 
 def _in_last(actual: Any, period: Dict[str, Any]) -> bool:

@@ -6,7 +6,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from rekordboxkit.content import artist_name, color_name, key_name, related_name
+from rekordboxkit.content import (
+    artist_name,
+    color_name,
+    key_name,
+    related_name,
+    related_or_attr,
+    release_year,
+)
 from rekordboxkit.criteria import (
     FOLDER_SEARCH_FIELDS,
     criteria_from_dict,
@@ -104,15 +111,18 @@ class TestSession:
         with pytest.raises(FileNotFoundError, match="Rekordbox database not found"):
             session.database()
 
-    @patch("rekordboxkit.session.Rekordbox6Database")
-    @patch("pathlib.Path.exists", return_value=True)
-    def test_detects_running(self, _exists, mock_db_class):
-        """Warning log marks Rekordbox as running."""
-        mock_db_class.side_effect = lambda _path: (
-            __import__("logging").getLogger("pyrekordbox").warning("Rekordbox is running") or Mock()
-        )
+    @patch("rekordboxkit.session.get_rekordbox_pid", return_value=123)
+    def test_detects_running(self, _pid):
+        """A live Rekordbox PID marks the session as running."""
         session = RekordboxSession(Path("master.db"))
-        session.database()
+        assert session.is_rekordbox_running is True
+
+    @patch("rekordboxkit.session.get_rekordbox_pid", return_value=0)
+    def test_detects_closed(self, _pid):
+        """No Rekordbox PID means writes are allowed."""
+        session = RekordboxSession(Path("master.db"))
+        assert session.is_rekordbox_running is False
+        session.is_rekordbox_running = True
         assert session.is_rekordbox_running is True
 
     def test_commit_requires_closed_rekordbox(self):
@@ -136,6 +146,15 @@ class TestSession:
         session.is_rekordbox_running = False
         session.commit()
         session._db.commit.assert_called_once()  # pylint: disable=protected-access
+
+    @patch("rekordboxkit.session.get_rekordbox_pid", return_value=99)
+    def test_commit_rechecks_pid(self, mock_pid):
+        """Commit asks the process list, not a snapshot from open."""
+        session = RekordboxSession(Path("master.db"))
+        session._db = Mock()  # pylint: disable=protected-access
+        with pytest.raises(RekordboxRunningError):
+            session.commit()
+        mock_pid.assert_called()
 
 
 class TestEncodings:
@@ -310,8 +329,29 @@ class TestSearch:
             ],
         )
         assert filter_tracks([track], criteria) == [track]
+        mixed = Criteria(
+            match="all",
+            conditions=[Condition("location", "starts_with", "D:/Aug - 2026")],
+        )
+        assert filter_tracks([track], mixed) == [track]
         other = Track(id="2", title="X", artist="B", location=r"D:\Other\a.wav")
         assert filter_tracks([other], criteria) == []
+        extra = Track(
+            id="3",
+            title="Tune",
+            artist="A",
+            album_artist="AA",
+            original_artist="OA",
+            remixer="RX",
+            composer="CO",
+            year=2024,
+            date_created="2026-07-01",
+            date_released="2024-01-15",
+        )
+        by_year = Criteria(match="all", conditions=[Condition("year", "is", 2024)])
+        assert filter_tracks([extra], by_year) == [extra]
+        by_album_artist = Criteria(match="all", conditions=[Condition("album_artist", "is", "AA")])
+        assert filter_tracks([extra], by_album_artist) == [extra]
 
     def test_any_match_between_and_playlist_track(self):
         """any match, numeric between, and playlist membership."""
@@ -488,3 +528,16 @@ class TestContentHelpers:
         colorless = Mock()
         colorless.Color = Mock(spec=[])
         assert color_name(colorless) is None
+        named = Mock()
+        named.AlbumArtist = Mock(Name="AA")
+        named.AlbumArtistName = None
+        named.ReleaseYear = 2024
+        assert related_or_attr(named, "AlbumArtist", "AlbumArtistName") == "AA"
+        named.AlbumArtist = None
+        named.AlbumArtistName = "FromCol"
+        assert related_or_attr(named, "AlbumArtist", "AlbumArtistName") == "FromCol"
+        assert release_year(named) == 2024
+        named.ReleaseYear = 0
+        assert release_year(named) is None
+        named.ReleaseYear = "x"
+        assert release_year(named) is None

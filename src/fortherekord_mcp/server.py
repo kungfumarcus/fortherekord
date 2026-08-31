@@ -20,8 +20,11 @@ from rekordboxkit.serialize import (
     folder_dict,
     history_folder_dict,
     history_session_dict,
+    history_session_summary,
     playlist_dict,
+    playlist_summary,
     smart_playlist_dict,
+    smart_playlist_summary,
     track_dict,
     track_summary,
     tree_list,
@@ -135,7 +138,7 @@ def search_playlists(match: str, conditions: List[Dict[str, Any]]) -> Any:
     """Search curated playlists by id, name, path, folder, position, or contained track."""
     try:
         playlists = get_repository().search_playlists(_criteria(match, conditions))
-        return [playlist_dict(playlist) for playlist in playlists]
+        return [playlist_summary(playlist) for playlist in playlists]
     except RekordboxKitError as exc:
         return _error(exc)
 
@@ -145,7 +148,7 @@ def search_smart_playlists(match: str, conditions: List[Dict[str, Any]]) -> Any:
     """Search smart playlists by id, name, path, folder, or position."""
     try:
         playlists = get_repository().search_smart_playlists(_criteria(match, conditions))
-        return [smart_playlist_dict(playlist) for playlist in playlists]
+        return [smart_playlist_summary(playlist) for playlist in playlists]
     except RekordboxKitError as exc:
         return _error(exc)
 
@@ -192,7 +195,7 @@ def search_history_sessions(match: str, conditions: List[Dict[str, Any]]) -> Any
     """Search history sessions by id, name, path, folder, position, date, or contained track."""
     try:
         sessions = get_repository().search_history_sessions(_criteria(match, conditions))
-        return [history_session_dict(session) for session in sessions]
+        return [history_session_summary(session) for session in sessions]
     except RekordboxKitError as exc:
         return _error(exc)
 

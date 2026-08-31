@@ -51,6 +51,13 @@ def track_dict(track: Track) -> Dict[str, Any]:
         "bitrate": track.bitrate,
         "file_type": track.file_type,
         "play_count": track.play_count,
+        "album_artist": track.album_artist,
+        "original_artist": track.original_artist,
+        "remixer": track.remixer,
+        "composer": track.composer,
+        "year": track.year,
+        "date_created": track.date_created,
+        "date_released": track.date_released,
     }
 
 
@@ -76,8 +83,8 @@ def history_folder_dict(folder: HistoryFolder) -> Dict[str, Any]:
     }
 
 
-def history_session_dict(session: HistorySession) -> Dict[str, Any]:
-    """HistorySession payload with ordered track summaries."""
+def history_session_summary(session: HistorySession) -> Dict[str, Any]:
+    """HistorySession search payload without tracks."""
     return {
         "id": session.id,
         "name": session.name,
@@ -85,19 +92,42 @@ def history_session_dict(session: HistorySession) -> Dict[str, Any]:
         "position": session.position,
         "path": session.path,
         "date": session.date,
-        "tracks": [track_summary(track) for track in session.tracks],
     }
 
 
-def playlist_dict(playlist: Playlist) -> Dict[str, Any]:
-    """Playlist payload with track summaries."""
+def history_session_dict(session: HistorySession) -> Dict[str, Any]:
+    """HistorySession payload with ordered track summaries."""
+    payload = history_session_summary(session)
+    payload["tracks"] = [track_summary(track) for track in session.tracks]
+    return payload
+
+
+def playlist_summary(playlist: Playlist) -> Dict[str, Any]:
+    """Playlist search payload without tracks."""
     return {
         "id": playlist.id,
         "name": playlist.name,
         "folder_id": playlist.folder_id,
         "position": playlist.position,
         "path": playlist.path,
-        "tracks": [track_summary(track) for track in playlist.tracks],
+    }
+
+
+def playlist_dict(playlist: Playlist) -> Dict[str, Any]:
+    """Playlist payload with track summaries."""
+    payload = playlist_summary(playlist)
+    payload["tracks"] = [track_summary(track) for track in playlist.tracks]
+    return payload
+
+
+def smart_playlist_summary(playlist: SmartPlaylist) -> Dict[str, Any]:
+    """SmartPlaylist search payload without tracks or criteria body."""
+    return {
+        "id": playlist.id,
+        "name": playlist.name,
+        "folder_id": playlist.folder_id,
+        "position": playlist.position,
+        "path": playlist.path,
     }
 
 
@@ -106,15 +136,10 @@ def smart_playlist_dict(playlist: SmartPlaylist) -> Dict[str, Any]:
     criteria = None
     if playlist.criteria is not None:
         criteria = criteria_to_dict(playlist.criteria)
-    return {
-        "id": playlist.id,
-        "name": playlist.name,
-        "folder_id": playlist.folder_id,
-        "position": playlist.position,
-        "path": playlist.path,
-        "tracks": [track_summary(track) for track in playlist.tracks],
-        "criteria": criteria,
-    }
+    payload = smart_playlist_summary(playlist)
+    payload["tracks"] = [track_summary(track) for track in playlist.tracks]
+    payload["criteria"] = criteria
+    return payload
 
 
 def tree_dict(node: TreeNode) -> Dict[str, Any]:

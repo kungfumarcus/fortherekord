@@ -64,6 +64,7 @@ class TestDatabaseSafetyFirst:
         mock_db.create_playlist_folder.return_value = Mock(ID=1)
         session = RekordboxSession(__import__("pathlib").Path("/test/db.edb"))
         session._db = mock_db  # pylint: disable=protected-access
+        session.is_rekordbox_running = False
         repo = RekordboxRepository(session)
         try:
             repo.create_playlist_folder("safety", confirm=True)

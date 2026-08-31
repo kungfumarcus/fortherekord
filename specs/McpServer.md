@@ -175,6 +175,10 @@ id            string
 title         string
 artist        string
 album         string | null
+album_artist  string | null
+original_artist string | null
+remixer       string | null
+composer      string | null
 genre         string | null
 label         string | null
 comments      string | null
@@ -184,11 +188,14 @@ tags          string[]
 
 key           string | null           # e.g. "8A", "Am"
 bpm           number | null           # 128.0
+year          int | null
 
 duration      Duration                # playback length
 location      FileLocation | null     # where the audio file is
 missing       bool                    # file not at location
 date_added    Date | null
+date_created  Date | null
+date_released Date | null
 bitrate       int | null              # kbps from Rekordbox analysis (e.g. 320)
 file_type     string | null           # mp3, wav, flac, aiff, m4a
 play_count    int | null              # Rekordbox DJPlayCount
@@ -212,7 +219,14 @@ play_count    int | null              # Rekordbox DJPlayCount
 | `duration` | no | From the file |
 | `location` | no | Change via a relocate command, not a property patch |
 | `missing` | no | Observed from disk |
+| `album_artist` | no | Related `AlbumArtist` |
+| `original_artist` | no | Related `OrgArtist` |
+| `remixer` | no | Related `Remixer` |
+| `composer` | no | Related `Composer` |
+| `year` | no | Rekordbox `ReleaseYear` |
 | `date_added` | no | Library history |
+| `date_created` | no | Rekordbox `DateCreated` |
+| `date_released` | no | Rekordbox `ReleaseDate` |
 | `bitrate` | no | Rekordbox `BitRate` column, as kbps |
 | `file_type` | no | From Rekordbox `FileType` |
 | `play_count` | no | Rekordbox `DJPlayCount` |

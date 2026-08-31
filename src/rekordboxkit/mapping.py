@@ -2,7 +2,14 @@
 
 from typing import Any, Callable, Dict, List, Optional
 
-from .content import artist_name, color_name, key_name, related_name
+from .content import (
+    artist_name,
+    color_name,
+    key_name,
+    related_name,
+    related_or_attr,
+    release_year,
+)
 from .encodings import (
     decode_bitrate,
     decode_bpm,
@@ -79,16 +86,19 @@ def tag_names_of(content: Any) -> List[str]:
     return result
 
 
-def map_track(content: Any, path_exists: Callable[[str], bool]) -> Track:
-    """Build a domain Track from DjmdContent."""
+def map_track(content: Any, path_exists: Optional[Callable[[str], bool]] = None) -> Track:
+    """Build a domain Track from DjmdContent.
+
+    path_exists is omitted for search so the collection is not stat'd.
+    """
     folder_path = getattr(content, "FolderPath", None)
     file_name = getattr(content, "FileNameL", None)
     location = resolve_location(
         str(folder_path) if folder_path else None,
         str(file_name) if file_name else None,
     )
-    missing = True
-    if location:
+    missing = False
+    if location and path_exists is not None:
         missing = not path_exists(location)
     date_added = date_str(getattr(content, "StockDate", None)) or date_str(
         getattr(content, "DateCreated", None)
@@ -115,6 +125,13 @@ def map_track(content: Any, path_exists: Callable[[str], bool]) -> Track:
         bitrate=decode_bitrate(getattr(content, "BitRate", None)),
         file_type=decode_file_type(getattr(content, "FileType", None)),
         play_count=decode_play_count(getattr(content, "DJPlayCount", None)),
+        album_artist=related_or_attr(content, "AlbumArtist", "AlbumArtistName"),
+        original_artist=related_or_attr(content, "OrgArtist", "OrgArtistName"),
+        remixer=related_or_attr(content, "Remixer", "RemixerName"),
+        composer=related_or_attr(content, "Composer", "ComposerName"),
+        year=release_year(content),
+        date_created=date_str(getattr(content, "DateCreated", None)),
+        date_released=date_str(getattr(content, "ReleaseDate", None)),
     )
 
 

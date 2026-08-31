@@ -18,6 +18,7 @@ from .criteria import (
     TRACK_SEARCH_FIELDS,
     Criteria,
     validate_criteria,
+    validate_smart_playlist_criteria,
 )
 from .domain import (
     HistoryFolder,
@@ -185,10 +186,7 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
     def search_tracks(self, criteria: Criteria) -> List[Track]:
         """Search collection tracks by criteria."""
         validate_criteria(criteria, TRACK_SEARCH_FIELDS)
-        tracks = [
-            map_track(content, self._path_exists)
-            for content in _rows(self._session.database().get_content())
-        ]
+        tracks = [map_track(content) for content in _rows(self._session.database().get_content())]
         return filter_tracks(tracks, criteria)
 
     def search_playlist_folders(self, criteria: Criteria) -> List[PlaylistFolder]:
@@ -202,11 +200,12 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
         """Search curated playlists by their properties."""
         validate_criteria(criteria, PLAYLIST_SEARCH_FIELDS)
         by_id, rows = self._playlist_index()
+        need_tracks = _needs_membership(criteria)
         playlists = []
         for row in rows:
             if entity_kind(row.Attribute) != "playlist":
                 continue
-            tracks = self._tracks_for(row)
+            tracks = self._membership_tracks(row) if need_tracks else []
             playlists.append(map_playlist(row, by_id, tracks))
         return filter_playlists(playlists, criteria)
 
@@ -218,7 +217,7 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
         for row in rows:
             if entity_kind(row.Attribute) != "smart_playlist":
                 continue
-            playlists.append(map_smart_playlist(row, by_id, [], self._criteria_for(row)))
+            playlists.append(map_smart_playlist(row, by_id, [], None))
         return filter_smart_playlists(playlists, criteria)
 
     def search_history_folders(self, criteria: Criteria) -> List[HistoryFolder]:
@@ -236,11 +235,12 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
         """Search history sessions by name, path, folder, date, or contained track."""
         validate_criteria(criteria, HISTORY_SESSION_SEARCH_FIELDS)
         by_id, rows = self._history_index()
+        need_tracks = _needs_membership(criteria)
         sessions = []
         for row in rows:
             if history_kind(row.Attribute) != "history_session":
                 continue
-            tracks = self._history_tracks_for(row)
+            tracks = self._history_membership_tracks(row) if need_tracks else []
             sessions.append(map_history_session(row, by_id, tracks))
         return filter_history_sessions(sessions, criteria)
 
@@ -276,7 +276,8 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
         confirm: bool = False,
     ) -> MutationResult:
         """Rename, move, or reorder a folder."""
-        row, _by_id = self._require_row(folder_id, "folder")
+        row, by_id = self._require_row(folder_id, "folder")
+        self._validate_playlist_patch(row, patch, by_id)
         diff = self._playlist_patch_diff("folder", row, patch)
         if not confirm:
             return MutationResult(applied=False, diff=diff)
@@ -288,10 +289,16 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
     ) -> MutationResult:
         """Delete a folder. Fails if it has children unless recursive."""
         row, by_id = self._require_row(folder_id, "folder")
-        child_ids = [str(item.ID) for item in by_id.values() if parent_id_of(item) == folder_id]
+        child_ids = self._descendant_ids(folder_id, by_id)
         if child_ids and not recursive:
             raise FolderNotEmptyError("folder is not empty")
-        diff = {"action": "delete", "entity": "folder", "id": folder_id, "recursive": recursive}
+        diff = {
+            "action": "delete",
+            "entity": "folder",
+            "id": folder_id,
+            "recursive": recursive,
+            "children": child_ids,
+        }
         if not confirm:
             return MutationResult(applied=False, diff=diff)
         self._ensure_writable()
@@ -347,7 +354,8 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
         self, playlist_id: str, patch: Dict[str, Any], confirm: bool = False
     ) -> MutationResult:
         """Rename, move, reorder, or replace membership."""
-        row, _by_id = self._require_row(playlist_id, "playlist")
+        row, by_id = self._require_row(playlist_id, "playlist")
+        self._validate_playlist_patch(row, patch, by_id)
         diff = self._playlist_patch_diff("playlist", row, patch)
         if "tracks" in patch:
             diff["tracks"] = patch["tracks"]
@@ -378,7 +386,7 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
         confirm: bool = False,
     ) -> MutationResult:
         """Create a smart playlist from criteria."""
-        smart = criteria_to_smartlist(criteria, "0", self._tag_id_for_name, self._color_id_for_name)
+        validate_smart_playlist_criteria(criteria)
         diff = {
             "action": "create",
             "entity": "smart_playlist",
@@ -390,6 +398,7 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
         if not confirm:
             return MutationResult(applied=False, diff=diff)
         self._ensure_writable()
+        smart = criteria_to_smartlist(criteria, "0", self._tag_id_for_name, self._color_id_for_name)
         row = self._session.database().create_smart_playlist(
             name, smart, parent=_as_id(folder_id) if folder_id else None, seq=position
         )
@@ -403,7 +412,8 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
         """Rename, move, reorder, or replace criteria. Cannot edit result tracks."""
         if "tracks" in patch:
             raise ValidationError("smart playlist tracks are derived from criteria")
-        row, _by_id = self._require_row(playlist_id, "smart_playlist")
+        row, by_id = self._require_row(playlist_id, "smart_playlist")
+        self._validate_playlist_patch(row, patch, by_id)
         diff = self._playlist_patch_diff("smart_playlist", row, patch)
         if "criteria" in patch:
             diff["criteria"] = patch["criteria"]
@@ -569,12 +579,58 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
         new_parent = patch.get("parent_id", patch.get("folder_id", _SENTINEL))
         new_seq = patch.get("position", _SENTINEL)
         if new_parent is not _SENTINEL or new_seq is not _SENTINEL:
-            parent = (
-                None if new_parent is _SENTINEL else (_as_id(new_parent) if new_parent else None)
-            )
+            parent = None if new_parent is _SENTINEL else _move_parent(new_parent)
             seq = None if new_seq is _SENTINEL else new_seq
             db.move_playlist(row, parent=parent, seq=seq)
         self._session.commit()
+
+    def _validate_playlist_patch(
+        self, row: Any, patch: Dict[str, Any], by_id: Dict[str, Any]
+    ) -> None:
+        new_parent = patch.get("parent_id", patch.get("folder_id", _SENTINEL))
+        if new_parent is _SENTINEL or _is_root_parent(new_parent):
+            return
+        parent_id = str(new_parent)
+        if parent_id == str(row.ID):
+            raise ValidationError("cannot move an item into itself")
+        parent_row = by_id.get(parent_id)
+        if parent_row is None:
+            raise EntityNotFoundError(f"folder not found: {parent_id}")
+        if entity_kind(parent_row.Attribute) != "folder":
+            raise ValidationError("parent must be a folder")
+        if entity_kind(row.Attribute) == "folder" and _is_under(parent_id, str(row.ID), by_id):
+            raise ValidationError("cannot move a folder into its descendant")
+
+    def _descendant_ids(self, folder_id: str, by_id: Dict[str, Any]) -> List[str]:
+        ids: List[str] = []
+        for item in by_id.values():
+            if parent_id_of(item) == folder_id:
+                child_id = str(item.ID)
+                ids.append(child_id)
+                ids.extend(self._descendant_ids(child_id, by_id))
+        return ids
+
+    def _membership_tracks(self, row: Any) -> List[Track]:
+        if row.Attribute == ATTR_FOLDER:
+            return []
+        db = self._session.database()
+        try:
+            contents = db.get_playlist_contents(row).all()
+        except AttributeError as exc:
+            if "month" in str(exc).lower():
+                return []
+            raise
+        return [Track(id=str(content.ID), title="", artist="") for content in contents]
+
+    def _history_membership_tracks(self, row: Any) -> List[Track]:
+        songs = _rows(self._session.database().get_history_songs(HistoryID=row.ID))
+        tracks = []
+        for song in songs:
+            content_id = getattr(song, "ContentID", None)
+            if content_id in (None, ""):
+                continue
+            tracks.append(Track(id=str(content_id), title="", artist=""))
+        return tracks
 
     def _replace_membership(self, row: Any, track_ids: List[str]) -> None:
         db = self._session.database()
@@ -621,9 +677,6 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
         db = self._session.database()
         if not name:
             content.Artist = None
-            return
-        if content.Artist:
-            content.Artist.Name = name
             return
         content.Artist = self._get_or_create_named(db.get_artist, db.add_artist, name)
 
@@ -683,3 +736,33 @@ class RekordboxRepository:  # pylint: disable=too-many-public-methods
 
 
 _SENTINEL = object()
+_ROOT_PARENT = "root"
+
+
+def _needs_membership(criteria: Criteria) -> bool:
+    return any(condition.field == "track" for condition in criteria.conditions)
+
+
+def _is_root_parent(value: Any) -> bool:
+    return value in (None, "", "0", "root")
+
+
+def _move_parent(value: Any) -> Any:
+    """pyrekordbox: parent=None keeps the current parent; 'root' is the tree root."""
+    if _is_root_parent(value):
+        return _ROOT_PARENT
+    return _as_id(value)
+
+
+def _is_under(node_id: str, ancestor_id: str, by_id: Dict[str, Any]) -> bool:
+    seen = set()
+    current: Optional[str] = node_id
+    while current and current not in seen:
+        if current == ancestor_id:
+            return True
+        seen.add(current)
+        row = by_id.get(current)
+        if row is None:
+            return False
+        current = parent_id_of(row)
+    return False

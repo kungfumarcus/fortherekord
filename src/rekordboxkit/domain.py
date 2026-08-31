@@ -52,6 +52,13 @@ class Track:  # pylint: disable=too-many-instance-attributes
     bitrate: Optional[int] = None
     file_type: Optional[str] = None
     play_count: Optional[int] = None
+    album_artist: Optional[str] = None
+    original_artist: Optional[str] = None
+    remixer: Optional[str] = None
+    composer: Optional[str] = None
+    year: Optional[int] = None
+    date_created: Optional[str] = None
+    date_released: Optional[str] = None
 
 
 @dataclass

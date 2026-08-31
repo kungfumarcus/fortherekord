@@ -70,6 +70,16 @@ def _content(identifier="1", title="Tune", artist="A", folder=r"D:\Aug - 2026\a.
     content.FileNameL = "a.wav"
     content.StockDate = "2026-08-01"
     content.DateCreated = None
+    content.ReleaseDate = None
+    content.ReleaseYear = None
+    content.AlbumArtist = None
+    content.AlbumArtistName = None
+    content.OrgArtist = None
+    content.OrgArtistName = None
+    content.Remixer = None
+    content.RemixerName = None
+    content.Composer = None
+    content.ComposerName = None
     content.ColorID = 1
     content.FileType = 11
     content.BitRate = 320
@@ -96,6 +106,23 @@ class TestMappingAndSerialize:
         assert track.play_count == 12
         assert track.missing is False
         assert track.tags == ["dark"]
+        extra = _content()
+        extra.AlbumArtist = Mock(Name="AA")
+        extra.OrgArtistName = "OA"
+        extra.Remixer = Mock(Name="RX")
+        extra.ComposerName = "CO"
+        extra.ReleaseYear = 2024
+        extra.DateCreated = "2026-07-01"
+        extra.ReleaseDate = "2024-01-15"
+        mapped = map_track(extra, lambda _path: True)
+        assert mapped.album_artist == "AA"
+        assert mapped.original_artist == "OA"
+        assert mapped.remixer == "RX"
+        assert mapped.composer == "CO"
+        assert mapped.year == 2024
+        assert mapped.date_created == "2026-07-01"
+        assert mapped.date_released == "2024-01-15"
+        assert track_dict(mapped)["year"] == 2024
         assert track_summary(track)["location"].endswith("a.wav")
         assert track_dict(track)["genre"] == "DnB"
         assert track_dict(track)["play_count"] == 12
@@ -363,6 +390,25 @@ class TestRepositoryWrite:
         repo = _repo(db)
         with pytest.raises(FolderNotEmptyError):
             repo.delete_playlist_folder("1", recursive=False, confirm=True)
+        preview = repo.delete_playlist_folder("1", recursive=True, confirm=False)
+        assert preview.diff["children"] == ["2"]
+
+    def test_reject_folder_cycle_and_missing_parent(self):
+        """Cannot move a folder into itself or a descendant."""
+        parent = _row(1, "bush", 1)
+        child = _row(2, "nights", 1, parent_id=1)
+        playlist = _row(3, "crate", 0, parent_id=1)
+        db = Mock()
+        db.get_playlist.return_value = [parent, child, playlist]
+        repo = _repo(db)
+        with pytest.raises(ValidationError, match="itself"):
+            repo.update_playlist_folder("1", {"parent_id": "1"}, confirm=False)
+        with pytest.raises(ValidationError, match="descendant"):
+            repo.update_playlist_folder("1", {"parent_id": "2"}, confirm=True)
+        with pytest.raises(EntityNotFoundError, match="folder not found"):
+            repo.update_playlist("3", {"folder_id": "99"}, confirm=False)
+        with pytest.raises(ValidationError, match="parent must be a folder"):
+            repo.update_playlist_folder("1", {"parent_id": "3"}, confirm=False)
 
     def test_update_track_gates_bpm(self):
         """Unconfirmed encodings cannot be written."""
@@ -501,6 +547,7 @@ class TestRepositoryWrite:
         repo.update_playlist(
             "2", {"name": "darker", "tracks": ["1"], "folder_id": None, "position": 4}, confirm=True
         )
+        assert db.move_playlist.call_args.kwargs["parent"] == "root"
         db.remove_from_playlist.assert_called()
         preview_pl = repo.delete_playlist("2", confirm=False)
         assert preview_pl.applied is False
@@ -573,9 +620,13 @@ class TestRepositoryWrite:
             )
         assert result.applied is True
         assert content.Title == "N"
-        content.Artist = Mock(Name="A")
+        old_artist = Mock(Name="A")
+        renamed = Mock(Name="Renamed")
+        content.Artist = old_artist
+        db.get_artist.return_value = renamed
         repo.update_track("1", {"artist": "Renamed"}, confirm=True)
-        assert content.Artist.Name == "Renamed"
+        assert content.Artist is renamed
+        assert old_artist.Name == "A"
         repo.update_track(
             "1", {"artist": "", "album": "", "color": None, "rating": None}, confirm=True
         )
